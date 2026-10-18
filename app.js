@@ -46,6 +46,7 @@ function show(view){
 }
 async function goShelf(){
   if(DOC){ST.pos=scrollY;await saveState(true);}
+  resetFind();
   DOC=null;ST=null;HL=[];show('shelf');ls.set('last',null);renderShelf();window.scrollTo(0,0);
   if(location.hash) history.replaceState(null,'',location.pathname+location.search);
 }
@@ -273,6 +274,7 @@ async function openBook(id){
   $('#busy').classList.remove('hidden');
   const d=await DB.get('doc:'+id);
   if(!d){$('#busy').classList.add('hidden');toast("Couldn't find that text");return;}
+  resetFind(id);
   DOC=d;ST=(await DB.get('state:'+id))||{hl:[],pos:0,maxP:0,done:[]};ST.done=ST.done||[];HL=ST.hl||[];ST.opened=Date.now();
   show('reader');buildReader();$('#busy').classList.add('hidden');
   ls.set('last',id);
@@ -670,6 +672,74 @@ $('#expDl').onclick=()=>{
 };
 $('#expShelf').onclick=()=>openExport('shelf');
 $('#expBook').onclick=()=>openExport('book');
+
+/* ================= search in book ================= */
+// Find on Page for the reader: a home-screen web app on iPhone has no Safari "Find on Page".
+let FIND={book:null,q:'',hits:[],idx:null,t:0}; // hits: [{pid,s,e}] as offsets into each block's text
+const FOLD=new Map();
+// Lower case, no accents, đ→d, straight quotes, plain spaces. a[k]..z[k] is the original span of folded char k.
+function fold(s){
+  let t='',i=0;const a=[],z=[];
+  for(const ch of s){
+    let f=FOLD.get(ch);if(f===undefined){f=ch.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/\s/g,' ');FOLD.set(ch,f);}
+    if(!f&&z.length) z[z.length-1]=i+ch.length; // a dropped combining mark belongs to the letter before it
+    for(let k=0;k<f.length;k++){a.push(i);z.push(i+ch.length);}
+    t+=f;i+=ch.length;
+  }
+  return {t,a,z};
+}
+const findIdx=()=>Object.keys(order).sort((x,y)=>order[x]-order[y]).map(pid=>Object.assign({pid},fold(blockIndex[pid].text||'')));
+const findSec=pid=>{const i=secOf[pid];return i===-1?'<small>Notes</small>':DOC.sections.length>1&&DOC.sections[i]?`<small>${esc(`${i+1}. ${DOC.sections[i].title}`)}</small>`:'';};
+function snippet(h){
+  const t=blockIndex[h.pid].text,L=t.length;let a=Math.max(0,h.s-40),b=Math.min(L,h.e+40);
+  if(a>0){const sp=t.indexOf(' ',a);if(sp>-1&&sp<h.s)a=sp+1;}
+  if(b<L){const sp=t.lastIndexOf(' ',b);if(sp>h.e)b=sp;}
+  return (a>0?'…':'')+esc(t.slice(a,h.s))+'<b>'+esc(t.slice(h.s,h.e))+'</b>'+esc(t.slice(h.e,b))+(b<L?'…':'');
+}
+function runFind(){
+  clearTimeout(FIND.t);const q=$('#findQ').value.trim().replace(/\s+/g,' ');if(q===FIND.q) return;
+  FIND.q=q;FIND.hits=[];clearFindMark();const f=fold(q).t;let more=false;
+  if(DOC&&q.length>=2&&f){
+    FIND.idx=FIND.idx||findIdx();
+    for(const x of FIND.idx){
+      for(let k=x.t.indexOf(f);k>-1&&!more;k=x.t.indexOf(f,k+f.length)){if(FIND.hits.length===200) more=true; else FIND.hits.push({pid:x.pid,s:x.a[k],e:x.z[k+f.length-1]});}
+      if(more) break;
+    }
+  }
+  const n=FIND.hits.length;
+  $('#findSub').textContent=q.length<2?'':!n?'No matches':more?'200+ matches':n===1?'1 match':`${n} matches`;
+  $('#findList').innerHTML=FIND.hits.map((h,i)=>`<button class="fhit" data-i="${i}">${findSec(h.pid)}<span>${snippet(h)}</span></button>`).join('');
+  $('#findList').scrollTop=0;
+}
+// text offset → DOM point, skipping footnote markers (the reverse of pointOffset)
+function textPoint(el,off,end){
+  const w=document.createTreeWalker(el,NodeFilter.SHOW_ELEMENT|NodeFilter.SHOW_TEXT,{acceptNode:n=>n.nodeType===3?NodeFilter.FILTER_ACCEPT:n.classList.contains('fn')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_SKIP});
+  let n,last=null;while((n=w.nextNode())){if(off<n.length||(end&&off===n.length)) return [n,off];off-=n.length;last=n;}
+  return last?[last,last.length]:[el,0];
+}
+const clearFindMark=()=>{if(window.CSS&&CSS.highlights) CSS.highlights.delete('find');document.querySelectorAll('#col .found').forEach(x=>x.classList.remove('found'));};
+function openHit(i){
+  const h=FIND.hits[i];if(!h) return;
+  $('#findQ').blur();closeDrawers();
+  const el=[...document.querySelectorAll(`#col .hp[data-pid="${h.pid}"]`)].find(x=>!x.closest('.fn-card'));if(!el) return;
+  const r=document.createRange();r.setStart(...textPoint(el,h.s));r.setEnd(...textPoint(el,h.e,true));
+  const box=r.getBoundingClientRect();if(box.height) scrollBy(0,box.top+box.height/2-innerHeight/2); else el.scrollIntoView({block:'center'});
+  if(window.Highlight&&window.CSS&&CSS.highlights) CSS.highlights.set('find',new Highlight(r));
+  else{clearFindMark();void el.offsetWidth;el.classList.add('found');}
+}
+// keeps the query and results while the same book stays open
+function resetFind(id){
+  if(id&&id===FIND.book) return;
+  clearTimeout(FIND.t);clearFindMark();FIND={book:id||null,q:'',hits:[],idx:null,t:0};
+  $('#findQ').value='';$('#findSub').textContent='';$('#findList').innerHTML='';
+}
+$('#bFind').onclick=()=>{openDrawer('#find');$('#findQ').focus({preventScroll:true});};
+$('#findQ').oninput=()=>{clearTimeout(FIND.t);FIND.t=setTimeout(runFind,200);};
+$('#findQ').addEventListener('keydown',e=>{
+  if(e.key==='Escape') e.preventDefault(); // keep the query; the document handler closes the drawer
+  if(e.key==='Enter'&&!e.isComposing){e.preventDefault();runFind();openHit(0);}
+});
+$('#findList').onclick=e=>{const b=e.target.closest('[data-i]');if(b) openHit(+b.dataset.i);};
 
 /* ================= link import ================= */
 // The Worker (worker/worker.js) fetches the page; Readability extracts the article here.

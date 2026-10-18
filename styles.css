@@ -304,6 +304,24 @@ body.focus .fn-card .hp{opacity:1}
 #toast{position:fixed;z-index:140;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);transform:translate(-50%,20px);background:var(--ink);color:var(--sheet);font:650 .95rem var(--display);padding:.7rem 1.2rem;border-radius:999px;opacity:0;pointer-events:none;transition:all .25s}
 #toast.on{opacity:1;transform:translate(-50%,0)}
 
+/* ================= SEARCH IN BOOK ================= */
+:root{--find:#7C4DDB;--findT:rgba(124,77,219,.2)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--find:#C3A6FF;--findT:rgba(195,166,255,.24)}}
+:root[data-theme="dark"]{--find:#C3A6FF;--findT:rgba(195,166,255,.24)}
+#find{right:0;border-left:1px solid var(--rule);transform:translateX(102%)}
+#findQ{flex:1;min-width:0}
+.fhit{display:block;width:100%;border:0;background:transparent;text-align:left;padding:.6rem .7rem;border-radius:12px;line-height:1.45;color:var(--ink)}
+.fhit+.fhit{margin-top:.15rem}
+.fhit:hover{background:var(--paper)}
+.fhit small{display:block;font:600 .75rem var(--display);color:var(--muted);margin-bottom:.2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fhit b{font-weight:650;background:var(--findT);border-radius:3px;padding:0 .08em}
+/* the opened match: a violet unlike the four highlight colours, in each theme */
+::highlight(find){background-color:#7C4DDB;color:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) ::highlight(find){background-color:#C3A6FF;color:#0F1E2A}}
+:root[data-theme="dark"] ::highlight(find){background-color:#C3A6FF;color:#0F1E2A}
+.hp.found{animation:found 1.8s ease;border-radius:6px}
+@keyframes found{0%,45%{background:var(--findT)}}
+
 /* ================= SIGN IN, SETTINGS, LINK IMPORT ================= */
 #signin{min-height:100vh;display:grid;place-items:center;padding:calc(env(safe-area-inset-top,0px) + 1.5rem) 1rem calc(env(safe-area-inset-bottom,0px) + 2rem)}
 .si{width:min(460px,100%);text-align:center;background:var(--sheet);border:1.5px solid var(--rule);border-radius:28px;padding:2rem clamp(1.2rem,4vw,2rem)}

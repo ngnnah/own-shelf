@@ -59,6 +59,7 @@
     <button class="home" id="bHome" title="Back to your shelf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="M16.5 5.2l3.6-1 3.4 15.4-3.6 1z"/></svg>Shelf</button>
     <button class="bar-title" id="barTitle" title="Edit details"></button>
     <button class="ib" id="bToc" title="Contents"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor"/></svg><span class="lbl">Contents</span></button>
+    <button class="ib" id="bFind" title="Search this text"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span class="lbl">Search</span></button>
     <button class="ib" id="bFocus" aria-pressed="false" title="Focus mode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/></svg><span class="lbl">Focus</span></button>
     <button class="ib" id="bSize" title="Text size"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19l5-14 5 14M6 14h6M15 19l3-8 3 8M16 16.5h4"/></svg><span class="lbl">Size</span></button>
     <button class="ib" id="bTheme" title="Light or dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 13A9 9 0 1111 3a7 7 0 0010 10z"/></svg><span class="lbl">Theme</span></button>
@@ -95,6 +96,11 @@
       <button class="ib" id="clearAll" style="color:var(--buoy)">Clear all</button></div>
     <div class="row" style="gap:.6rem"><button class="btn sea" id="copyAll" style="flex:1;justify-content:center">Copy all</button><button class="btn ghost" id="expBook" style="flex:1;justify-content:center">Export…</button></div>
   </div>
+</aside>
+<aside class="drawer" id="find" aria-label="Search">
+  <div class="dr-head"><input class="f" id="findQ" type="search" placeholder="Search this text" aria-label="Search this text" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button class="ib" data-close aria-label="Close">✕</button></div>
+  <div class="dr-sub" id="findSub" aria-live="polite"></div>
+  <div class="dr-list" id="findList"></div>
 </aside>
 
 <!-- import dialog -->
