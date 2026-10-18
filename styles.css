@@ -303,3 +303,20 @@ body.focus .fn-card .hp{opacity:1}
 #lightbox img{max-width:100%;max-height:100%;border-radius:10px}
 #toast{position:fixed;z-index:140;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);transform:translate(-50%,20px);background:var(--ink);color:var(--sheet);font:650 .95rem var(--display);padding:.7rem 1.2rem;border-radius:999px;opacity:0;pointer-events:none;transition:all .25s}
 #toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* ================= SIGN IN, SETTINGS, LINK IMPORT ================= */
+#signin{min-height:100vh;display:grid;place-items:center;padding:calc(env(safe-area-inset-top,0px) + 1.5rem) 1rem calc(env(safe-area-inset-bottom,0px) + 2rem)}
+.si{width:min(460px,100%);text-align:center;background:var(--sheet);border:1.5px solid var(--rule);border-radius:28px;padding:2rem clamp(1.2rem,4vw,2rem)}
+.si-boat{width:72px;height:64px}
+.si h1{font:800 clamp(2.1rem,8vw,2.9rem)/.98 var(--display);letter-spacing:-.03em;margin:.8rem 0 .7rem}
+.si p{color:var(--muted);font-size:1.1rem;line-height:1.5;margin:0 0 1.4rem}
+.si-acts{display:grid;gap:.6rem}
+.si-acts .btn{justify-content:center}
+.link-row{display:flex;gap:.6rem}
+.link-row .f{flex:1;min-width:0}
+.or .chip{flex:none}
+.acct{font:650 1rem var(--display);margin:0;overflow-wrap:anywhere}
+.set-row{display:flex;gap:.6rem;flex-wrap:wrap}
+.set-gap{margin-top:1.1rem}
+.set-hint{font:500 .85rem/1.4 var(--display);color:var(--muted);margin:.4rem 0 0}
+#setM .sub{font-size:.95rem;margin:0}

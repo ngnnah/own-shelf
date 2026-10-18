@@ -1,15 +1,16 @@
 // Storage adapters. Both expose the same small key/value API the app uses:
-//   get(key), put(key, value), del(key), all(prefix), watchMeta(cb), flush()
+//   get(key), put(key, value), del(key), all(prefix), watchMeta(cb, onErr), flush()
+// watchMeta calls cb(list) at least once with the current shelf, then again on remote changes.
 // Keys: "meta:<id>" (shelf entry), "doc:<id>" (book content), "state:<id>" (highlights,
 // position), "settings:app".
 
 /* ---------------- this device only (IndexedDB) ---------------- */
-export function makeLocal() {
+export function makeLocal({ onError = () => {} } = {}) {
   let db = null;
   const mem = new Map();
   const tx = mode => db.transaction('kv', mode).objectStore('kv');
   const req = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
-  return {
+  const api = {
     kind: 'local',
     async open() {
       try {
@@ -22,15 +23,16 @@ export function makeLocal() {
       } catch (e) { db = null; }
     },
     async get(k) { if (!db) return mem.get(k); try { return await req(tx('readonly').get(k)); } catch (e) { return mem.get(k); } },
-    async put(k, v) { mem.set(k, v); if (!db) return; await req(tx('readwrite').put(v, k)); },
+    async put(k, v) { mem.set(k, v); if (!db) return; try { await req(tx('readwrite').put(v, k)); } catch (e) { onError(e); } },
     async del(k) { mem.delete(k); if (!db) return; try { await req(tx('readwrite').delete(k)); } catch (e) {} },
     async all(prefix) {
       if (!db) return [...mem].filter(([k]) => k.startsWith(prefix)).map(([, v]) => v);
       try { return await req(tx('readonly').getAll(IDBKeyRange.bound(prefix, prefix + '￿'))); } catch (e) { return []; }
     },
-    watchMeta() { return () => {}; },
+    watchMeta(cb) { api.all('meta:').then(list => cb(list, false)); return () => {}; },
     async flush() {}
   };
+  return api;
 }
 
 /* ---------------- Firestore ---------------- */
@@ -158,13 +160,59 @@ export function makeCloud(fs, db, uid, { onError = () => {}, delay = 2500 } = {}
       return s ? s.docs.map(d => d.data()) : [];
     },
     // live shelf: other devices' changes show up without a reload
-    watchMeta(cb) {
+    watchMeta(cb, onErr = onError) {
       return fs.onSnapshot(col('meta'), s => {
         const list = s.docs.map(d => d.data());
         pending.forEach((job, key) => { if (key.startsWith('meta:')) { const i = list.findIndex(m => m.id === job.v.id); if (i >= 0) list[i] = job.v; else list.push(job.v); } });
         cb(list, s.metadata.fromCache);
-      }, onError);
+      }, onErr);
     },
     flush
   };
+}
+
+/* ---------------- backup and restore ---------------- */
+// Format: { app: 'upwind', version: 1, exported, books: [{ meta, doc, state }] }.
+// The artifact's "Back up shelf" button writes the same format.
+export async function exportShelf(db, metas) {
+  metas = metas || await db.all('meta:');
+  const books = [];
+  for (const meta of metas) {
+    const [doc, state] = await Promise.all([db.get('doc:' + meta.id), db.get('state:' + meta.id)]);
+    if (doc) books.push({ meta, doc, state: state || null });
+  }
+  return { app: 'upwind', version: 1, exported: new Date().toISOString(), books };
+}
+
+// Adds books that aren't on the shelf yet. For books already there, adds the
+// backup's highlights whose ids are missing and leaves everything else alone.
+// metaFor(doc, state) builds the shelf entry, so it always matches the content.
+export async function importShelf(db, data, existing, metaFor) {
+  if (!data || data.app !== 'upwind' || !Array.isArray(data.books)) throw new Error('not_backup');
+  if (data.version > 1) throw new Error('newer_version');
+  const have = new Set(existing.map(m => m.id));
+  const res = { added: 0, merged: 0, highlights: 0, metas: [] };
+  for (const b of data.books) {
+    const id = b && b.doc && (b.doc.id || (b.meta && b.meta.id));
+    if (!id || !Array.isArray(b.doc.blocks)) continue;
+    if (!have.has(id)) {
+      const doc = { ...b.doc, id }, state = { hl: [], pos: 0, maxP: 0, done: [], ...(b.state || {}) };
+      await db.put('doc:' + id, doc); await db.put('state:' + id, state);
+      const meta = metaFor(doc, state); await db.put('meta:' + id, meta);
+      have.add(id); res.metas.push(meta); res.added++;
+      continue;
+    }
+    const incoming = (b.state && b.state.hl) || [];
+    if (!incoming.length) continue;
+    const state = (await db.get('state:' + id)) || { hl: [], pos: 0, maxP: 0, done: [] };
+    const ids = new Set((state.hl || []).map(h => h.id));
+    const extra = incoming.filter(h => h && h.id && !ids.has(h.id));
+    if (!extra.length) continue;
+    state.hl = (state.hl || []).concat(extra);
+    const doc = await db.get('doc:' + id); if (!doc) continue;
+    await db.put('state:' + id, state);
+    const meta = metaFor(doc, state); await db.put('meta:' + id, meta);
+    res.metas.push(meta); res.merged++; res.highlights += extra.length;
+  }
+  return res;
 }

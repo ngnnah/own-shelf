@@ -333,5 +333,15 @@ function computeSections(doc){
   doc.sections=secs; doc.secLevel=secLevel;
   doc.words=B.reduce((a,b)=>a+(b.text?b.text.split(/\s+/).length:0),0)+(doc.notes||[]).reduce((a,n)=>a+n.text.split(/\s+/).length,0);
 }
+/* ---------- links ---------- */
+// First http(s) link in shared text, without trailing punctuation or brackets.
+function firstUrl(s){const m=String(s||'').match(/https?:\/\/[^\s<>"'“”‘’]+/i);return m?m[0].replace(/[.,;:!?)\]}>]+$/,''):'';}
+const isLoneUrl=s=>/^\s*https?:\/\/\S+\s*$/i.test(String(s||''));
+// Fetched bytes → text, honouring the charset in the Content-Type header or a <meta> tag.
+function decodeBody(buf,type){
+  let cs=(/charset=["']?([\w-]+)/i.exec(type||'')||[])[1];
+  if(!cs){const head=new TextDecoder('latin1').decode(new Uint8Array(buf).slice(0,4096));cs=(/<meta[^>]+charset=["']?([\w-]+)/i.exec(head)||[])[1];}
+  try{return new TextDecoder(cs||'utf-8').decode(buf);}catch(e){return new TextDecoder('utf-8').decode(buf);}
+}
 // ===== PARSE END =====
-if(typeof module!=='undefined') module.exports={linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD};
+if(typeof module!=='undefined') module.exports={linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,decodeBody};

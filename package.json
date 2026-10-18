@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node worker/worker.test.mjs",
+    "test": "node worker/worker.test.mjs && node store.test.mjs && node parse.test.mjs",
     "serve": "npx --yes http-server -c-1 -p 8080 ."
   }
 }
