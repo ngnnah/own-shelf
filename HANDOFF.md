@@ -68,7 +68,11 @@ legacy/              The artifact as one file (app-artifact.html, kept identical
    - Authentication → Settings → Authorized domains → add `ngnnah.github.io`.
    - Firestore Database → create a database in production mode, in a region near you, e.g. `asia-northeast1` (Tokyo); it can't be changed later.
    - Firestore → Rules → paste `firestore.rules` → Publish. Prefer the email-locked variant in its comment, so strangers can't use your quota. Put your email in the console only, not in this public repo.
-   - Optional: Google Cloud console → APIs & Services → Credentials → the Browser key → restrict HTTP referrers to `ngnnah.github.io/*` and `localhost:8080/*`.
+   - Google Cloud console → APIs & Services → Credentials → "Browser key (auto created by Firebase)":
+     - **API restrictions:** Firebase APIs only (Identity Toolkit, Token Service, Cloud Firestore). Never the Generative Language (Gemini) API.
+     - **Website restrictions:** `https://ngnnah.github.io/*`, `http://localhost:8080/*` and `https://upwind-reader.firebaseapp.com/*`; sign-in breaks without the last one.
+
+     GitHub secret scanning flags this key (alert #1). It's a Firebase web key, public by design, so close the alert as "Won't fix"; don't rotate it.
 2. **Cloudflare** (free plan): Workers & Pages → Create → Worker. Paste `worker/worker.js` and deploy. Settings → Variables and Secrets:
    - `FIREBASE_PROJECT_ID` = `upwind-reader`
    - `ALLOWED_ORIGINS` = `https://ngnnah.github.io,http://localhost:8080`
