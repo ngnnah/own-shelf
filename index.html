@@ -39,7 +39,7 @@
     <div class="brand"><svg viewBox="0 0 34 30" aria-hidden="true"><use href="#boatSym"/></svg>Upwind</div>
     <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input class="f" id="q" type="search" placeholder="Search titles and authors" aria-label="Search shelf"></label>
     <button class="ib" id="setBtn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></button>
-    <button class="btn ghost" id="expShelf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Export notes</button>
+    <button class="btn ghost" id="nbBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7c-2.6-1.8-5.6-2.3-9-1.6v12.8c3.4-.7 6.4-.2 9 1.6 2.6-1.8 5.6-2.3 9-1.6V5.4c-3.4-.7-6.4-.2-9 1.6zM12 7v12.8"/></svg>Notebook</button>
     <button class="btn sea" id="addBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg>Add to shelf</button>
   </div>
   <div class="sh-hero">
@@ -51,6 +51,17 @@
     <div><span>View</span><div class="seg" id="segView"><button data-v="shelves">Shelves</button><button data-v="list">List</button></div></div>
   </div>
   <div id="shelfBody"></div>
+</section>
+<!-- ================= NOTEBOOK ================= -->
+<section id="notebook" class="hidden">
+  <div class="sh-top"><button class="home" id="nbBack" title="Back to your shelf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="M16.5 5.2l3.6-1 3.4 15.4-3.6 1z"/></svg>Shelf</button></div>
+  <div class="sh-hero nb-hero"><div><h1>Notebook</h1><p class="sh-stats" id="nbStats"></p></div></div>
+  <div class="nb-ctrl" id="nbCtrl">
+    <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input class="f" id="nbQ" type="search" placeholder="Search highlights, notes and titles" aria-label="Search highlights"></label>
+    <div class="nb-chips" id="nbChips"></div>
+    <div class="nb-row"><select class="f" id="nbBook" aria-label="Filter by book"></select><button class="btn ghost" id="nbExp">Export…</button></div>
+  </div>
+  <div id="nbList"></div>
 </section>
 
 <!-- ================= READER ================= -->
