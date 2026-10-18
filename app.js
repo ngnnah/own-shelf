@@ -41,6 +41,7 @@ let stT;function saveState(now){clearTimeout(stT);const f=async()=>{if(!DOC)retu
 function show(view){
   $('#signin').classList.toggle('hidden',view!=='signin');
   $('#shelf').classList.toggle('hidden',view!=='shelf');
+  $('#notebook').classList.toggle('hidden',view!=='notebook');
   ['#bar','#rail','#reader'].forEach(s=>$(s).classList.toggle('hidden',view!=='reader'));
   hideTool();closeDrawers();
 }
@@ -269,14 +270,15 @@ $('#barTitle').onclick=()=>DOC&&openDetails(DOC.id);
 
 /* ================= reader ================= */
 let blockIndex={},order={},secOf={};
-async function openBook(id){
+async function openBook(id,opts){
   $('#busy').classList.remove('hidden');
   const d=await DB.get('doc:'+id);
   if(!d){$('#busy').classList.add('hidden');toast("Couldn't find that text");return;}
   DOC=d;ST=(await DB.get('state:'+id))||{hl:[],pos:0,maxP:0,done:[]};ST.done=ST.done||[];HL=ST.hl||[];ST.opened=Date.now();
   show('reader');buildReader();$('#busy').classList.add('hidden');
   ls.set('last',id);
-  requestAnimationFrame(()=>{window.scrollTo(0,ST.pos||0);lastH=0;onScroll();});
+  const h=opts&&opts.hl&&HL.find(x=>x.id===opts.hl);
+  requestAnimationFrame(()=>{if(h)jumpTo(h);else window.scrollTo(0,ST.pos||0);lastH=0;onScroll();});
   saveState();
 }
 function inlineHTML(b,plain){
@@ -584,7 +586,7 @@ function entriesFor(doc,hl){
   (doc.notes||[]).forEach(n=>{map[n.id]=n.text;sec[n.id]=-1;ord[n.id]=i++;});
   return [...hl].filter(h=>h.segs&&h.segs.length&&map[h.segs[0].pid]!==undefined)
     .sort((a,b)=>(ord[a.segs[0].pid]-ord[b.segs[0].pid])||(a.segs[0].s-b.segs[0].s))
-    .map(h=>{const si=sec[h.segs[0].pid];return {text:h.segs.map(s=>(map[s.pid]||'').slice(s.s,s.e)).filter(Boolean),note:h.note||'',color:h.color,
+    .map(h=>{const si=sec[h.segs[0].pid];return {id:h.id,at:h.at,text:h.segs.map(s=>(map[s.pid]||'').slice(s.s,s.e)).filter(Boolean),note:h.note||'',color:h.color,
       section:si===-1?'Notes':(doc.sections[si]&&doc.sections.length>1?`${si+1}. ${doc.sections[si].title}`:'')};});
 }
 async function gatherExport(){
@@ -667,7 +669,7 @@ $('#expDl').onclick=()=>{
   const slug=(EX.scope==='shelf'||!DOC?'reading-notes':DOC.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)+'-notes')||'notes';
   download(`${slug}.${EX.fmt}`,EX.text,{md:'text/markdown',html:'text/html',txt:'text/plain'}[EX.fmt]+';charset=utf-8');toast('Downloaded');
 };
-$('#expShelf').onclick=()=>openExport('shelf');
+$('#nbBtn').onclick=()=>openNotebook();
 $('#expBook').onclick=()=>openExport('book');
 
 /* ================= link import ================= */
@@ -729,6 +731,46 @@ $('#pasteBtn').onclick=async()=>{
   if(!html.trim()&&!txt.trim()&&!imgs.length){toast('The clipboard is empty');return;}
   await insertClip(html,txt,imgs);
 };
+
+/* ================= notebook ================= */
+// Every highlight on the shelf, newest first. Read-only; the books are reloaded each time it opens.
+let NB={items:[],f:'all',run:0};
+const nbFold=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
+const nbCount=(n,w)=>`<b>${n}</b> ${w}${n===1?'':'s'}`;
+async function openNotebook(){
+  const run=++NB.run;show('notebook');window.scrollTo(0,0);
+  NB.f='all';$('#nbQ').value='';$('#nbStats').innerHTML='';$('#nbCtrl').classList.add('hidden');
+  $('#nbList').innerHTML='<div class="empty">Gathering your highlights…</div>';
+  const books=await Promise.all(META.filter(m=>m.hl>0).map(async m=>{const [d,s]=await Promise.all([DB.get('doc:'+m.id),DB.get('state:'+m.id)]);return d&&s?{doc:d,hl:s.hl||[]}:null;}));
+  if(run!==NB.run) return;
+  NB.items=books.filter(Boolean).flatMap(({doc,hl})=>entriesFor(doc,hl).map(e=>Object.assign(e,{book:doc.id,title:doc.title,hay:nbFold([...e.text,e.note,doc.title,doc.author].join(' '))})))
+    .sort((a,b)=>(b.at||0)-(a.at||0));
+  const bk=[...new Map(NB.items.map(e=>[e.book,e.title]))].sort((a,b)=>a[1].localeCompare(b[1]));
+  $('#nbBook').innerHTML='<option value="">All books</option>'+bk.map(([id,t])=>`<option value="${id}">${esc(t)}</option>`).join('');
+  const n=NB.items.length;
+  $('#nbStats').innerHTML=n?`${nbCount(n,'highlight')} · ${nbCount(NB.items.filter(e=>e.note).length,'note')} · ${nbCount(bk.length,'book')}`:'';
+  $('#nbCtrl').classList.toggle('hidden',!n);
+  renderNotebook();
+}
+function renderNotebook(){
+  if(!NB.items.length){$('#nbList').innerHTML='<div class="empty">No highlights yet.<br>Select any passage while reading and pick a colour.</div>';return;}
+  const terms=nbFold($('#nbQ').value).split(/\s+/).filter(Boolean),book=$('#nbBook').value;
+  const base=NB.items.filter(e=>(!book||e.book===book)&&terms.every(t=>e.hay.includes(t)));
+  const counts={note:base.filter(e=>e.note).length};base.forEach(e=>counts[e.color]=(counts[e.color]||0)+1);
+  const chip=(f,label,sw)=>counts[f]||NB.f===f?`<button class="chip" aria-pressed="${NB.f===f}" data-f="${f}">${sw?`<i style="background:var(--${f}S)"></i>`:''}${label} ${counts[f]||0}</button>`:'';
+  $('#nbChips').innerHTML=`<button class="chip" aria-pressed="${NB.f==='all'}" data-f="all">All ${base.length}</button>`+chip('note','With note')+COLORS.map(c=>chip(c[0],c[1],true)).join('');
+  const list=base.filter(e=>NB.f==='all'||(NB.f==='note'?e.note:e.color===NB.f));
+  $('#nbList').innerHTML=list.length?list.map(e=>`<div class="hcard" style="border-left-color:var(--${e.color}S)" tabindex="0" data-book="${e.book}" data-hl="${e.id}"><div class="sec"><b>${esc(e.title)}</b>${e.section?` · ${esc(e.section)}`:''}</div><p class="q">${e.text.map(esc).join(' <span style="color:var(--muted)">¶</span> ')}</p>${e.note?`<div class="nt">${esc(e.note)}</div>`:''}</div>`).join('')
+    :'<div class="empty">Nothing matches.</div>';
+}
+const nbOpen=c=>{if(c&&getSelection().isCollapsed) openBook(c.dataset.book,{hl:c.dataset.hl});};
+$('#nbBack').onclick=goShelf;
+$('#nbQ').oninput=renderNotebook;
+$('#nbBook').onchange=renderNotebook;
+$('#nbChips').onclick=e=>{const b=e.target.closest('[data-f]');if(!b)return;NB.f=b.dataset.f;renderNotebook();};
+$('#nbExp').onclick=()=>openExport('shelf');
+$('#nbList').onclick=e=>nbOpen(e.target.closest('[data-hl]'));
+$('#nbList').onkeydown=e=>{if(e.key==='Enter') nbOpen(e.target.closest('[data-hl]'));};
 
 /* ================= settings, backup ================= */
 function setErr(m){const e=$('#setErr');e.textContent=m;e.classList.remove('hidden');}
