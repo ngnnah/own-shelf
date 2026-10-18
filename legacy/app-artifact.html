@@ -317,6 +317,7 @@ body.focus .fn-card .hp{opacity:1}
     <div class="brand"><svg viewBox="0 0 34 30" aria-hidden="true"><use href="#boatSym"/></svg>Upwind</div>
     <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input class="f" id="q" type="search" placeholder="Search titles and authors" aria-label="Search shelf"></label>
     <button class="btn ghost" id="expShelf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Export notes</button>
+    <button class="btn ghost" id="backupShelf" title="Download every book, highlight and note as one file, to restore in the new app">Back up shelf</button>
     <button class="btn sea" id="addBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg>Add to shelf</button>
   </div>
   <div class="sh-hero">
@@ -1471,6 +1472,25 @@ $('#expDl').onclick=async()=>{
 };
 $('#expShelf').onclick=()=>openExport('shelf');
 $('#expBook').onclick=()=>openExport('book');
+// Whole-shelf backup for moving to the new site; its Settings → "Restore from backup" reads this file.
+$('#backupShelf').onclick=async e=>{
+  const btn=e.currentTarget;
+  if(!META.length){toast('Nothing on the shelf to back up');return;}
+  if(DL===undefined){try{DL=window.claude&&window.claude.use?await window.claude.use('downloads'):null;}catch(err){DL=null;}}
+  if(!DL){toast('Downloads aren’t available in this view');return;}
+  btn.disabled=true;
+  try{
+    const books=[];
+    for(const m of META){const doc=await DB.get('doc:'+m.id),state=await DB.get('state:'+m.id);if(doc) books.push({meta:m,doc,state:state||null});}
+    const data=new Blob([JSON.stringify({app:'upwind',version:1,exported:new Date().toISOString(),books})],{type:'application/json'});
+    const r=await DL.save({filename:`upwind-backup-${new Date().toISOString().slice(0,10)}.json`,data});
+    if(r.status==='saved') toast(`Backed up ${books.length} book${books.length===1?'':'s'}`);
+  }catch(err){const c=err&&err.code;
+    if(c==='declined') return;
+    if(c==='rate_limited'){toast('A save prompt is already open');return;}
+    toast('The backup couldn’t be saved here');}
+  finally{btn.disabled=false;}
+};
 
 /* ================= boot ================= */
 (async function(){

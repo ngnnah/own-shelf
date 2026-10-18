@@ -1,13 +1,13 @@
-# Upwind (reading-notes)
+# own-shelf
 
-A personal reading app. Put PDFs, pasted articles and web links on a bookshelf, read them with sections and checkpoints, highlight and annotate, and export your notes as Markdown, HTML or plain text. It syncs across devices through Firebase.
+A personal reading app. Put PDFs, pasted articles and web links on a bookshelf, read them with sections and checkpoints, highlight and annotate, and export your notes as Markdown, HTML or plain text. It syncs across devices through Firebase, or keeps everything on one device.
 
-**Status:** migration in progress from a Claude artifact. See [HANDOFF.md](HANDOFF.md) for what's done, the architecture, and the next steps.
+**Status:** working locally; cloud setup and a rebrand (the UI still says "Upwind") are next. See [HANDOFF.md](HANDOFF.md) for the state, the architecture and the next steps.
 
 ## Run locally
 
 ```sh
-npm test        # Worker + storage unit tests
+npm test        # Worker, storage and parser tests
 npm run serve   # http://localhost:8080
 ```
 
