@@ -537,10 +537,11 @@ let filter='all';
 function sorted(){return [...HL].sort((a,b)=>{const A=a.segs[0],B=b.segs[0];return ((order[A.pid]??1e9)-(order[B.pid]??1e9))||(A.s-B.s);});}
 const secName=h=>{const i=secOf[h.segs[0].pid];return i===-1?'Notes':i!=null&&DOC.sections[i]?`${i+1}. ${DOC.sections[i].title}`:'';};
 function renderDrawer(){
-  const counts={};HL.forEach(h=>counts[h.color]=(counts[h.color]||0)+1);
-  $('#drFilters').innerHTML=`<button class="chip" aria-pressed="${filter==='all'}" data-f="all">All ${HL.length}</button>`+COLORS.filter(c=>counts[c[0]]).map(c=>`<button class="chip" aria-pressed="${filter===c[0]}" data-f="${c[0]}"><i style="background:var(--${c[0]}S)"></i>${c[1]} ${counts[c[0]]}</button>`).join('');
+  const counts={};HL.forEach(h=>counts[h.color]=(counts[h.color]||0)+1);const nn=HL.filter(h=>h.note).length;
+  const keep=h=>filter==='all'||(filter==='noted'?h.note:h.color===filter);if(!HL.some(keep))filter='all';
+  $('#drFilters').innerHTML=`<button class="chip" aria-pressed="${filter==='all'}" data-f="all">All ${HL.length}</button>`+(nn?`<button class="chip" aria-pressed="${filter==='noted'}" data-f="noted">With note ${nn}</button>`:'')+COLORS.filter(c=>counts[c[0]]).map(c=>`<button class="chip" aria-pressed="${filter===c[0]}" data-f="${c[0]}"><i style="background:var(--${c[0]}S)"></i>${c[1]} ${counts[c[0]]}</button>`).join('');
   $('#drFilters').querySelectorAll('.chip').forEach(b=>b.onclick=()=>{filter=b.dataset.f;renderDrawer();});
-  const list=sorted().filter(h=>filter==='all'||h.color===filter);
+  const list=sorted().filter(keep);
   $('#drList').innerHTML=list.length?list.map(h=>`<div class="hcard" style="border-left-color:var(--${h.color}S)" data-id="${h.id}"><div class="sec">${esc(secName(h))}</div><p class="q" tabindex="0">${esc(segText(h)).replace(/\n\n/g,' <span style="color:var(--muted)">¶</span> ')}</p>${h.note?`<div class="nt">${esc(h.note)}</div>`:''}<div class="acts"><button data-a="note">${h.note?'Edit note':'Add note'}</button><button data-a="del">Remove</button></div></div>`).join('')
     :`<div class="empty">No highlights yet.<br>Select any passage and pick a color.</div>`;
   $('#drList').querySelectorAll('.hcard').forEach(card=>{
