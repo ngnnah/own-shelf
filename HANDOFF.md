@@ -17,6 +17,7 @@ A personal reading app: a bookshelf of PDFs, pasted articles and web pages, read
 | Link import (Worker + Readability), Paste button, `?add=`/`?url=`/`?text=` deep links | App side done; deep link tested in local mode. Worker written and unit-tested, not deployed |
 | PWA (manifest, Android share target, service worker, icons) | Done. Offline reload tested in Chrome |
 | Artifact → app migration | Done and tested end to end (artifact backup → app restore → highlights show) |
+| Kindle-style essentials | Done and browser-tested: Notebook (every highlight across books, with search and filters; replaces the shelf's "Export notes" button), search inside a book, "With note" filter in the highlights drawer. Bookmarks skipped |
 | Firestore rules | Written, not published |
 | GitHub Pages | Off until the rebrand settles the look; the name (and so the URL) is final |
 
@@ -58,8 +59,7 @@ legacy/              The artifact as one file (app-artifact.html, kept identical
 3. **Migrate:** in the artifact, tap **Back up shelf** and save the `.json`. In the new app: Settings → **Restore from backup**. Don't commit the file (it's gitignored).
 4. **Rebrand to own-shelf** (in design with Nhat): the name in the UI, a new icon (a 💪-shaped bookshelf, minimalist and antique), the sign-in and shelf look. Decide whether the reader keeps its sailing motifs (boat progress bar, wave rail, "Land ho.", "Your catch"). Internal ids stay as they are: `upwind:*` localStorage keys, the `upwind` IndexedDB, `app: 'upwind'` in backups, the `upwind-reader` Firebase project.
 5. **iPhone Safari pass.** The main flow to get right: in another iOS app (e.g. MIT Technology Review) select all and copy an article → own-shelf → Add to shelf → paste → read and annotate. Paste is the main path for paywalled sources, because link import fetches without the reader's login. On a real iPhone also check: selection and highlighting (iOS's own callout vs our bottom-docked toolbar), the Paste button's permission bubble, home-screen install, and the Shortcut below.
-6. **A few Kindle-style essentials** (owner wants only the essentials; list pending).
-7. **Ship:** add an empty `.nojekyll`, push `main`, then GitHub → Settings → Pages → deploy from `main` / root, or `gh api -X POST repos/ngnnah/own-shelf/pages -f 'source[branch]=main' -f 'source[path]=/'`.
+6. **Ship:** add an empty `.nojekyll`, push `main`, then GitHub → Settings → Pages → deploy from `main` / root, or `gh api -X POST repos/ngnnah/own-shelf/pages -f 'source[branch]=main' -f 'source[path]=/'`.
 
 ## One-time setup (Nhat)
 

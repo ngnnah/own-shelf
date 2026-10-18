@@ -824,7 +824,7 @@ async function openNotebook(){
   renderNotebook();
 }
 function renderNotebook(){
-  if(!NB.items.length){$('#nbList').innerHTML='<div class="empty">No highlights yet.<br>Select any passage while reading and pick a colour.</div>';return;}
+  if(!NB.items.length){$('#nbList').innerHTML='<div class="empty">No highlights yet.<br>Select any passage while reading and pick a color.</div>';return;}
   const terms=nbFold($('#nbQ').value).split(/\s+/).filter(Boolean),book=$('#nbBook').value;
   const base=NB.items.filter(e=>(!book||e.book===book)&&terms.every(t=>e.hay.includes(t)));
   const counts={note:base.filter(e=>e.note).length};base.forEach(e=>counts[e.color]=(counts[e.color]||0)+1);
