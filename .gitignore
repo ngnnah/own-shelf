@@ -7,3 +7,5 @@ node_modules/
 backups/
 *.pdf
 upwind-backup*.json
+# agent worktrees (Claude Code)
+.claude/worktrees/
