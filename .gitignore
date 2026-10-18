@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+*.log
+.wrangler/
+.dev.vars
+# never commit your own reading material or backups
+backups/
+*.pdf
+upwind-backup*.json

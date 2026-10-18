@@ -1,0 +1,129 @@
+
+<!-- ================= SHELF ================= -->
+<section id="shelf" class="hidden">
+  <div class="sh-top">
+    <div class="brand"><svg viewBox="0 0 34 30" aria-hidden="true"><use href="#boatSym"/></svg>Upwind</div>
+    <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input class="f" id="q" type="search" placeholder="Search titles and authors" aria-label="Search shelf"></label>
+    <button class="btn ghost" id="expShelf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Export notes</button>
+    <button class="btn sea" id="addBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg>Add to shelf</button>
+  </div>
+  <div class="sh-hero">
+    <div><h1>Your shelf</h1><p class="sh-stats" id="stats"></p></div>
+  </div>
+  <div id="contWrap"></div>
+  <div class="sh-ctrl" id="ctrl">
+    <div><span>Arrange by</span><div class="seg" id="segGroup"><button data-g="added">Date added</button><button data-g="written">Date written</button><button data-g="author">Author</button></div></div>
+    <div><span>View</span><div class="seg" id="segView"><button data-v="shelves">Shelves</button><button data-v="list">List</button></div></div>
+  </div>
+  <div id="shelfBody"></div>
+</section>
+
+<!-- ================= READER ================= -->
+<header id="bar" class="hidden">
+  <div class="bar-in">
+    <button class="home" id="bHome" title="Back to your shelf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="M16.5 5.2l3.6-1 3.4 15.4-3.6 1z"/></svg>Shelf</button>
+    <button class="bar-title" id="barTitle" title="Edit details"></button>
+    <button class="ib" id="bToc" title="Contents"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor"/></svg><span class="lbl">Contents</span></button>
+    <button class="ib" id="bFocus" aria-pressed="false" title="Focus mode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/></svg><span class="lbl">Focus</span></button>
+    <button class="ib" id="bSize" title="Text size"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19l5-14 5 14M6 14h6M15 19l3-8 3 8M16 16.5h4"/></svg><span class="lbl">Size</span></button>
+    <button class="ib" id="bTheme" title="Light or dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 13A9 9 0 1111 3a7 7 0 0010 10z"/></svg><span class="lbl">Theme</span></button>
+    <button class="ib" id="bHl" title="Your highlights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l-5 5v3h3l5-5M14 6l4 4M12.5 7.5l5-5 4 4-5 5z"/></svg><span class="lbl">Highlights</span><span class="badge" id="hlCount">0</span></button>
+  </div>
+  <div id="hbar"><div class="fill"></div><svg class="boat" viewBox="0 0 34 30"><use href="#boatSym"/></svg></div>
+</header>
+<nav id="rail" class="hidden" aria-label="Sections">
+  <svg class="route" preserveAspectRatio="none" viewBox="0 0 60 1000" aria-hidden="true">
+    <path id="routeBg" fill="none" stroke="var(--wave)" stroke-width="2" stroke-dasharray="3 6" vector-effect="non-scaling-stroke"/>
+    <path id="routeFg" fill="none" stroke="var(--sea)" stroke-width="3" stroke-linecap="round" vector-effect="non-scaling-stroke" pathLength="1000"/>
+  </svg>
+  <div id="wps"></div>
+  <svg class="boat" id="railBoat" viewBox="0 0 34 30" aria-hidden="true"><use href="#boatSym"/></svg>
+</nav>
+<main id="reader" class="hidden"><div class="col" id="col"></div></main>
+
+<div id="tool" class="hidden" role="toolbar" aria-label="Highlight"></div>
+<div id="noteBox" class="hidden"><textarea class="f" id="noteTa" placeholder="Why does this matter to you?"></textarea>
+  <div class="row"><button class="btn ghost" id="noteCancel">Cancel</button><button class="btn" id="noteSave">Save note</button></div></div>
+
+<div id="scrim"></div>
+<aside class="drawer" id="toc" aria-label="Contents">
+  <div class="dr-head"><h2>Contents</h2><button class="ib" data-close aria-label="Close">✕</button></div>
+  <div class="dr-sub" id="tocSub"></div>
+  <div class="dr-list" id="tocList"></div>
+</aside>
+<aside class="drawer" id="drawer" aria-label="Highlights">
+  <div class="dr-head"><h2>Your catch</h2><button class="ib" data-close aria-label="Close">✕</button></div>
+  <div class="dr-filters" id="drFilters"></div>
+  <div class="dr-list" id="drList"></div>
+  <div class="dr-foot">
+    <div class="row"><div class="seg" id="segFmt"><button data-fmt="md">Markdown</button><button data-fmt="txt">Plain text</button></div>
+      <button class="ib" id="clearAll" style="color:var(--buoy)">Clear all</button></div>
+    <div class="row" style="gap:.6rem"><button class="btn sea" id="copyAll" style="flex:1;justify-content:center">Copy all</button><button class="btn ghost" id="expBook" style="flex:1;justify-content:center">Export…</button></div>
+  </div>
+</aside>
+
+<!-- import dialog -->
+<div class="modal hidden" id="importM" role="dialog" aria-modal="true" aria-labelledby="impH">
+  <div class="dlg">
+    <h2 id="impH">Add to your shelf</h2>
+    <p class="sub">A PDF, a text or Markdown file, or anything you copy from the web. Formatting, links and images come along.</p>
+    <div class="dz" id="dz">
+      <button class="btn sea" id="pickFile">Choose a file</button>
+      <span class="hint" id="dzHint">PDF, .txt, .md or .html — or drop it here</span>
+      <input type="file" id="file" accept="application/pdf,.pdf,.txt,.md,.markdown,.html,.htm,text/plain,text/markdown,text/html" hidden>
+    </div>
+    <div class="or">or paste</div>
+    <div class="paste empty" id="paste" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Paste content" data-ph="Paste an article here. Headings, bullet lists, bold, links and images are kept."></div>
+    <p class="det" id="det"></p>
+    <div class="fields">
+      <label class="fl">Title<input class="f" id="fTitle" placeholder="Detected automatically"></label>
+      <label class="fl">Author<input class="f" id="fAuthor" placeholder="Optional"></label>
+      <label class="fl">Date written<input class="f" id="fWritten" placeholder="e.g. July 2023"></label>
+    </div>
+    <p class="err hidden" id="impErr"></p>
+    <div class="dlg-acts"><button class="btn ghost" data-cancel>Cancel</button><button class="btn" id="impGo">Add and start reading</button></div>
+  </div>
+</div>
+
+<!-- details dialog -->
+<div class="modal hidden" id="detM" role="dialog" aria-modal="true" aria-labelledby="detH">
+  <div class="dlg sm">
+    <h2 id="detH">Book details</h2>
+    <div style="display:grid;gap:.8rem;margin-top:1rem">
+      <label class="fl">Title<input class="f" id="dTitle"></label>
+      <label class="fl">Author<input class="f" id="dAuthor" placeholder="Unknown"></label>
+      <label class="fl">Date written<input class="f" id="dWritten" placeholder="e.g. July 2023 or 2024-03-01"></label>
+      <label class="fl">Source link<input class="f" id="dSource" placeholder="https://"></label>
+    </div>
+    <div class="dlg-acts"><button class="btn danger sp" id="dRemove">Remove from shelf</button><button class="btn ghost" data-cancel>Cancel</button><button class="btn" id="dSave">Save</button></div>
+  </div>
+</div>
+
+<!-- export dialog -->
+<div class="modal hidden" id="expM" role="dialog" aria-modal="true" aria-labelledby="expH">
+  <div class="dlg">
+    <h2 id="expH">Export your notes</h2>
+    <p class="sub">Highlights and the notes you wrote on them, grouped by book and section.</p>
+    <div class="opt" id="expScopeWrap"><span>What</span><div class="seg" id="expScope"><button data-s="book">This book</button><button data-s="shelf">Whole shelf</button></div></div>
+    <div class="opt"><span>Format</span><div class="seg" id="expFmt"><button data-f="md">Markdown</button><button data-f="html">HTML</button><button data-f="txt">Plain text</button></div></div>
+    <label class="chk"><input type="checkbox" id="expNotesOnly"> Only highlights I wrote a note on</label>
+    <p class="expsum" id="expSum"></p>
+    <pre class="prev" id="expPrev"></pre>
+    <p class="err hidden" id="expErr"></p>
+    <div class="dlg-acts"><button class="btn ghost" data-cancel>Close</button><button class="btn ghost" id="expCopy">Copy</button><button class="btn sea" id="expDl">Download file</button></div>
+  </div>
+</div>
+
+<div id="lightbox" class="hidden"><img alt=""></div>
+<div id="dropAll">Drop to add to your shelf</div>
+<div id="busy" class="hidden">Reading…</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="boatSym" viewBox="0 0 34 30">
+    <path d="M17 2 L17 21 L5 21 Z" fill="var(--sheet)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M19 6 L19 21 L28 21 Z" fill="var(--buoy)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M3 22 H31 L27 28 H7 Z" fill="var(--sea)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>
+  </symbol>
+</svg>
+
