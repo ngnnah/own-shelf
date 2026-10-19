@@ -20,11 +20,12 @@ A personal reading app: a bookshelf of PDFs, pasted articles and web pages, read
 | Kindle-style essentials | Done and browser-tested: Notebook (every highlight across books, with search and filters; replaces the shelf's "Export notes" button), search inside a book, "With note" filter in the highlights drawer. Bookmarks skipped |
 | Firestore rules | Written, not published |
 | Safety: typed "yes" and the Trash | Clear all, removing a book with highlights, and Empty Trash need "yes" typed. Removed books, highlights and cleared notes go to the Trash (Settings → Trash) for 30 days and can be restored. A removed book's content stays in `doc:`/`state:` until it's purged |
+| Length on the shelf | Each cover shows its word count and a block of page edges whose thickness grows with length (log scale, 3–32 px); the List view has a sortable Length column (hidden on phones) |
 | Taglines | "Knowledge is power." (sign-in, empty shelf, wide app bar) and "Know thyself in the margins." (sign-in, Notebook, metadata). Alternatives are in the commit history if Nhat wants to swap |
 | own-shelf rebrand | Done: icons (`npm run icons` from `design/`), theme, shelf, sign-in, reader motifs. Checked in light and dark at phone and desktop sizes |
 | GitHub Pages | Live since 2026-10-18; every push to `main` deploys. Checked in headless Chrome: boots, Firebase SDK loads, local mode works, service worker active |
 
-Tests: `npm test` (45 unit checks: Worker, storage with a fake Firestore, parser) and `npm run test:browser` (95 headless-Chrome checks: the local-only flow, Notebook, search, the note filter, artifact → app migration). Run `npm install` once first; the browser suite needs Chrome (`CHROME_PATH` off macOS), python3 and a network connection. Both pass as of 2026-10-19.
+Tests: `npm test` (52 unit checks: Worker, storage with a fake Firestore including the trash, parser) and `npm run test:browser` (178 headless-Chrome checks: the local-only flow, Notebook, search, the note filter, typed-"yes" deletes, the Trash, length on the shelf, artifact → app migration). Run `npm install` once first; the browser suite needs Chrome (`CHROME_PATH` off macOS), python3 and a network connection. `TEST_PORT_OFFSET` shifts its ports so two checkouts can run it at once. Both pass as of 2026-10-20.
 
 ## File map
 
