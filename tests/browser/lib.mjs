@@ -32,7 +32,9 @@ export async function waitForFile(dir,re,ms=5000){
 }
 
 // Start the server and Chrome for one test file. Returns the test context `t`.
+// TEST_PORT_OFFSET shifts every file's port, so two checkouts can run the suite at the same time.
 export async function start(name,port){
+  port+=Number(process.env.TEST_PORT_OFFSET||0);
   const srv=await serve(port);
   let browser;
   try{browser=await puppeteer.launch({executablePath:CHROME,headless:true,args:['--no-first-run']});}
