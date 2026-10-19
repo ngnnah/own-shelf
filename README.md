@@ -1,6 +1,8 @@
 # own-shelf
 
-A personal reading app. Put PDFs, pasted articles and web links on a bookshelf, read them with sections and checkpoints, highlight and annotate, and export your notes as Markdown, HTML or plain text. It syncs across devices through Firebase, or keeps everything on one device.
+*Knowledge is power. Know thyself in the margins.*
+
+A personal reading app, and one place to gather your readings and notes into practical wisdom. Put PDFs, pasted articles and web links on a bookshelf, read them with sections and checkpoints, highlight and annotate, and export your notes as Markdown, HTML or plain text. It syncs across devices through Firebase, or keeps everything on one device.
 
 **Status:** live at https://ngnnah.github.io/own-shelf/ (local-only mode works; Google sign-in and sync wait on the Firebase setup). See [HANDOFF.md](HANDOFF.md) for the state, the architecture and the next steps.
 
