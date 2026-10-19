@@ -345,7 +345,7 @@ function buildReader(){
   S.forEach((s,si)=>{
     const bl=DOC.blocks.filter(b=>b.sec===si);
     const head=s.heading?bl.find(b=>b.id===s.heading):null;
-    h+=`<div class="leg" id="sec-${si}" data-sec="${si}"><span class="n">${si+1}</span>${head?`<h2 class="hp" data-pid="${head.id}">${inlineHTML(head)}</h2>`:`<svg viewBox="0 0 200 14" preserveAspectRatio="none" aria-hidden="true"><path d="M0 7 Q 12.5 0 25 7 T 50 7 T 75 7 T 100 7 T 125 7 T 150 7 T 175 7 T 200 7" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`}</div>`;
+    h+=`<div class="leg" id="sec-${si}" data-sec="${si}"><span class="n">${si+1}</span>${head?`<h2 class="hp" data-pid="${head.id}">${inlineHTML(head)}</h2>`:'<span class="orn" aria-hidden="true">❦</span>'}</div>`;
     if(head){blockIndex[head.id]=head;order[head.id]=idx++;secOf[head.id]=si;}
     let firstText=true,inList=false;
     bl.forEach(b=>{
@@ -373,13 +373,12 @@ function buildReader(){
     if(DOC.thanks) h+=`<p class="thanks">${esc(DOC.thanks)}</p>`;
     h+='</section>';
   }
-  h+=`<section class="land" id="land"><h2>Land ho.</h2><p id="landMsg"></p><div class="acts"><button class="btn" id="landCopy">Copy all highlights</button><button class="btn ghost" id="landOpen">Review them</button><button class="btn ghost" id="landExp">Export</button><button class="btn ghost" id="landShelf">Back to shelf</button></div>
-    <svg class="waves" viewBox="0 0 260 80"><path d="M0 30 Q 32 10 65 30 T 130 30 T 195 30 T 260 30 M0 55 Q 32 35 65 55 T 130 55 T 195 55 T 260 55" fill="none" stroke="currentColor" stroke-width="4"/></svg></section>`;
+  h+=`<section class="land" id="land"><h2>The end.</h2><p id="landMsg"></p><div class="acts"><button class="btn" id="landCopy">Copy all highlights</button><button class="btn ghost" id="landOpen">Review them</button><button class="btn ghost" id="landExp">Export</button><button class="btn ghost" id="landShelf">Back to shelf</button></div></section>`;
   col.innerHTML=h;
   col.querySelectorAll('.pull button').forEach(btn=>btn.onclick=()=>{const [pid,s,e]=btn.dataset.pq.split(':');addHighlight([{pid,s:+s,e:+e}],'sun');toast('Highlighted');});
   col.querySelectorAll('figure.fig img').forEach(im=>{im.onerror=()=>{const f=im.closest('figure');f.innerHTML=`<span class="imgfail">This image can't load here${/^https?:/.test(im.src)?` · <a href="${esc(im.src)}" target="_blank" rel="noopener noreferrer">open it</a>`:''}</span>`;};});
   $('#landCopy').onclick=copyAll;$('#landOpen').onclick=()=>openDrawer('#drawer');$('#landShelf').onclick=goShelf;$('#landExp').onclick=()=>openExport('book');
-  buildRail();updateCount();observeCheckpoints();lastH=0;
+  updateCount();observeCheckpoints();lastH=0;
 }
 function tocItems(){
   return DOC.sections.map((s,i)=>{
@@ -412,22 +411,20 @@ function observeCheckpoints(){
   document.querySelectorAll('.cp').forEach(c=>cpObs.observe(c));cpObs.observe($('#land'));
 }
 
-/* rail + scroll */
+/* rail + scroll. The rail is a straight spine drawn in index.html and centred by CSS; JS only sets each mark's top */
 let legPos=[],curSec=0,lastH=0,ticking=false;
-const waveX=p=>30+14*Math.sin(p*Math.PI*7);
-function buildRail(){let d='';for(let i=0;i<=200;i++){const p=i/200;d+=(i?'L':'M')+waveX(p).toFixed(2)+' '+(p*1000).toFixed(1);}$('#routeBg').setAttribute('d',d);$('#routeFg').setAttribute('d',d);}
 function layoutRail(){
   const total=Math.max(1,document.documentElement.scrollHeight-innerHeight);
   legPos=[...document.querySelectorAll('.leg')].map(l=>({i:+l.dataset.sec,y:l.getBoundingClientRect().top+scrollY-110}));
-  $('#wps').innerHTML=legPos.map(l=>{const p=Math.min(1,Math.max(0,l.y/total));return `<button class="wp" style="top:${p*100}%;left:${waveX(p)}px" data-go="${l.i}" aria-label="Section ${l.i+1}"><span class="tip">${l.i+1}. ${esc(DOC.sections[l.i].title)}</span></button>`;}).join('');
+  $('#wps').innerHTML=legPos.map(l=>{const p=Math.min(1,Math.max(0,l.y/total));return `<button class="wp" style="top:${p*100}%" data-go="${l.i}" aria-label="Section ${l.i+1}"><span class="tip">${l.i+1}. ${esc(DOC.sections[l.i].title)}</span></button>`;}).join('');
 }
 function onScroll(){
   if(!DOC) return;
   const H=document.documentElement.scrollHeight;if(H!==lastH){lastH=H;layoutRail();}
   const p=Math.min(1,Math.max(0,scrollY/Math.max(1,H-innerHeight)));
   $('#routeFg').setAttribute('stroke-dasharray',`${(p*1000).toFixed(1)} 1000`);
-  const b=$('#railBoat');b.style.top=(p*100)+'%';b.style.left=waveX(p)+'px';
-  $('#hbar .fill').style.width=(p*100)+'%';$('#hbar .boat').style.left=`clamp(12px,${p*100}%,calc(100% - 12px))`;
+  $('#railMark').style.top=(p*100)+'%';
+  $('#hbar .fill').style.width=(p*100)+'%';$('#hbar .bookmark').style.left=`clamp(8px,${p*100}%,calc(100% - 8px))`;
   curSec=0;legPos.forEach(l=>{if(scrollY>=l.y-5)curSec=l.i;});
   document.querySelectorAll('#wps .wp').forEach((w,i)=>w.classList.toggle('done',ST.done.includes(i)||!!ST.finished||(legPos[i]&&scrollY>=legPos[i].y+5&&i<curSec)));
   if(p>(ST.maxP||0)+0.004){ST.maxP=p;saveState();}
@@ -486,7 +483,7 @@ function commit(){ST.hl=HL;saveState();updateCount();if($('#drawer').classList.c
 function addHighlight(segs,color,note){const h={id:'h'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),color,note:note||'',segs,at:Date.now()};HL.push(h);commit();rerender(segs.map(s=>s.pid));return h;}
 function updateCount(){
   $('#hlCount').textContent=HL.length;const lm=$('#landMsg');if(!lm)return;const nn=HL.filter(h=>h.note).length;
-  lm.textContent=HL.length?`You caught ${HL.length} highlight${HL.length>1?'s':''}${nn?` and wrote ${nn} note${nn>1?'s':''}`:''}. Take them with you.`:'You made it to the end. Select any passage above to highlight it, then copy everything from here.';
+  lm.textContent=HL.length?`You marked ${HL.length} highlight${HL.length>1?'s':''}${nn?` and wrote ${nn} note${nn>1?'s':''}`:''}. Take them with you.`:'You made it to the end. Select any passage above to highlight it, then copy everything from here.';
 }
 function showTool(rect,h){
   editing=h||null;

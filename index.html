@@ -76,15 +76,15 @@
     <button class="ib" id="bTheme" title="Light or dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 13A9 9 0 1111 3a7 7 0 0010 10z"/></svg><span class="lbl">Theme</span></button>
     <button class="ib" id="bHl" title="Your highlights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l-5 5v3h3l5-5M14 6l4 4M12.5 7.5l5-5 4 4-5 5z"/></svg><span class="lbl">Highlights</span><span class="badge" id="hlCount">0</span></button>
   </div>
-  <div id="hbar"><div class="fill"></div><svg class="boat" viewBox="0 0 34 30"><use href="#boatSym"/></svg></div>
+  <div id="hbar"><div class="fill"></div><svg class="bookmark" viewBox="0 0 14 26" aria-hidden="true"><use href="#ribbonSym"/></svg></div>
 </header>
 <nav id="rail" class="hidden" aria-label="Sections">
   <svg class="route" preserveAspectRatio="none" viewBox="0 0 60 1000" aria-hidden="true">
-    <path id="routeBg" fill="none" stroke="var(--wave)" stroke-width="2" stroke-dasharray="3 6" vector-effect="non-scaling-stroke"/>
-    <path id="routeFg" fill="none" stroke="var(--sea)" stroke-width="3" stroke-linecap="round" vector-effect="non-scaling-stroke" pathLength="1000"/>
+    <path id="routeBg" d="M30 0V1000" fill="none" stroke="var(--wave)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+    <path id="routeFg" d="M30 0V1000" fill="none" stroke="var(--sea)" stroke-width="3" vector-effect="non-scaling-stroke" pathLength="1000"/>
   </svg>
   <div id="wps"></div>
-  <svg class="boat" id="railBoat" viewBox="0 0 34 30" aria-hidden="true"><use href="#boatSym"/></svg>
+  <svg class="bookmark" id="railMark" viewBox="0 0 14 26" aria-hidden="true"><use href="#ribbonSym"/></svg>
 </nav>
 <main id="reader" class="hidden"><div class="col" id="col"></div></main>
 
@@ -99,7 +99,7 @@
   <div class="dr-list" id="tocList"></div>
 </aside>
 <aside class="drawer" id="drawer" aria-label="Highlights">
-  <div class="dr-head"><h2>Your catch</h2><button class="ib" data-close aria-label="Close">✕</button></div>
+  <div class="dr-head"><h2>Your highlights</h2><button class="ib" data-close aria-label="Close">✕</button></div>
   <div class="dr-filters" id="drFilters"></div>
   <div class="dr-list" id="drList"></div>
   <div class="dr-foot">
@@ -195,10 +195,10 @@
 <div id="toast" role="status" aria-live="polite"></div>
 
 <svg width="0" height="0" style="position:absolute">
-  <symbol id="boatSym" viewBox="0 0 34 30">
-    <path d="M17 2 L17 21 L5 21 Z" fill="var(--sheet)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>
-    <path d="M19 6 L19 21 L28 21 Z" fill="var(--buoy)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>
-    <path d="M3 22 H31 L27 28 H7 Z" fill="var(--sea)" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>
+  <!-- the reading-position marker: a bookmark ribbon with a swallow-tail end and gilt edges -->
+  <symbol id="ribbonSym" viewBox="0 0 14 26">
+    <path d="M1.5 .8H12.5V24.6L7 19.6 1.5 24.6Z" fill="var(--buoy)" stroke="var(--ink)" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M3.7 1.6V21M10.3 1.6V21" stroke="#D9B864" stroke-width=".8" opacity=".85"/>
   </symbol>
 </svg>
 
