@@ -78,10 +78,21 @@ label.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--muted)}
 .books{display:flex;gap:1.1rem;align-items:flex-end;overflow-x:auto;padding:1rem .4rem 0;scroll-snap-type:x proximity;scrollbar-width:thin}
 .plank{height:15px;background:linear-gradient(rgba(255,255,255,.04),rgba(0,0,0,.22)) var(--plank);border-radius:3px 3px 8px 8px;box-shadow:0 10px 18px -8px rgba(40,22,8,.5);position:relative}
 .plank::after{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:rgba(255,255,255,.12);border-radius:3px}
-.book{position:relative;flex:none;scroll-snap-align:start}
-.cover{display:flex;flex-direction:column;width:146px;height:var(--h,200px);border:0;border-radius:4px 10px 10px 4px;padding:1.1rem .9rem 1.3rem 1.15rem;text-align:left;background:var(--bc);color:var(--bt);position:relative;overflow:hidden;
+/* a book is its cover plus its page block, --pg px thick (set from the length); --leaf is the page edges' cream */
+.book{position:relative;flex:none;scroll-snap-align:start;padding-right:var(--pg,3px);isolation:isolate;--leaf:#ECDFC0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .book{--leaf:#C9BB9A}}
+:root[data-theme="dark"] .book{--leaf:#C9BB9A}
+/* min-height: a long title and author stretch a short cover (to ~211 px at most, inside the 186–219 px spread) instead of being clipped */
+.cover{display:flex;flex-direction:column;width:146px;min-height:var(--h,200px);border:0;border-radius:4px 10px 10px 4px;padding:1.1rem .9rem 1.3rem 1.15rem;text-align:left;background:var(--bc);color:var(--bt);position:relative;overflow:hidden;
   box-shadow:inset 6px 0 0 rgba(0,0,0,.18),inset 8px 0 0 rgba(255,255,255,.12),0 2px 0 rgba(0,0,0,.08);transition:transform .2s cubic-bezier(.2,.8,.2,1)}
 .cover:hover,.cover:focus-visible{transform:translateY(-8px) rotate(-1deg)}
+/* the page block: fine page lines and a darker fore-edge, inset 3 px top and bottom like pages between boards.
+   A sibling, since the cover clips its children. It starts 8 px under the cover's rounded corner, and lifts with the
+   cover by the same transform about the same point: the cover's centre, 65 px left of the block (146/2 − 138) */
+.pages{position:absolute;z-index:-1;top:3px;bottom:3px;left:138px;width:calc(var(--pg,3px) + 8px);border-radius:0 2px 2px 0;
+  background:repeating-linear-gradient(90deg,transparent 0 2px,rgba(110,82,48,.2) 2px 3px),linear-gradient(90deg,transparent 55%,color-mix(in srgb,var(--plank) 24%,transparent)) var(--leaf);
+  box-shadow:inset -1px 0 0 color-mix(in srgb,var(--wave) 85%,transparent);transform-origin:-65px 50%;transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.cover:hover+.pages,.cover:focus-visible+.pages{transform:translateY(-8px) rotate(-1deg)}
 /* gilt rules near the head and tail, tinted toward the cover's text colour so they show on light cloth too */
 .cover::before,.cover::after{content:"";position:absolute;left:13px;right:6px;height:4px;border-block:1px solid color-mix(in srgb,#D8B25C 62%,var(--bt));opacity:.75;pointer-events:none}
 .cover::before{top:7px}
@@ -89,11 +100,14 @@ label.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--muted)}
 .cover .c-t{font:600 1.14rem/1.1 var(--display);display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
 .cover .c-a{font:italic 400 .95rem/1.25 var(--display);opacity:.88;margin-top:.4rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .cover .c-f{margin-top:auto;display:flex;justify-content:space-between;align-items:center;font:600 .72rem var(--ui);opacity:.9}
+/* the length sits on the line above the footer, a shade lighter, so the cover's foot reads as one block */
+.cover .c-l{margin-top:auto;flex:none;font:500 .72rem var(--ui);opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cover .c-l+.c-f{margin-top:.15rem}
 .cover .c-p{position:absolute;left:0;right:0;bottom:0;height:5px;background:rgba(0,0,0,.18)}
 .cover .c-p i{display:block;height:100%;background:currentColor;opacity:.75}
 /* shaded edges, like satin, so the ribbon shows on an oxblood cover too */
-.ribbon{position:absolute;top:-6px;right:14px;width:18px;height:34px;background:linear-gradient(90deg,rgba(0,0,0,.4),transparent 28% 72%,rgba(0,0,0,.4)) var(--buoy);clip-path:polygon(0 0,100% 0,100% 100%,50% 78%,0 100%);z-index:2}
-.c-more{position:absolute;top:6px;right:6px;z-index:3;border:0;background:rgba(0,0,0,.18);color:#fff;border-radius:999px;width:28px;height:28px;font:700 .9rem var(--ui);opacity:0;transition:opacity .15s}
+.ribbon{position:absolute;top:-6px;right:calc(14px + var(--pg,3px));width:18px;height:34px;background:linear-gradient(90deg,rgba(0,0,0,.4),transparent 28% 72%,rgba(0,0,0,.4)) var(--buoy);clip-path:polygon(0 0,100% 0,100% 100%,50% 78%,0 100%);z-index:2}
+.c-more{position:absolute;top:6px;right:calc(6px + var(--pg,3px));z-index:3;border:0;background:rgba(0,0,0,.18);color:#fff;border-radius:999px;width:28px;height:28px;font:700 .9rem var(--ui);opacity:0;transition:opacity .15s}
 .book:hover .c-more,.c-more:focus-visible{opacity:1}
 @media (pointer:coarse){.c-more{opacity:1}}
 .empty-shelf{text-align:center;padding:2rem 1rem 3rem;border:2px dashed var(--wave);border-radius:28px;background:var(--sheet)}
@@ -113,9 +127,11 @@ label.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--muted)}
 .tbl .tt{display:flex;align-items:center;gap:.7rem;font:600 1.08rem/1.25 var(--display)}
 .tbl .tt i{width:12px;height:18px;border-radius:2px 4px 4px 2px;flex:none}
 .tbl .mut{color:var(--muted)}
+.tbl .c-words{white-space:nowrap}
 .pbar{display:inline-block;width:70px;height:6px;border-radius:9px;background:var(--rule);vertical-align:middle;margin-right:.4rem;overflow:hidden}
 .pbar i{display:block;height:100%;background:var(--sea)}
-@media (max-width:700px){.tbl .c-added,.tbl .c-hl{display:none}.tbl td,.tbl th button{padding-left:.5rem;padding-right:.5rem}.tbl .tt{font-size:1rem;gap:.55rem}.pbar{width:48px}}
+/* phones: the covers show each length, so the table drops it with Added and Highlights; five columns don't fit 390 px */
+@media (max-width:700px){.tbl .c-added,.tbl .c-words,.tbl .c-hl{display:none}.tbl td,.tbl th button{padding-left:.5rem;padding-right:.5rem}.tbl .tt{font-size:1rem;gap:.55rem}.pbar{width:48px}}
 
 /* ================= MODALS ================= */
 .modal{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:1rem;background:rgba(30,20,12,.45)}
