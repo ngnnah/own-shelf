@@ -69,9 +69,9 @@ const pagesPx=w=>w>0?Math.round(Math.min(32,Math.max(3,9.04*Math.log10(w)-16.8))
 function bookHTML(m){
   const [bc,bt]=cover(m.id), h=186+parseInt(hash(m.id+'h'),36)%34;
   const pct=Math.round(m.progress*100), yr=m.writtenSort?m.writtenSort.slice(0,4):'', len=fmtWords(m.words);
-  return `<div class="book" style="--pg:${pagesPx(m.words)}px">${m.finished?'<span class="ribbon" title="Finished"></span>':''}
+  return `<div class="book" style="--pg:${pagesPx(m.words)}px">
     <button class="cover" data-open="${m.id}" style="--bc:${bc};--bt:${bt};--h:${h}px" aria-label="${esc(m.title)}${m.author?' by '+esc(m.author):''}${len?`, ${m.words.toLocaleString()} word${m.words===1?'':'s'}`:''}, ${m.finished?'finished':pct+'% read'}">
-      <span class="c-t">${esc(m.title)}</span>${m.author?`<span class="c-a">${esc(m.author)}</span>`:''}${len?`<span class="c-l">${len}</span>`:''}
+      <span class="c-t">${esc(m.title)}</span>${m.author?`<span class="c-a">${esc(m.author)}</span>`:''}${m.finished?'<span class="c-done">✓ Finished</span>':''}${len?`<span class="c-l">${len}</span>`:''}
       <span class="c-f"><span>${yr}</span><span>${m.hl?`✎ ${m.hl}`:''}${pct&&!m.finished?` · ${pct}%`:''}</span></span>
       <span class="c-p"><i style="width:${pct}%"></i></span></button><span class="pages" aria-hidden="true"></span>
     <button class="c-more" data-edit="${m.id}" aria-label="Details for ${esc(m.title)}">⋯</button></div>`;
@@ -250,8 +250,17 @@ addEventListener('drop',e=>{e.preventDefault();dragDepth=0;$('#dropAll').classLi
 let detId=null;
 async function openDetails(id){
   detId=id;const m=META.find(x=>x.id===id);if(!m)return;
-  $('#dTitle').value=m.title;$('#dAuthor').value=m.author;$('#dWritten').value=m.written;$('#dSource').value=m.source;openModal('#detM');
+  $('#dTitle').value=m.title;$('#dAuthor').value=m.author;$('#dWritten').value=m.written;$('#dSource').value=m.source;$('#dDone').classList.toggle('hidden',!m.finished);openModal('#detM');
 }
+// Progress goes back to the share of sections you'd reached; finishing again needs fresh reading time.
+$('#dUnfinish').onclick=async()=>{
+  const id=detId,open=!!(DOC&&DOC.id===id),d=open?DOC:await DB.get('doc:'+id);if(!d)return;
+  const st=open?ST:((await DB.get('state:'+id))||{hl:[],pos:0,maxP:0,done:[]});
+  st.finished=false;st.readMs=0;st.maxP=Math.min(.99,(st.done||[]).length/Math.max(1,(d.sections||[]).length));
+  if(open){await saveState(true);onScroll();}
+  else{await DB.put('state:'+id,st);const nm=metaFor(d,st);META=META.filter(x=>x.id!==id).concat(nm);await DB.put('meta:'+id,nm);renderShelf();}
+  $('#dDone').classList.add('hidden');toast('Marked as unfinished');
+};
 $('#dSave').onclick=async()=>{
   const d=DOC&&DOC.id===detId?DOC:await DB.get('doc:'+detId);if(!d)return;
   d.title=$('#dTitle').value.trim()||d.title;d.author=$('#dAuthor').value.trim();d.written=$('#dWritten').value.trim();d.writtenSort=parseDate(d.written);
@@ -305,7 +314,7 @@ async function openBook(id,opts){
   const d=await DB.get('doc:'+id);
   if(!d){$('#busy').classList.add('hidden');toast("Couldn't find that text");return;}
   resetFind(id);
-  DOC=d;ST=(await DB.get('state:'+id))||{hl:[],pos:0,maxP:0,done:[]};ST.done=ST.done||[];HL=ST.hl||[];ST.opened=Date.now();
+  DOC=d;ST=(await DB.get('state:'+id))||{hl:[],pos:0,maxP:0,done:[]};ST.done=ST.done||[];HL=ST.hl||[];ST.opened=Date.now();landSeen=false;lastTick=Date.now();
   show('reader');buildReader();$('#busy').classList.add('hidden');
   ls.set('last',id);
   const h=opts&&opts.hl&&HL.find(x=>x.id===opts.hl);
@@ -427,14 +436,23 @@ document.addEventListener('click',e=>{
   const gh=e.target.closest('[data-goh]');if(gh){closeDrawers();const el=document.getElementById('h-'+gh.dataset.goh);if(el)el.scrollIntoView();return;}
   if(e.target.closest('[data-gonotes]')){closeDrawers();$('#notes').scrollIntoView();}
 });
+// A book counts as finished when the end is on screen AND you've spent real time reading it: at least 30% of its
+// estimated reading time (20 s minimum). Time only accrues while the page is visible and you've scrolled, tapped,
+// typed or selected in the last 90 s, so flicking or jumping to the end doesn't finish a book.
+let landSeen=false,lastActive=0,lastTick=Date.now();
+const markActive=()=>{lastActive=Date.now();};
+addEventListener('scroll',markActive,{passive:true});addEventListener('pointerdown',markActive,{passive:true});addEventListener('keydown',markActive);document.addEventListener('selectionchange',markActive);
+const finishAfterMs=()=>Math.max(20000,minsOf(DOC.words)*60000*0.3);
+function maybeFinish(){if(DOC&&ST&&!ST.finished&&landSeen&&(ST.readMs||0)>=finishAfterMs()){ST.finished=true;ST.maxP=1;saveState();}}
+setInterval(()=>{const now=Date.now();if(DOC&&ST&&document.visibilityState==='visible'&&now-lastActive<90000){ST.readMs=(ST.readMs||0)+Math.min(now-lastTick,60000);maybeFinish();}lastTick=now;},5000);
 let cpObs=null;
 function observeCheckpoints(){
   if(cpObs) cpObs.disconnect();
   if(!('IntersectionObserver' in window)) return;
   cpObs=new IntersectionObserver(es=>es.forEach(en=>{
-    if(!en.isIntersecting) return;
     const el=en.target;
-    if(el.id==='land'){ if(!ST.finished){ST.finished=true;ST.maxP=1;saveState();} return; }
+    if(el.id==='land'){ landSeen=en.isIntersecting; maybeFinish(); return; }
+    if(!en.isIntersecting) return;
     const i=+el.dataset.cp; if(!ST.done.includes(i)){ST.done.push(i);el.classList.add('reached');saveState();}
   }),{threshold:.9});
   document.querySelectorAll('.cp').forEach(c=>cpObs.observe(c));cpObs.observe($('#land'));

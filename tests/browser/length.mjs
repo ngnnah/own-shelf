@@ -23,9 +23,9 @@ const [SHORT,MID,LONG]=BOOKS;
 const cov=title=>`.cover[aria-label^="${title}"]`;
 // the reader's own count, as the hero shows it ("4,213"): the cover's label must say the same
 const heroWords=()=>page.$$eval('.log span',s=>{const w=s.find(e=>/ words?$/.test(e.textContent));return w&&w.querySelector('b').textContent;});
-// a book's parts, measured on the page: cover, page block, the whole book, the ribbon and the ⋯ button
+// a book's parts, measured on the page: cover, page block, the whole book and the ⋯ button
 const parts=title=>page.$eval(cov(title),c=>{const b=c.parentElement,r=e=>e&&e.getBoundingClientRect().toJSON(),s=e=>getComputedStyle(e).transform;
-  return {cover:r(c),pages:r(b.querySelector('.pages')),book:r(b),ribbon:r(b.querySelector('.ribbon')),more:r(b.querySelector('.c-more')),tc:s(c),tp:s(b.querySelector('.pages'))};});
+  return {cover:r(c),pages:r(b.querySelector('.pages')),book:r(b),more:r(b.querySelector('.c-more')),tc:s(c),tp:s(b.querySelector('.pages'))};});
 const noSideScroll=()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth);
 const scheme=s=>page.emulateMediaFeatures([{name:'prefers-color-scheme',value:s}]);
 const shoot=async(label,opts={fullPage:true})=>{
@@ -51,7 +51,7 @@ await t.run(async()=>{
   for(const b of BOOKS){
     await addMarkdown(t,`${b.cover.replace(/\W/g,'')}.md`,b.md,b.title);
     b.exact=await heroWords();
-    // the short note read to the end (it gets the finished ribbon); the medium one partly, so its footer shows a percentage
+    // the short note scrolled to the end; the medium one partly, so its footer shows a percentage
     if(b===SHORT){await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));await sleep(600);}
     if(b===MID){await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight*.4));await until(()=>document.querySelector('#tocSub').textContent.match(/[1-9]\d*% read/));}
   }
@@ -98,7 +98,7 @@ await t.run(async()=>{
   ok('the pages sit 3 px inside the boards, top and bottom',Object.values(P).every(p=>Math.abs(p.pages.top-p.cover.top-3)<.5&&Math.abs(p.cover.bottom-p.pages.bottom-3)<.5));
   const gaps=await page.$$eval('.books .book',bs=>bs.slice(1).map((b,i)=>b.getBoundingClientRect().left-bs[i].getBoundingClientRect().right));
   ok('the gap between books stays 1.1rem',gaps.length===4&&gaps.every(g=>Math.abs(g-17.6)<.5));
-  ok('the ribbon and ⋯ stay on the front cover',Math.abs(P[SHORT.title].cover.right-P[SHORT.title].ribbon.right-14)<.5&&Object.values(P).every(p=>Math.abs(p.cover.right-p.more.right-6)<.5));
+  ok('the ⋯ button stays on the front cover',Object.values(P).every(p=>Math.abs(p.cover.right-p.more.right-6)<.5));
   // hover: the cover and its pages lift as one, by the same transform
   await page.hover(cov(LONG.title));
   await page.waitForFunction(s=>{const c=document.querySelector(s);return getComputedStyle(c).transform!=='none'&&!c.getAnimations().length&&!c.nextElementSibling.getAnimations().length;},{timeout:5000},cov(LONG.title)).catch(()=>{});

@@ -1,7 +1,7 @@
 :root{
   /* The names come from the old nautical theme; the values are the library's.
      --paper the page (parchment)      --sheet cards and dialogs      --ink text      --muted secondary text
-     --sea the accent (library green)  --buoy alerts, badges, the finished ribbon (oxblood)
+     --sea the accent (library green)  --buoy alerts, badges, the reading-position ribbon (oxblood)
      --rule hairlines and borders (light brass)  --wave dashed outlines and tints (brass)  --plank shelf boards (walnut)
      --display headings, wordmark, buttons  --body reading text  --ui small labels, chips, table headers, hints */
   --paper:#F3EAD7; --sheet:#FBF6EA; --ink:#2E2119; --muted:#6B5A48; --sea:#2F5A43; --buoy:#8E2F2A; --rule:#DCCBA8; --wave:#C9B48A; --plank:#5C3B24;
@@ -102,10 +102,13 @@ label.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--muted)}
 /* the length sits on the line above the footer, a shade lighter, so the cover's foot reads as one block */
 .cover .c-l{margin-top:auto;flex:none;font:500 .72rem var(--ui);opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cover .c-l+.c-f{margin-top:.15rem}
+/* a finished book says so on its cover */
+.cover .c-done{margin-top:auto;flex:none;font:700 .74rem var(--ui);letter-spacing:.02em}
+.cover .c-done+.c-l{margin-top:.1rem}
+.cover .c-done+.c-f{margin-top:.15rem}
+.d-done{align-items:center;justify-content:space-between;margin-top:1rem;padding:.5rem .2rem 0;border-top:1px solid var(--rule);font:600 .92rem var(--ui);color:var(--muted)}
 .cover .c-p{position:absolute;left:0;right:0;bottom:0;height:5px;background:rgba(0,0,0,.18)}
 .cover .c-p i{display:block;height:100%;background:currentColor;opacity:.75}
-/* shaded edges, like satin, so the ribbon shows on an oxblood cover too */
-.ribbon{position:absolute;top:-6px;right:calc(14px + var(--pg,3px));width:18px;height:34px;background:linear-gradient(90deg,rgba(0,0,0,.4),transparent 28% 72%,rgba(0,0,0,.4)) var(--buoy);clip-path:polygon(0 0,100% 0,100% 100%,50% 78%,0 100%);z-index:2}
 .c-more{position:absolute;top:6px;right:calc(6px + var(--pg,3px));z-index:3;border:0;background:rgba(0,0,0,.18);color:#fff;border-radius:999px;width:28px;height:28px;font:700 .9rem var(--ui);opacity:0;transition:opacity .15s}
 .book:hover .c-more,.c-more:focus-visible{opacity:1}
 @media (pointer:coarse){.c-more{opacity:1}}

@@ -25,7 +25,9 @@ const keep = res => res && (res.ok || res.type === 'opaque');
 async function networkFirst(r) {
   const cache = await caches.open(CACHE);
   // stored without the query, so ?add=… deep links don't pile up copies of the page
-  const net = fetch(r).then(res => { if (res.ok) cache.put(r.url.split('?')[0], res.clone()); return res; });
+  // revalidate (a 304 when unchanged): GitHub Pages sends max-age=600, which would hide a deploy for 10 minutes
+  const net = (r.mode === 'navigate' ? fetch(r.url, { cache: 'no-cache' }) : fetch(r, { cache: 'no-cache' }))
+    .then(res => { if (res.ok) cache.put(r.url.split('?')[0], res.clone()); return res; });
   try {
     return await Promise.race([net, new Promise((_, rej) => setTimeout(() => rej(new Error('slow')), 4000))]);
   } catch (e) {
