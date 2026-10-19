@@ -8,8 +8,8 @@
 //   deletes.mjs     deletes that lose highlights or notes ask for "yes"
 //   trash.mjs       the Trash: removed books, highlights and notes, restore, delete forever, the 30-day purge
 //   length.mjs      each book's length on the shelf: the cover's word count, the page block, the list's Length column
-//   finish.mjs      finishing a book: real reading time needed, the cover's ✓ Finished, Mark as unfinished
-//   kindle.mjs      Kindle notebook exports: review step, highlights and notes, merging a newer export, several files at once
+//   finish.mjs      finishing a book: real reading time needed, the cover's ✓ Finished, the manual override in Details
+//   kindle.mjs      Kindle notebook exports: review step, highlights and notes, merging, several files at once, the notebook cover
 //   migrate.mjs     the artifact's "Back up shelf" (legacy/app-artifact.html) → the app's "Restore from backup"
 // Every file also fails on any page error.
 //

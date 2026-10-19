@@ -66,11 +66,14 @@ function filtered(){const q=$('#q').value.trim().toLowerCase();return META.filte
 const fmtWords=w=>!(w>0)?'':w<1000?`${w} word${w===1?'':'s'}`:`${w<9950?(w/1000).toFixed(1).replace(/\.0$/,''):Math.round(w/1000)}k words`;
 // The page block's thickness in px, on a log scale: ~4 at 200 words, ~30 at 150k, clamped to 3–32. Unknown → 3.
 const pagesPx=w=>w>0?Math.round(Math.min(32,Math.max(3,9.04*Math.log10(w)-16.8))):3;
+// A Kindle notebook (your highlights, not the book) gets a ruled-paper cover. Its id is 'k' + one hash (see readFile);
+// every other id is two hashes, so in practice longer than 8 characters.
+const isKindleId=id=>/^k[0-9a-z]{1,7}$/.test(id);
 function bookHTML(m){
-  const [bc,bt]=cover(m.id), h=186+parseInt(hash(m.id+'h'),36)%34;
+  const [bc,bt]=cover(m.id), h=186+parseInt(hash(m.id+'h'),36)%34, nb=isKindleId(m.id);
   const pct=Math.round(m.progress*100), yr=m.writtenSort?m.writtenSort.slice(0,4):'', len=fmtWords(m.words);
   return `<div class="book" style="--pg:${pagesPx(m.words)}px">
-    <button class="cover" data-open="${m.id}" style="--bc:${bc};--bt:${bt};--h:${h}px" aria-label="${esc(m.title)}${m.author?' by '+esc(m.author):''}${len?`, ${m.words.toLocaleString()} word${m.words===1?'':'s'}`:''}, ${m.finished?'finished':pct+'% read'}">
+    <button class="cover${nb?' nb':''}" data-open="${m.id}" style="--bc:${bc};--bt:${bt};--h:${h}px" aria-label="${esc(m.title)}${m.author?' by '+esc(m.author):''}${nb?', Kindle notebook':''}${len?`, ${m.words.toLocaleString()} word${m.words===1?'':'s'}`:''}, ${m.finished?'finished':pct+'% read'}">
       <span class="c-t">${esc(m.title)}</span>${m.author?`<span class="c-a">${esc(m.author)}</span>`:''}${m.finished?'<span class="c-done">✓ Finished</span>':''}${len?`<span class="c-l">${len}</span>`:''}
       <span class="c-f"><span>${yr}</span><span>${m.hl?`✎ ${m.hl}`:''}${pct&&!m.finished?` · ${pct}%`:''}</span></span>
       <span class="c-p"><i style="width:${pct}%"></i></span></button><span class="pages" aria-hidden="true"></span>
@@ -95,7 +98,7 @@ function renderShelf(){
     const val=(m,c)=>c==='written'?(m.writtenSort||''):c==='title'||c==='author'?(m[c]||'￿').toLowerCase():c==='words'?(m.words||0):m[c];
     const rows=[...list].sort((a,b)=>{const A=val(a,prefs.sort),B=val(b,prefs.sort);return (A<B?-1:A>B?1:0)*prefs.dir;});
     body.innerHTML=`<table class="tbl"><thead><tr>${cols.map(([c,l])=>`<th class="c-${c}"><button data-sort="${c}" aria-sort="${prefs.sort===c?(prefs.dir>0?'ascending':'descending'):'none'}">${l}${prefs.sort===c?(prefs.dir>0?' ↑':' ↓'):''}</button></th>`).join('')}</tr></thead><tbody>${
-      rows.map(m=>`<tr data-open="${m.id}" tabindex="0"><td><span class="tt"><i style="background:${cover(m.id)[0]}"></i>${esc(m.title)}</span></td><td class="mut">${esc(m.author||'—')}</td><td class="mut">${esc(m.written||'—')}</td><td class="mut c-words">${fmtWords(m.words)||'—'}</td><td class="mut c-added">${fmtDay(m.added)}</td><td>${m.finished?'Finished':`<span class="pbar"><i style="width:${Math.round(m.progress*100)}%"></i></span>${Math.round(m.progress*100)}%`}</td><td class="mut c-hl">${m.hl}</td></tr>`).join('')}</tbody></table>`;
+      rows.map(m=>`<tr data-open="${m.id}" tabindex="0"><td><span class="tt">${isKindleId(m.id)?'<i class="nb"></i>':`<i style="background:${cover(m.id)[0]}"></i>`}${esc(m.title)}</span></td><td class="mut">${esc(m.author||'—')}</td><td class="mut">${esc(m.written||'—')}</td><td class="mut c-words">${fmtWords(m.words)||'—'}</td><td class="mut c-added">${fmtDay(m.added)}</td><td>${m.finished?'Finished':`<span class="pbar"><i style="width:${Math.round(m.progress*100)}%"></i></span>${Math.round(m.progress*100)}%`}</td><td class="mut c-hl">${m.hl}</td></tr>`).join('')}</tbody></table>`;
     return;
   }
   const groups=new Map();
@@ -298,16 +301,22 @@ addEventListener('drop',e=>{e.preventDefault();dragDepth=0;$('#dropAll').classLi
 let detId=null;
 async function openDetails(id){
   detId=id;const m=META.find(x=>x.id===id);if(!m)return;
-  $('#dTitle').value=m.title;$('#dAuthor').value=m.author;$('#dWritten').value=m.written;$('#dSource').value=m.source;$('#dDone').classList.toggle('hidden',!m.finished);openModal('#detM');
+  $('#dTitle').value=m.title;$('#dAuthor').value=m.author;$('#dWritten').value=m.written;$('#dSource').value=m.source;renderDone(m);openModal('#detM');
 }
-// Progress goes back to the share of sections you'd reached; finishing again needs fresh reading time.
-$('#dUnfinish').onclick=async()=>{
-  const id=detId,open=!!(DOC&&DOC.id===id),d=open?DOC:await DB.get('doc:'+id);if(!d)return;
-  const st=open?ST:((await DB.get('state:'+id))||{hl:[],pos:0,maxP:0,done:[]});
-  st.finished=false;st.readMs=0;st.maxP=Math.min(.99,(st.done||[]).length/Math.max(1,(d.sections||[]).length));
+function renderDone(m){
+  $('#dState').textContent=m.finished?'✓ Finished':`Reading · ${Math.round(m.progress*100)}%`;
+  $('#dFinish').textContent=m.finished?'Mark as reading':'Mark as finished';
+}
+// A manual override of the automatic finish. Mark as finished: done, at 100%. Mark as reading: progress goes back to
+// the share of sections you'd reached, and finishing on its own again needs fresh reading time.
+$('#dFinish').onclick=async()=>{
+  const id=detId,m=META.find(x=>x.id===id),open=!!(DOC&&DOC.id===id),d=open?DOC:await DB.get('doc:'+id);if(!d||!m)return;
+  const st=open?ST:((await DB.get('state:'+id))||{hl:[],pos:0,maxP:0,done:[]}),fin=!m.finished;
+  if(fin){st.finished=true;st.maxP=1;}
+  else{st.finished=false;st.readMs=0;st.maxP=Math.min(.99,(st.done||[]).length/Math.max(1,(d.sections||[]).length));}
   if(open){await saveState(true);onScroll();}
   else{await DB.put('state:'+id,st);const nm=metaFor(d,st);META=META.filter(x=>x.id!==id).concat(nm);await DB.put('meta:'+id,nm);renderShelf();}
-  $('#dDone').classList.add('hidden');toast('Marked as unfinished');
+  renderDone(META.find(x=>x.id===id));toast(fin?'Marked as finished':'Marked as reading');
 };
 $('#dSave').onclick=async()=>{
   const d=DOC&&DOC.id===detId?DOC:await DB.get('doc:'+detId);if(!d)return;

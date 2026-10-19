@@ -72,4 +72,8 @@ await t.run(async()=>{
   ok('drop-anywhere: several files, merged into the open book',await toast('Added 1 book · merged 1')&&await until(()=>document.querySelector('#hlCount').textContent==='8')&&(await page.$eval('.hero h1',h=>h.textContent)).includes('Lighthouse'));
   await page.click('#bHome');await page.waitForSelector('#shelf:not(.hidden)');
   ok('shelf has five books',(await books())===5);
+  ok('Kindle notebooks get the notebook cover, other books cloth',(await page.$$eval('.cover.nb .c-t',ts=>ts.map(x=>x.textContent).sort().join('|')))==='Another Kindle Book|The Lighthouse Ledger (Harbour Tales Book 2)');
+  ok('notebook covers use their own ink, not the cloth text colour',(await page.$$eval('.cover.nb .c-t',ts=>ts.map(x=>getComputedStyle(x).color))).every(c=>c==='rgb(35, 57, 91)'));
+  ok('screen readers hear "Kindle notebook"',(await page.$eval('.cover.nb',c=>c.getAttribute('aria-label'))).includes(', Kindle notebook,'));
+  await t.shot('shelf',{fullPage:true});
 });
