@@ -5,6 +5,7 @@
   "scripts": {
     "test": "node worker/worker.test.mjs && node store.test.mjs && node parse.test.mjs",
     "test:browser": "node tests/browser/run.mjs",
+    "icons": "node design/export-icons.mjs",
     "serve": "npx --yes http-server -c-1 -p 8080 ."
   },
   "devDependencies": {

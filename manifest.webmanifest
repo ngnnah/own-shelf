@@ -1,16 +1,16 @@
 {
-  "name": "Upwind Reader",
-  "short_name": "Upwind",
+  "name": "own-shelf",
+  "short_name": "own-shelf",
   "description": "A personal reading shelf for PDFs, articles and links, with highlights and notes.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "theme_color": "#2563A8",
-  "background_color": "#EAF1EC",
+  "theme_color": "#F3EAD7",
+  "background_color": "#F3EAD7",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "share_target": {
     "action": "./",
