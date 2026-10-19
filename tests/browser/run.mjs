@@ -5,6 +5,7 @@
 //   notebook.mjs    the Notebook: every highlight across books, chips, search, book filter, export, open at a highlight
 //   search.mjs      search inside a book: accent folding, counts, the 200 cap, marking the match, Enter, Escape
 //   notefilter.mjs  the "With note" chip in the highlights drawer
+//   length.mjs      each book's length on the shelf: the cover's word count, the page block, the list's Length column
 //   migrate.mjs     the artifact's "Back up shelf" (legacy/app-artifact.html) → the app's "Restore from backup"
 // Every file also fails on any page error.
 //
@@ -20,7 +21,7 @@ import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','migrate.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','length.mjs','migrate.mjs'];
 
 // Run one file, echo its output and count its PASS/FAIL lines.
 const runOne=f=>new Promise(res=>{

@@ -61,14 +61,18 @@ function groupKey(m){
   return m.author?{k:m.author.toLowerCase(),label:m.author}:{k:'￿',label:'Unknown author'};
 }
 function filtered(){const q=$('#q').value.trim().toLowerCase();return META.filter(m=>!q||(m.title+' '+m.author).toLowerCase().includes(q));}
+// A text's length, compact: "40 words", "4.2k words", "200k words". '' when unknown (older shelf entries have no count).
+const fmtWords=w=>!(w>0)?'':w<1000?`${w} word${w===1?'':'s'}`:`${w<9950?(w/1000).toFixed(1).replace(/\.0$/,''):Math.round(w/1000)}k words`;
+// The page block's thickness in px, on a log scale: ~4 at 200 words, ~30 at 150k, clamped to 3–32. Unknown → 3.
+const pagesPx=w=>w>0?Math.round(Math.min(32,Math.max(3,9.04*Math.log10(w)-16.8))):3;
 function bookHTML(m){
   const [bc,bt]=cover(m.id), h=186+parseInt(hash(m.id+'h'),36)%34;
-  const pct=Math.round(m.progress*100), yr=m.writtenSort?m.writtenSort.slice(0,4):'';
-  return `<div class="book">${m.finished?'<span class="ribbon" title="Finished"></span>':''}
-    <button class="cover" data-open="${m.id}" style="--bc:${bc};--bt:${bt};--h:${h}px" aria-label="${esc(m.title)}${m.author?' by '+esc(m.author):''}, ${m.finished?'finished':pct+'% read'}">
-      <span class="c-t">${esc(m.title)}</span>${m.author?`<span class="c-a">${esc(m.author)}</span>`:''}
+  const pct=Math.round(m.progress*100), yr=m.writtenSort?m.writtenSort.slice(0,4):'', len=fmtWords(m.words);
+  return `<div class="book" style="--pg:${pagesPx(m.words)}px">${m.finished?'<span class="ribbon" title="Finished"></span>':''}
+    <button class="cover" data-open="${m.id}" style="--bc:${bc};--bt:${bt};--h:${h}px" aria-label="${esc(m.title)}${m.author?' by '+esc(m.author):''}${len?`, ${m.words.toLocaleString()} word${m.words===1?'':'s'}`:''}, ${m.finished?'finished':pct+'% read'}">
+      <span class="c-t">${esc(m.title)}</span>${m.author?`<span class="c-a">${esc(m.author)}</span>`:''}${len?`<span class="c-l">${len}</span>`:''}
       <span class="c-f"><span>${yr}</span><span>${m.hl?`✎ ${m.hl}`:''}${pct&&!m.finished?` · ${pct}%`:''}</span></span>
-      <span class="c-p"><i style="width:${pct}%"></i></span></button>
+      <span class="c-p"><i style="width:${pct}%"></i></span></button><span class="pages" aria-hidden="true"></span>
     <button class="c-more" data-edit="${m.id}" aria-label="Details for ${esc(m.title)}">⋯</button></div>`;
 }
 function renderShelf(){
@@ -86,11 +90,11 @@ function renderShelf(){
   const list=filtered();
   if(!list.length){body.innerHTML=`<div class="empty">Nothing on the shelf matches “${esc($('#q').value)}”.</div>`;return;}
   if(prefs.view==='list'){
-    const cols=[['title','Title'],['author','Author'],['written','Written'],['added','Added'],['progress','Progress'],['hl','Highlights']];
-    const val=(m,c)=>c==='written'?(m.writtenSort||''):c==='title'||c==='author'?(m[c]||'￿').toLowerCase():m[c];
+    const cols=[['title','Title'],['author','Author'],['written','Written'],['words','Length'],['added','Added'],['progress','Progress'],['hl','Highlights']];
+    const val=(m,c)=>c==='written'?(m.writtenSort||''):c==='title'||c==='author'?(m[c]||'￿').toLowerCase():c==='words'?(m.words||0):m[c];
     const rows=[...list].sort((a,b)=>{const A=val(a,prefs.sort),B=val(b,prefs.sort);return (A<B?-1:A>B?1:0)*prefs.dir;});
     body.innerHTML=`<table class="tbl"><thead><tr>${cols.map(([c,l])=>`<th class="c-${c}"><button data-sort="${c}" aria-sort="${prefs.sort===c?(prefs.dir>0?'ascending':'descending'):'none'}">${l}${prefs.sort===c?(prefs.dir>0?' ↑':' ↓'):''}</button></th>`).join('')}</tr></thead><tbody>${
-      rows.map(m=>`<tr data-open="${m.id}" tabindex="0"><td><span class="tt"><i style="background:${cover(m.id)[0]}"></i>${esc(m.title)}</span></td><td class="mut">${esc(m.author||'—')}</td><td class="mut">${esc(m.written||'—')}</td><td class="mut c-added">${fmtDay(m.added)}</td><td>${m.finished?'Finished':`<span class="pbar"><i style="width:${Math.round(m.progress*100)}%"></i></span>${Math.round(m.progress*100)}%`}</td><td class="mut c-hl">${m.hl}</td></tr>`).join('')}</tbody></table>`;
+      rows.map(m=>`<tr data-open="${m.id}" tabindex="0"><td><span class="tt"><i style="background:${cover(m.id)[0]}"></i>${esc(m.title)}</span></td><td class="mut">${esc(m.author||'—')}</td><td class="mut">${esc(m.written||'—')}</td><td class="mut c-words">${fmtWords(m.words)||'—'}</td><td class="mut c-added">${fmtDay(m.added)}</td><td>${m.finished?'Finished':`<span class="pbar"><i style="width:${Math.round(m.progress*100)}%"></i></span>${Math.round(m.progress*100)}%`}</td><td class="mut c-hl">${m.hl}</td></tr>`).join('')}</tbody></table>`;
     return;
   }
   const groups=new Map();
