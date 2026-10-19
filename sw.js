@@ -1,9 +1,9 @@
-// Offline shell for Upwind. Book data is offline through Firestore's own cache, not this.
+// Offline shell for own-shelf. Book data is offline through Firestore's own cache, not this.
 //   same-origin files:  network first (4 s), cache fallback
 //   CDN scripts, fonts: stale-while-revalidate
 //   everything else (Firestore, Google sign-in, the link Worker): not touched
-const CACHE = 'upwind-v1';
-const SHELL = ['./', 'index.html', 'styles.css', 'parse.js', 'store.js', 'config.js', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png'];
+const CACHE = 'own-shelf-v1';
+const SHELL = ['./', 'index.html', 'styles.css', 'parse.js', 'store.js', 'config.js', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/mark.svg', 'icons/mark-small.svg'];
 const CDN = /^https:\/\/(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|www\.gstatic\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\//;
 
 self.addEventListener('install', e => {

@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<!--
+  own-shelf arm lab: the source drawing of the app icon, a wooden bookshelf shaped like a flexed arm.
+  The icon's settings are in icon.json; `npm run icons` (export-icons.mjs) redraws every file in icons/ from both.
+  To edit: open this file in Chrome (straight from disk works). It opens on its own preset, so load the icon first
+  by running this in the console, with icon.json's contents in place of {...}:
+    localStorage.setItem('own-shelf-arm-lab:cfg', JSON.stringify({...})); location.reload()
+  Tune, then "Copy JSON" and paste its "cfg" into icon.json. The exporter sets "fit" (mark radius) per file.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>own-shelf arm lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=Cormorant+Garamond:wght@500;600&family=Libre+Caslon+Text:wght@400;700&family=Bricolage+Grotesque:wght@600;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f3f2ee; --panel: #ffffff; --ink: #1d1d1f; --muted: #6e6e73; --line: #e2e0da;
+  --soft: #f7f6f3; --accent: #1f3a2e; --accent-ink: #ffffff; --focus: #3b82f6;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #141514; --panel: #1c1d1c; --ink: #ececea; --muted: #9b9b97; --line: #2e2f2d;
+          --soft: #222322; --accent: #8fd1ad; --accent-ink: #10231a; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font: 13px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+.app { display: grid; grid-template-columns: 330px 1fr; height: 100vh; }
+aside { overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line); padding: 14px 16px 120px; }
+main { overflow-y: auto; padding: 22px 28px 80px; }
+@media (max-width: 860px) { .app { grid-template-columns: 1fr; height: auto; } aside { border-right: 0; border-bottom: 1px solid var(--line); } }
+h1 { font-size: 18px; margin: 0 0 2px; letter-spacing: -0.01em; }
+h2 { font-size: 13px; margin: 28px 0 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.sub { color: var(--muted); margin: 0 0 14px; max-width: 70ch; }
+.presets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 8px 0 6px; }
+button { font: inherit; color: var(--ink); background: var(--soft); border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.row-buttons { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.sec { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 10px; }
+.sec-title { font-weight: 650; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 6px; }
+.ctl { display: grid; grid-template-columns: 112px 1fr 44px; align-items: center; gap: 8px; margin: 5px 0; }
+.ctl label { font-size: 12px; }
+.ctl .val { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 11px; text-align: right; }
+.ctl input[type=range] { width: 100%; accent-color: var(--accent); }
+.ctl select, .ctl input[type=text] { grid-column: 2 / 4; font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--soft); color: var(--ink); width: 100%; }
+.ctl.check input { justify-self: start; accent-color: var(--accent); }
+.ctl .colorwrap { grid-column: 2 / 4; display: flex; gap: 6px; align-items: center; }
+.ctl input[type=color] { width: 30px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: none; }
+.ctl .hex { font: 11px ui-monospace, Menlo, monospace; color: var(--muted); }
+.swatches { grid-column: 2 / 4; display: flex; flex-wrap: wrap; gap: 4px; margin-top: -2px; }
+.swatches span { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(0,0,0,.15); cursor: pointer; }
+.ctl.hidden { display: none; }
+textarea { width: 100%; min-height: 54px; font: inherit; padding: 6px 8px; border-radius: 7px; border: 1px solid var(--line); background: var(--soft); color: var(--ink); resize: vertical; }
+.toolbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 8px 0 4px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: transparent; padding: 5px 10px; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--accent); color: var(--accent-ink); }
+.readout { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+.readout b { color: var(--ink); font-weight: 600; }
+.warn { color: #c2410c; }
+@media (prefers-color-scheme: dark) { .warn { color: #fb923c; } }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.card { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--panel); }
+.card .stage { height: 140px; display: grid; place-items: center; }
+.card .cap { padding: 6px 9px 8px; font-size: 12px; }
+.card .cap small { color: var(--muted); display: block; }
+.pins { display: grid; gap: 8px; }
+.pin { display: grid; grid-template-columns: 150px 1fr auto; gap: 12px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.pin .name { font-weight: 600; }
+.pin .name small { display: block; color: var(--muted); font-weight: 400; }
+.pin .strip { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.empty { color: var(--muted); font-style: italic; }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #111; color: #fff; padding: 8px 14px; border-radius: 8px; font-size: 12px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.on { opacity: 1; }
+.conn { font-size: 11px; color: var(--muted); }
+
+/* ═══ the arm lab: context scenes ═══ */
+.ctx { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 1150px) { .ctx { grid-template-columns: 1fr; } }
+.phone { width: 300px; height: 300px; border-radius: 38px; padding: 16px 14px; background: linear-gradient(170deg, #c9b38a, #7d6a52 60%, #3e3226); box-shadow: inset 0 0 0 7px #111, 0 10px 30px rgba(0,0,0,.25); color: #fff; font: 12px -apple-system, system-ui, sans-serif; }
+.phone .status { display: flex; justify-content: space-between; padding: 4px 16px 16px; font-weight: 600; font-size: 13px; }
+.apps { display: grid; grid-template-columns: repeat(4, 60px); gap: 16px 7px; justify-content: center; }
+.hsapp { display: grid; justify-items: center; gap: 5px; }
+.hsapp .ic { width: 60px; height: 60px; border-radius: 13.4px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.28); }
+.hsapp span { font-size: 11px; text-shadow: 0 1px 2px rgba(0,0,0,.45); white-space: nowrap; }
+.right { display: grid; gap: 12px; min-width: 0; }
+.browser { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #e8e6e1; }
+.tabs { display: flex; gap: 4px; padding: 8px 8px 0; }
+.tab { display: flex; align-items: center; gap: 7px; padding: 7px 12px; background: #fff; border-radius: 8px 8px 0 0; font: 12px -apple-system, system-ui, sans-serif; color: #222; }
+.tab.dim { background: transparent; color: #666; }
+.addr { background: #fff; padding: 7px 12px; font: 12px -apple-system, system-ui, sans-serif; color: #555; border-top: 1px solid #ddd; }
+.appbar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 10px; background: #F3EAD7; color: #2E2119; }
+.appbar .wm { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; }
+.appbar .btns { margin-left: auto; font: 600 12px -apple-system, system-ui, sans-serif; color: #6b5a48; }
+.signin { display: grid; justify-items: center; gap: 10px; padding: 22px; border-radius: 16px; background: #F8F1E2; border: 1px solid #e3d5b8; color: #2E2119; text-align: center; }
+.signin h3 { margin: 0; font-size: 28px; font-weight: 500; line-height: 1.1; }
+.signin .mock { padding: 9px 18px; border-radius: 999px; background: #2F4A3A; color: #F3EAD7; font: 600 13px -apple-system, system-ui, sans-serif; }
+.sizes { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; padding: 14px; border-radius: 10px; background: #e9e3d6; }
+.sizes figure { margin: 0; display: grid; justify-items: center; gap: 4px; font-size: 11px; color: #6b5a48; }
+.sizes .ic { overflow: hidden; border-radius: 22.5%; }
+</style>
+</head>
+<body>
+<div class="app">
+<aside>
+  <h1 id="labTitle"></h1>
+  <p class="sub" style="margin-bottom:6px">Start from a direction, then tune. Everything updates live.</p>
+  <div class="presets" id="presets"></div>
+  <div class="row-buttons"><button id="surprise">Surprise me</button><button id="reset">Reset to preset</button></div>
+  <div id="controls"></div>
+</aside>
+<main>
+  <h1 id="mainTitle"></h1>
+  <p class="sub" id="blurb"></p>
+  <div class="toolbar"><div class="seg" id="stateSeg"></div></div>
+
+  <h2>Where it lives, real size</h2>
+  <div id="context"></div>
+  <p class="readout" id="readout"></p>
+
+  <h2>Every state</h2>
+  <div class="grid" id="grid"></div>
+
+  <h2>Pinned variants</h2>
+  <div class="toolbar"><button id="pinBtn">Pin this variant</button><span class="conn" id="conn"></span></div>
+  <div class="pins" id="pins"></div>
+
+  <h2>Send to Claude</h2>
+  <textarea id="note" placeholder="What you like, what's off, which pin wins…"></textarea>
+  <div class="toolbar"><button class="primary" id="sendBtn">Send current + pins to Claude</button><button id="copyBtn">Copy JSON</button></div>
+</main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+// ═════════════════════════════════════════════════════════════════════════════
+// EDIT ME: the subject. Everything between here and "ENGINE" is per lab.
+// The sample subject is an app mark (shape + letter), to show every hook.
+// ═════════════════════════════════════════════════════════════════════════════
+
+/* ---------- shelf trinkets ----------
+   Small antique objects that stand on the shelves among the books.
+   TRINKETS[kind] = { aspect, draw(x, yb, h, o) }: the object's bottom sits on y = yb, its left edge
+   at x, its height is h and its width h * aspect. Each one is drawn once in its own local units and
+   tkMake maps that drawing's box onto the shelf slot with a single transform.
+   o = { mono, small, ink, paper, wood, woodHi, gold, pal }:
+     mono  → one ink (o.ink) with paper (o.paper) for highlights and cut-outs
+     small → one bold silhouette of at most 2 shapes, no fine lines (icons at 48 px and below)
+   Light parts carry a thin ink edge so they hold on a cream shelf back; dark parts carry a light
+   rim so they hold on a near-black one. Uses the page's f(n); every other name here starts with tk/TK. */
+
+const TK_COL = {
+  brass: '#C8A24A', brassLo: '#9A7630', terra: '#B5643C', terraHi: '#CB7C52', terraLo: '#87452A',
+  plaster: '#E8DFCF', plasterLo: '#CDC1AA', glass: '#BFD3D0', sand: '#CFA251',
+  leaf: '#4F7A4A', leafHi: '#6E9A5C', flame: '#F2B544', flameCore: '#E07A2E', flameEdge: '#C9772B',
+  sea: '#4E7C78', land: '#BFAE72', wax: '#F1E6CE', quill: '#F3ECDC', quillShaft: '#B9A47E',
+  bottle: '#2E4762', bottleHi: '#9DBAD0', shade: '#246B47', shadeHi: '#79BE93', glow: '#F7DC8E',
+  apple: '#B23A2C', appleHi: '#E08A78', stem: '#5A3A24', dial: '#F6EEDC',
+};
+
+// Resolve the caller's options, tolerating missing fields (o.gold is a colour here, never a flag).
+// u = local drawing units per SVG user unit, so stroke widths stay in user units whatever h is.
+function tkOpts(o, u) {
+  o = o || {};
+  const s = (v, d) => (typeof v === 'string' && v ? v : d);
+  const c = {
+    mono: !!o.mono, small: !!o.small, u,
+    ink: s(o.ink, '#2E2119'), paper: s(o.paper, '#F1E7D2'),
+    wood: s(o.wood, '#8B5E3C'), woodHi: s(o.woodHi, '#A97A50'), gold: s(o.gold, TK_COL.brass),
+    pal: Array.isArray(o.pal) && o.pal.length ? o.pal : ['#7A2E2A', '#2F4A3A', '#22324A', '#B8892E', '#4E7C78'],
+  };
+  c.m = col => (c.mono ? c.ink : col);             // colour in normal mode, ink in mono
+  c.hi = col => (c.mono ? c.paper : col);          // highlight: its colour, or paper in mono
+  c.sw = (col, w, op) => ` stroke="${col}" stroke-width="${f(w * u)}" stroke-linejoin="round" stroke-linecap="round"${op ? ` stroke-opacity="${op}"` : ''}`;
+  c.edge = w => c.sw(c.ink, w || (c.small ? 1.5 : 1.15));  // thin ink keyline for light and mid parts
+  return c;
+}
+// box = [x, y, w, h] of the drawing in its local units (bottom edge = where it stands).
+function tkMake(box, paint) {
+  const [bx, by, bw, bh] = box;
+  return {
+    aspect: bw / bh,
+    draw(x, yb, h, o) {
+      const s = h / bh;
+      return `<g transform="translate(${f(x - bx * s)} ${f(yb - h - by * s)}) scale(${s.toFixed(5)})">${paint(tkOpts(o, 1 / s))}</g>`;
+    },
+  };
+}
+function tkPath(d, fill, more) { return `<path d="${d}" fill="${fill}"${more || ''}/>`; }
+function tkRectD(x, y, w, h, r) {
+  r = Math.min(r || 0, w / 2, h / 2);
+  return `M${f(x + r)} ${f(y)}H${f(x + w - r)}Q${f(x + w)} ${f(y)} ${f(x + w)} ${f(y + r)}V${f(y + h - r)}Q${f(x + w)} ${f(y + h)} ${f(x + w - r)} ${f(y + h)}H${f(x + r)}Q${f(x)} ${f(y + h)} ${f(x)} ${f(y + h - r)}V${f(y + r)}Q${f(x)} ${f(y)} ${f(x + r)} ${f(y)}Z`;
+}
+function tkCircD(cx, cy, r) {
+  return `M${f(cx - r)} ${f(cy)}A${f(r)} ${f(r)} 0 1 0 ${f(cx + r)} ${f(cy)}A${f(r)} ${f(r)} 0 1 0 ${f(cx - r)} ${f(cy)}Z`;
+}
+// Closed band along a circle of radius r, width w, from angle a0 clockwise to a1 (degrees, SVG frame).
+function tkBandD(cx, cy, r, w, a0, a1) {
+  const p = (rr, a) => [cx + rr * Math.cos(a * Math.PI / 180), cy + rr * Math.sin(a * Math.PI / 180)];
+  const ro = r + w / 2, ri = r - w / 2, big = a1 - a0 > 180 ? 1 : 0;
+  const A = p(ro, a0), B = p(ro, a1), C = p(ri, a1), D = p(ri, a0);
+  return `M${f(A[0])} ${f(A[1])}A${f(ro)} ${f(ro)} 0 ${big} 1 ${f(B[0])} ${f(B[1])}L${f(C[0])} ${f(C[1])}A${f(ri)} ${f(ri)} 0 ${big} 0 ${f(D[0])} ${f(D[1])}Z`;
+}
+// Pointed leaf (or feather vane) from (bx, by) towards angle ang (degrees from straight up, clockwise),
+// about wa wide on its left and wb on its right, widest a little below the middle.
+function tkLeafD(bx, by, len, wa, ang, wb) {
+  const a = ang * Math.PI / 180, dx = Math.sin(a), dy = -Math.cos(a), nx = -dy, ny = dx;
+  const tx = bx + dx * len, ty = by + dy * len, mx = bx + dx * len * 0.45, my = by + dy * len * 0.45;
+  wb = wb === undefined ? wa : wb;
+  return `M${f(bx)} ${f(by)}Q${f(mx - nx * wa * 2)} ${f(my - ny * wa * 2)} ${f(tx)} ${f(ty)}Q${f(mx + nx * wb * 2)} ${f(my + ny * wb * 2)} ${f(bx)} ${f(by)}Z`;
+}
+
+const TRINKETS = {
+  // Desk globe: sea-green sphere with parchment land, a brass half-meridian, brass stem, turned wooden foot.
+  globe: tkMake([5, 2.5, 59.5, 97.5], c => {
+    const sm = c.small, band = tkBandD(30, 37, 31, sm ? 7 : 5, -112, 90), knob = tkCircD(18.4, 8.3, sm ? 4.2 : 3.4);
+    const stem = tkRectD(27, 66, 6, 24, 0), foot = 'M11 100C11 92 18 88 30 88C42 88 49 92 49 100Z', sphere = tkCircD(30, 37, 25);
+    if (sm) return tkPath(band + knob + stem + foot, c.m(c.gold), c.mono ? '' : c.edge()) + tkPath(sphere, c.m(TK_COL.sea), c.mono ? '' : c.edge());
+    // an Old-World mass right of centre, a sliver of the Americas on the left limb
+    const land = 'M31 16C36 13 44 14 49 19C51 22 49 25 45 25C42 26 42 29 45 31C49 33 51 37 49 42C47 47 43 50 41 56C39 57 37 54 37 50' +
+      'C36 46 32 44 32 40C32 36 35 34 33 31C31 29 27 29 27 25C27 21 28 18 31 16Z' +
+      'M8 28C10 25 14 24 16 26C18 28 15 31 16 34C17 38 20 41 19 46C18 50 15 51 13 49C10 46 8 42 7 37C6.5 34 7 30 8 28Z';
+    return tkPath(foot, c.m(c.wood), c.mono ? '' : c.sw(c.woodHi, 1)) +
+      tkPath(stem, c.m(c.gold), c.mono ? '' : c.edge(1)) +
+      tkPath(sphere, c.m(TK_COL.sea), c.mono ? '' : c.edge()) +
+      tkPath(land, c.hi(TK_COL.land)) +
+      tkPath(band + knob, c.m(c.gold), c.mono ? '' : c.edge(1));
+  }),
+
+  // Hourglass: two wooden plates on turned posts, a glass bow-tie, sand above and below.
+  hourglass: tkMake([0, 0, 60, 100], c => {
+    const plates = tkRectD(0, 0, 60, 10, 2.5) + tkRectD(0, 90, 60, 10, 2.5);
+    const posts = tkRectD(4, 9, 7, 82, 0) + tkRectD(49, 9, 7, 82, 0);
+    const glass = 'M14.5 10H45.5C45.5 31 33 40 33 50C33 60 45.5 69 45.5 90H14.5C14.5 69 27 60 27 50C27 40 14.5 31 14.5 10Z';
+    if (c.small) return tkPath(glass, c.mono ? c.paper : TK_COL.sand, c.edge(c.mono ? 2 : 1.5)) +
+      tkPath(plates + posts, c.m(c.wood), c.mono ? '' : c.sw(c.woodHi, 1.2));
+    return tkPath(glass, c.mono ? c.paper : TK_COL.glass, (c.mono ? '' : ' fill-opacity=".7"') + c.edge(c.mono ? 1.3 : 0.9)) +
+      tkPath('M18.5 29H41.5C38 39 33.2 43 33 47.5L30 50.5L27 47.5C26.8 43 22 39 18.5 29Z', c.m(TK_COL.sand)) +
+      tkPath('M15.5 90C15.5 78 22 70 30 67C38 70 44.5 78 44.5 90Z', c.m(TK_COL.sand)) +
+      tkPath(tkRectD(29.3, 50, 1.4, 19, 0), c.m(TK_COL.sand)) +
+      tkPath(posts + tkCircD(7.5, 50, 5) + tkCircD(52.5, 50, 5), c.m(c.woodHi), c.mono ? '' : c.edge(0.8)) +
+      tkPath(plates, c.m(c.wood), c.mono ? '' : c.sw(c.woodHi, 1));
+  }),
+
+  // Chamberstick: brass dish and socket, an ivory candle, a small flame with a warm glow.
+  candle: tkMake([2, 2, 44, 98], c => {
+    const dish = tkRectD(2, 90, 44, 10, 4), socket = 'M15 91L17 81H31L33 91Z', lip = tkRectD(13, 77, 22, 4.5, 1.5);
+    const candle = tkRectD(17.5, 31, 13, 47, 1.2);
+    const flame = 'M24 3C28 10 30.5 15 30.5 19.5C30.5 23.5 27.6 26.5 24 26.5C20.4 26.5 17.5 23.5 17.5 19.5C17.5 15 20 10 24 3Z';
+    if (c.small) return tkPath(dish + socket + lip + candle, c.m(TK_COL.wax), c.mono ? '' : c.edge()) +
+      tkPath(flame, c.m(TK_COL.flame), c.mono ? '' : c.sw(TK_COL.flameEdge, 1.2));
+    return (c.mono ? '' : tkPath(tkCircD(24, 18, 16), TK_COL.flame, ' fill-opacity=".1"') + tkPath(tkCircD(24, 19, 10.5), TK_COL.flame, ' fill-opacity=".16"')) +
+      tkPath(candle, c.m(TK_COL.wax), c.mono ? '' : c.edge()) +
+      tkPath(tkRectD(20, 34, 2.6, 41, 1.3), c.hi('#FFFFFF'), c.mono ? '' : ' fill-opacity=".6"') +
+      tkPath(tkRectD(23.4, 24, 1.2, 8, 0), c.ink) +
+      tkPath(dish + socket + lip, c.m(c.gold), c.mono ? '' : c.edge(1)) +
+      tkPath(flame, c.m(TK_COL.flame), c.mono ? '' : c.sw(TK_COL.flameEdge, 0.8)) +
+      tkPath('M24 13C25.8 16.5 27 18.5 27 20.8C27 22.8 25.7 24.2 24 24.2C22.3 24.2 21 22.8 21 20.8C21 18.5 22.2 16.5 24 13Z', c.hi(TK_COL.flameCore));
+  }),
+
+  // Potted aspidistra (the Victorian parlour plant): a fan of broad pointed leaves in a terracotta pot.
+  plant: tkMake([9.2, 4, 52.9, 96], c => {
+    const fan = [[-52, 34, 7], [-24, 46, 8], [0, 56, 8.5], [24, 46, 8], [50, 34, 7]];
+    const leaves = (k, idx) => idx.map(i => tkLeafD(36, 60, fan[i][1], fan[i][2] * k, fan[i][0])).join('');
+    const pot = 'M20 64H52L48 100H24Z', rim = tkRectD(16, 58, 40, 9, 2);
+    if (c.small) return tkPath(leaves(1.25, [0, 1, 2, 3, 4]), c.m(TK_COL.leaf), c.mono ? '' : c.edge(1.2)) +
+      tkPath(pot + rim, c.m(TK_COL.terra), c.mono ? c.sw(c.paper, 2.2) : c.edge());
+    const vein = c.mono ? c.sw(c.paper, 1) : c.edge(0.9);
+    return tkPath(leaves(1, [0, 4, 2]), c.m(TK_COL.leaf), vein) +
+      tkPath(leaves(1, [1, 3]), c.m(TK_COL.leafHi), vein) +
+      tkPath(pot, c.m(TK_COL.terra), c.mono ? '' : c.edge()) +
+      tkPath('M19.5 66.5H52.5L52 71H20Z', c.mono ? c.paper : TK_COL.terraLo, c.mono ? '' : ' fill-opacity=".7"') +
+      tkPath(rim, c.m(TK_COL.terraHi), c.mono ? c.sw(c.paper, 1.2) : c.edge());
+  }),
+
+  // Plaster bust of a curly-haired classical figure in profile, on a round socle and a wooden plinth.
+  bust: tkMake([5, 4.4, 50.9, 95.6], c => {
+    // curly crown → nape, neck, shoulders, the cut chest, then the face back up to the brow
+    const curls = 'M18.8 16Q18 10 23 9.5Q24 5.5 29 6Q32 3 36 5.5Q41 4 43.5 8Q49 8.5 49.5 13.5Q54 16 52.5 21.5Q55.5 26 52 30Q53.5 35.5 48.5 37Q48 41 45 41.5';
+    const body = curls + 'C42 44 40.5 47 41 51C46 54 53 57 55 63C56.5 68 56 73 54 77C47 81 37 82 31 82C25 82 14 81 6 77C4 72 5 66 9 62' +
+      'C13 58 19 56 23 54.5L23.5 48.5C20.5 47.5 18 45.5 17.5 43L16.8 41C15.8 40 15.3 39 15.8 38L14.8 36.2L16 34.6L12.2 32.6L16.4 24.5C16.8 21 17.6 18.5 18.8 16Z';
+    const hair = curls + 'C43 39 41 36 40 32C39 27 35 25 31 23C27 21 22 19.5 18.8 16Z';
+    const socle = 'M24 88C24 84 27 82 28 79H34C35 82 38 84 38 88Z';
+    const cap = tkRectD(7, 86, 48, 4.5, 1), block = tkRectD(9, 89.5, 44, 10.5, 0);
+    if (c.small) return tkPath(cap + block, c.m(c.wood), c.mono ? '' : c.sw(c.woodHi, 1.2)) +
+      tkPath(body + socle, c.m(TK_COL.plaster), c.mono ? c.sw(c.paper, 2) : c.edge());
+    return tkPath(block, c.m(c.wood), c.mono ? '' : c.sw(c.woodHi, 1)) +
+      tkPath(cap, c.m(c.woodHi), c.mono ? c.sw(c.paper, 1) : '') +
+      tkPath(socle, c.m(TK_COL.plaster), c.mono ? c.sw(c.paper, 1) : c.edge()) +
+      tkPath(body, c.m(TK_COL.plaster), c.mono ? c.sw(c.paper, 1.2) : c.edge()) +
+      (c.mono
+        ? tkPath('M45 41.5C43 39 41 36 40 32C39 27 35 25 31 23C27 21 22 19.5 18.8 16M11 66C23 69 35 74 44 80', 'none', c.sw(c.paper, 0.9))
+        : tkPath(hair, TK_COL.plasterLo) + tkPath(tkCircD(37, 31, 3.2), TK_COL.plasterLo) +
+          tkPath('M11 66C23 69 35 74 45 80L39 81.5C30 77 20 72 8.5 70Z', TK_COL.plasterLo));
+  }),
+
+  // Inkwell: squat blue glass bottle with a brass collar and a cream quill feather.
+  inkwell: tkMake([2, 2.4, 62.1, 97.6], c => {
+    const sm = c.small, ang = 33;
+    const bottle = 'M8 100H44Q50 100 50 94V80Q50 72 42 70H38Q36 64 32 64H20Q16 64 14 70H10Q2 72 2 80V94Q2 100 8 100Z';
+    const collar = tkRectD(16.5, 59, 19, 6.5, 1.5), vane = tkLeafD(35, 46, 52, sm ? 7 : 6, ang, sm ? 4.5 : 3.6);
+    if (sm) return tkPath(vane + tkLeafD(26, 62, 26, 2, ang), c.mono ? c.ink : TK_COL.quill, c.mono ? c.sw(c.paper, 2) : c.edge()) +
+      tkPath(bottle + collar, c.m(TK_COL.bottle), c.mono ? c.sw(c.paper, 2) : c.sw(TK_COL.bottleHi, 1.4));
+    const tip = [26 + Math.sin(ang * Math.PI / 180) * 70, 62 - Math.cos(ang * Math.PI / 180) * 70];
+    return tkPath(vane, c.mono ? c.ink : TK_COL.quill, c.mono ? '' : c.edge()) +
+      tkPath(`M26 62L${f(tip[0])} ${f(tip[1])}`, 'none', c.sw(c.mono ? c.paper : TK_COL.quillShaft, 1)) +
+      tkPath(bottle, c.m(TK_COL.bottle), c.mono ? c.sw(c.paper, 1.2) : c.sw(TK_COL.bottleHi, 0.9, 0.8)) +
+      tkPath(tkRectD(7, 76, 4, 18, 2), c.hi(TK_COL.bottleHi), c.mono ? '' : ' fill-opacity=".6"') +
+      tkPath(collar, c.m(c.gold), c.mono ? c.sw(c.paper, 1) : c.edge(1));
+  }),
+
+  // Mantel clock: arched wooden case on a plinth, brass finial and bezel, a cream dial, pendulum window.
+  clock: tkMake([0, 8.3, 72, 91.7], c => {
+    const plinth = tkRectD(0, 88, 72, 12, 2), kase = 'M8 89V44A28 28 0 0 1 64 44V89Z', finial = tkCircD(36, 12.5, 4.2);
+    if (c.small) return tkPath(plinth + kase + finial, c.m(c.wood), c.mono ? '' : c.sw(c.woodHi, 1.4)) +
+      tkPath(tkCircD(36, 46, 19), c.mono ? c.paper : TK_COL.dial, c.mono ? '' : c.sw(c.gold, 2.4));
+    return tkPath(kase, c.m(c.wood), c.mono ? '' : c.sw(c.woodHi, 1)) +
+      tkPath(plinth, c.m(c.wood), c.mono ? c.sw(c.paper, 1) : c.sw(c.woodHi, 1)) +
+      tkPath(finial, c.m(c.gold), c.mono ? '' : c.edge(0.9)) +
+      tkPath(tkCircD(36, 46, 19.5), c.m(c.gold), c.mono ? '' : c.edge(0.8)) +
+      tkPath(tkCircD(36, 46, 16), c.mono ? c.paper : TK_COL.dial) +
+      tkPath(tkCircD(36, 33, 1.5) + tkCircD(49, 46, 1.5) + tkCircD(36, 59, 1.5) + tkCircD(23, 46, 1.5) + tkCircD(36, 46, 2.2), c.ink) +
+      tkPath('M36 46L28.5 40M36 46L42 34.5', 'none', c.sw(c.ink, 1.1)) +
+      tkPath(tkRectD(28, 70, 16, 14, 2), c.mono ? c.paper : c.ink, c.mono ? '' : ' fill-opacity=".55"') +
+      tkPath(tkCircD(36, 79, 3), c.m(c.gold));
+  }),
+
+  // Vanitas skull: round friendly cranium, big soft eye sockets, small nose, a neat row of teeth.
+  skull: tkMake([5, 3, 74, 94], c => {
+    const bone = 'M42 3C63 3 79 17 79 39C79 52 74 60 68 64L65 73C64 77 64 80 63 86Q62 97 54 97H30Q22 97 21 86C20 80 20 77 19 73L16 64C10 60 5 52 5 39C5 17 21 3 42 3Z';
+    const eyes = 'M27 37C34 37 38 42 38 48C38 54 33 58 27 58C20 58 16 54 16 48C16 42 20 37 27 37Z' +
+      'M57 37C64 37 68 42 68 48C68 54 64 58 57 58C51 58 46 54 46 48C46 42 50 37 57 37Z';
+    const nose = 'M42 60L46.5 69Q42 71.5 37.5 69Z', fill = c.mono ? c.paper : TK_COL.plaster;
+    if (c.small) return tkPath(bone, fill, c.edge(c.mono ? 2.2 : 1.5)) + tkPath(eyes + nose, c.ink);
+    return tkPath(bone, fill, c.edge(c.mono ? 1.6 : 1.2)) +
+      (c.mono ? '' : tkPath('M60 8C72 14 79 26 79 39C79 50 75 58 69 63C72 54 72 42 69 32C67 22 64 14 60 8Z', TK_COL.plasterLo)) +
+      tkPath(eyes + nose, c.ink) +
+      tkPath('M28 84H56M33 78.5V89.5M38 79V91M42 79V91M46 79V91M51 78.5V89.5', 'none', c.sw(c.ink, 0.8));
+  }),
+
+  // Banker's lamp: green glass shade with a warm lit underside, brass stem, pull chain and domed base.
+  lamp: tkMake([3, 18.5, 82, 81.5], c => {
+    const shadeD = 'M3 46C3 36 8 26 20 23H68C80 26 85 36 85 46Z';
+    const base = 'M18 100C18 93 24 88 32 88H56C64 88 70 93 70 100Z', stem = tkRectD(41, 46, 6, 43, 0), cap = tkRectD(39, 18.5, 10, 6, 2);
+    if (c.small) return tkPath(base + stem, c.m(c.gold), c.mono ? '' : c.edge()) +
+      tkPath(shadeD + cap, c.m(TK_COL.shade), c.mono ? '' : c.sw(TK_COL.shadeHi, 1.5));
+    return tkPath(stem, c.m(c.gold), c.mono ? '' : c.edge(1)) +
+      tkPath('M64 50V64', 'none', c.sw(c.m(TK_COL.brassLo), 0.7)) + tkPath(tkCircD(64, 66, 2.4), c.m(c.gold)) +
+      tkPath(base, c.m(c.gold), c.mono ? '' : c.edge(1)) +
+      tkPath(tkRectD(18, 96, 52, 4, 0), c.mono ? c.paper : TK_COL.brassLo, c.mono ? ' fill-opacity=".9"' : ' fill-opacity=".6"') +
+      tkPath(cap, c.m(c.gold), c.mono ? '' : c.edge(0.8)) +
+      tkPath('M5 46H83Q82 51.5 76 51.5H12Q6 51.5 5 46Z', c.hi(TK_COL.glow)) +
+      tkPath(shadeD, c.m(TK_COL.shade), c.mono ? '' : c.sw(TK_COL.shadeHi, 0.8, 0.9)) +
+      tkPath('M12 31C15 28 18 27 22 27H66C70 27 73 28 76 31', 'none', c.sw(c.hi(TK_COL.shadeHi), 1.1, c.mono ? 1 : 0.8));
+  }),
+
+  // The teacher's apple, on two lying books.
+  apple: tkMake([12, 22.7, 60, 77.3], c => {
+    const b1 = tkRectD(12, 88, 60, 12, 1.5), b2 = tkRectD(16, 77, 52, 11.5, 1.5);
+    const fruit = 'M42 41C36 35 20 35 20 53C20 67 30 77 38 77C40 77 41 76 42 76C43 76 44 77 46 77C54 77 64 67 64 53C64 35 48 35 42 41Z';
+    const leaf = tkLeafD(45, 31, 17, 4.2, 64);
+    if (c.small) return tkPath(b1 + b2, c.m(c.pal[0]), c.mono ? '' : c.edge(1)) +
+      tkPath(fruit + 'M40.5 42Q40.5 33 44 26L47.5 27.5Q44 34 43.5 42Z' + leaf, c.m(TK_COL.apple), c.mono ? c.sw(c.paper, 2) : c.edge());
+    const bands = (x0, x1, y, hh) => [x0 + 4, x1 - 6].map(bx => tkRectD(bx, y, 2, hh, 0)).join('');
+    return tkPath(b1, c.m(c.pal[0]), c.mono ? '' : c.edge(0.8)) +
+      tkPath(b2, c.m(c.pal[2 % c.pal.length]), c.mono ? c.sw(c.paper, 1.2) : c.edge(0.8)) +
+      tkPath(bands(12, 72, 88, 12) + bands(16, 68, 77, 11.5), c.mono ? c.paper : c.gold, c.mono ? '' : ' fill-opacity=".9"') +
+      tkPath('M42 42Q42 33 45.5 26.5', 'none', c.sw(c.m(TK_COL.stem), 1.5)) +
+      tkPath(leaf, c.m(TK_COL.leaf), c.mono ? '' : c.edge(0.7)) +
+      tkPath(fruit, c.m(TK_COL.apple), c.mono ? c.sw(c.paper, 1.2) : c.edge(1)) +
+      tkPath('M28 46C25 49 25 55 27 58C29 56 29.5 50 28 46Z', c.hi(TK_COL.appleHi), c.mono ? '' : ' fill-opacity=".85"');
+  }),
+};
+const TRINKET_KINDS = Object.keys(TRINKETS);
+
+const LAB = {
+  key: 'own-shelf-arm-lab',
+  title: 'own-shelf · arm lab',
+  subject: 'The bookshelf arm',
+  blurb: 'A wooden bookshelf shaped like a flexed arm (💪). Tune the biceps, elbow, forearm and fist, the colour scheme, the books and the trinkets, and judge it at real size: iPhone home screen, browser tab, the app bar, the sign-in screen. Pin the variants you like, add a note, and send.',
+};
+
+// [id, label, caption]. "-s" = the simplified drawing used at 48 px and below.
+const STATES = [
+  ['parch', 'Parchment', 'app icon'],
+  ['parch-s', 'Parchment, small', 'simplified, ≤ 48 px'],
+  ['green', 'Library green', 'app icon'],
+  ['dark', 'Dark', 'app icon'],
+  ['mark', 'Bare mark', 'on the page'],
+  ['mono', 'One ink', 'stamp, ex libris'],
+  ['circle', 'Android mask', 'circle crop'],
+];
+const PIN_STATES = ['parch', 'parch-s', 'green', 'mono'];
+
+const SWATCHES = ['#8B5E3C', '#A47148', '#6B4226', '#4A2C19', '#2A190E', '#C9A27A', '#2F4A3A', '#7A2E2A', '#22324A', '#B8892E'];
+const PALETTES = {
+  antique: ['#7A2E2A', '#2F4A3A', '#22324A', '#B8892E', '#4E7C78'],
+  warm: ['#7A2E2A', '#9C4A2F', '#B8892E', '#E8D9B8', '#5A3A24'],
+  muted: ['#6E7F6A', '#8A6D5A', '#B9A27B', '#4F5D6B', '#9C7A62'],
+  bright: ['#B03A2E', '#1F6F8B', '#D4A017', '#2E7D4F', '#E8D9B8'],
+};
+// Curated wood + inside + spines. Spines are picked to stand out against the inside at a glance:
+// dark spines on a light back, or light spines on a dark one.
+const SCHEMES = {
+  'Walnut & cream': { wood: '#5C3B24', outline: '#2B1A10', back: '#EFE4CC', spines: ['#8E2F2A', '#2F5A43', '#23395B', '#B7802A', '#3B2A20'] },
+  'Honey oak & ink': { wood: '#B07A45', outline: '#4A2C19', back: '#1C2124', spines: ['#F1E7D2', '#D4A73A', '#5E9C94', '#C2553C', '#A9BCC4'] },
+  'Mahogany & green': { wood: '#6B3426', outline: '#2E140E', back: '#1E2B24', spines: ['#F1E7D2', '#D4A73A', '#D0573F', '#9DBF9A', '#E2C8A0'] },
+  'Ash & oxblood': { wood: '#C9A27A', outline: '#5A3A24', back: '#3E1C1A', spines: ['#F1E7D2', '#D4A73A', '#7FB0A8', '#E8D9B8', '#E39A6C'] },
+  'Classic (v1)': { wood: '#8B5E3C', outline: '#4A2C19', back: '#2A190E', spines: PALETTES.antique },
+};
+const colors = c => c.scheme === 'Custom' || !SCHEMES[c.scheme]
+  ? { wood: c.wood, outline: c.outline, back: c.back, spines: PALETTES[c.palette] || PALETTES.antique }
+  : SCHEMES[c.scheme];
+const INK = '#2E2119', PAPER = '#F1E7D2', GOLD = '#C8A24A', CREAM = '#E8D9B8';
+
+const BASE = {
+  shoulder: 'round', armLen: 290, armH: 60, bicepH: 96, bicepPeak: 0.6, bicepFull: 0.6, bicepStart: 0.1, elbowR: 34, divider: true,
+  foreH: 138, foreW0: 78, foreW1: 58, foreLean: 12, foreBulge: 12, foreShelf: false,
+  fist: 'mitten', fistW: 92, fistH: 64, fistTilt: -4, fingers: 4, knuckle: 0.55, thumb: true, thumbLen: 0.55, cubbyItem: 'globe',
+  t: 14, s: 13, ow: 3, scheme: 'Walnut & cream', wood: '#8B5E3C', outline: '#4A2C19', back: '#2A190E', palette: 'antique', shadow: true,
+  bookSize: 1.5, density: 0.6, detail: 'bold', gold: true, lean: true, ribbon: true, seed: 7,
+  tr1: 'plant', tr2: 'hourglass', tr3: 'candle',
+  fit: 38, simplify: true, font: 'EB Garamond',
+};
+
+// Your sends come back as presets, so you can return to them.
+const PRESETS = {
+  'Library Arm, refined': {},
+  'Emoji 💪': { shoulder: 'sleeve', armLen: 270, armH: 54, bicepH: 124, bicepPeak: 0.66, bicepFull: 0.7, bicepStart: 0.06, elbowR: 42,
+    foreH: 150, foreW0: 88, foreW1: 54, foreLean: 24, foreBulge: 20, fist: 'fingers', fistW: 100, fistH: 78, fistTilt: -12, knuckle: 0.8, thumbLen: 0.7,
+    cubbyItem: 'books', scheme: 'Honey oak & ink', tr1: 'bust', tr2: 'apple', tr3: 'inkwell' },
+  'Round window': { fist: 'knob', fistH: 84, bicepH: 84, bicepPeak: 0.5, bicepFull: 0.52, foreLean: 4, foreBulge: 4, foreW0: 70, foreW1: 62, elbowR: 20,
+    scheme: 'Mahogany & green', tr1: 'clock', tr2: 'skull', tr3: 'lamp' },
+  'Bold small': { t: 22, s: 18, ow: 4.5, bookSize: 2, density: 0.45, gold: false, lean: false, ribbon: false, divider: false, fingers: 3, knuckle: 0.35,
+    cubbyItem: 'globe', bicepH: 100, foreW0: 84, foreW1: 64, fit: 40, scheme: 'Walnut & cream', tr1: 'plant', tr2: 'none', tr3: 'none' },
+  'Variant 1 (your pin)': { shoulder: 'taper', armLen: 308, armH: 74, bicepH: 84, bicepPeak: 0.57, bicepFull: 0.51, bicepStart: 0.04, elbowR: 18, divider: false,
+    foreH: 169, foreW0: 80, foreW1: 49, foreLean: 7, foreBulge: 3, fist: 'block', fistW: 88, fistH: 66, fistTilt: -22, fingers: 3, knuckle: 0.63, thumbLen: 0.46,
+    t: 22, s: 18, ow: 4.5, scheme: 'Custom', back: '#b49b7e', palette: 'muted', density: 0.55, gold: false, ribbon: false, seed: 31, fit: 46, bookSize: 1, detail: 'fine', tr1: 'none', tr2: 'none', tr3: 'none' },
+};
+
+const handFist = c => c.fist === 'mitten' || c.fist === 'fingers';
+const trinketOpts = () => [['none', 'None'], ...TRINKET_KINDS.map(k => [k, k[0].toUpperCase() + k.slice(1)])];
+const SCHEMA = [
+  ['Colour'],
+  { k: 'scheme', t: 'select', l: 'Scheme', o: [...Object.keys(SCHEMES).map(k => [k, k]), ['Custom', 'Custom…']] },
+  { k: 'wood', t: 'color', l: 'Wood', swatches: true, when: c => c.scheme === 'Custom' },
+  { k: 'outline', t: 'color', l: 'Outline', when: c => c.scheme === 'Custom' },
+  { k: 'back', t: 'color', l: 'Inside', when: c => c.scheme === 'Custom' },
+  { k: 'palette', t: 'select', l: 'Spines', o: [['antique', 'Antique'], ['warm', 'Warm'], ['muted', 'Muted'], ['bright', 'Bright']], when: c => c.scheme === 'Custom' },
+  ['Books & trinkets'],
+  { k: 'bookSize', t: 'range', l: 'Book size', min: 0.8, max: 2.6, step: 0.05 },
+  { k: 'density', t: 'range', l: 'Fullness', min: 0.15, max: 1, step: 0.05 },
+  { k: 'detail', t: 'select', l: 'Spine detail', o: [['bold', 'Bold (flat, one band)'], ['fine', 'Fine (gilding, labels)']] },
+  { k: 'gold', t: 'check', l: 'Gold bands', when: c => c.detail === 'fine' },
+  { k: 'lean', t: 'check', l: 'Leaning books' },
+  { k: 'ribbon', t: 'check', l: 'Bookmark ribbon' },
+  { k: 'seed', t: 'range', l: 'Shuffle books', min: 1, max: 99, step: 1 },
+  { k: 'cubbyItem', t: 'select', l: 'In the fist', o: [...trinketOpts().slice(1), ['books', 'Books'], ['none', 'Empty']] },
+  { k: 'tr1', t: 'select', l: 'Biceps shelf', o: trinketOpts() },
+  { k: 'tr2', t: 'select', l: 'Upper arm shelf', o: trinketOpts() },
+  { k: 'tr3', t: 'select', l: 'Elbow shelf', o: trinketOpts() },
+  ['Upper arm & biceps'],
+  { k: 'shoulder', t: 'select', l: 'Shoulder end', o: [['round', 'Rounded'], ['sleeve', 'Sleeve cuff'], ['taper', 'Tapered']] },
+  { k: 'armLen', t: 'range', l: 'Upper arm length', min: 220, max: 360, step: 2 },
+  { k: 'armH', t: 'range', l: 'Upper arm height', min: 40, max: 90, step: 1 },
+  { k: 'bicepH', t: 'range', l: 'Biceps height', min: 40, max: 150, step: 1 },
+  { k: 'bicepPeak', t: 'range', l: 'Peak position', min: 0.3, max: 0.85, step: 0.01 },
+  { k: 'bicepFull', t: 'range', l: 'Biceps fullness', min: 0.3, max: 0.85, step: 0.01 },
+  { k: 'bicepStart', t: 'range', l: 'Biceps starts at', min: 0, max: 0.35, step: 0.01 },
+  { k: 'elbowR', t: 'range', l: 'Elbow roundness', min: 4, max: 50, step: 1 },
+  { k: 'divider', t: 'check', l: 'Elbow compartment' },
+  ['Forearm'],
+  { k: 'foreH', t: 'range', l: 'Forearm height', min: 90, max: 200, step: 1 },
+  { k: 'foreW0', t: 'range', l: 'Width at elbow', min: 50, max: 110, step: 1 },
+  { k: 'foreW1', t: 'range', l: 'Width at wrist', min: 36, max: 90, step: 1 },
+  { k: 'foreLean', t: 'range', l: 'Lean in', min: -10, max: 40, step: 1 },
+  { k: 'foreBulge', t: 'range', l: 'Muscle bulge', min: 0, max: 30, step: 1 },
+  { k: 'foreShelf', t: 'check', l: 'Middle shelf' },
+  ['Fist'],
+  { k: 'fist', t: 'select', l: 'Style', o: [['mitten', 'Curled fingers'], ['fingers', 'Finger pads'], ['knob', 'Round knob'], ['block', 'Plain box']] },
+  { k: 'fistW', t: 'range', l: 'Fist width', min: 56, max: 130, step: 1, when: c => c.fist !== 'knob' },
+  { k: 'fistH', t: 'range', l: 'Fist height', min: 40, max: 100, step: 1 },
+  { k: 'fistTilt', t: 'range', l: 'Tilt', min: -25, max: 20, step: 1, u: '°', when: c => c.fist !== 'knob' },
+  { k: 'fingers', t: 'range', l: 'Fingers', min: 2, max: 4, step: 1, when: handFist },
+  { k: 'knuckle', t: 'range', l: 'Knuckles', min: 0, max: 1, step: 0.05, when: handFist },
+  { k: 'thumb', t: 'check', l: 'Thumb', when: handFist },
+  { k: 'thumbLen', t: 'range', l: 'Thumb length', min: 0.2, max: 1, step: 0.05, when: c => handFist(c) && c.thumb },
+  ['Frame'],
+  { k: 't', t: 'range', l: 'Frame', min: 8, max: 28, step: 0.5 },
+  { k: 's', t: 'range', l: 'Shelves', min: 8, max: 24, step: 0.5 },
+  { k: 'ow', t: 'range', l: 'Outline', min: 0, max: 7, step: 0.25 },
+  { k: 'shadow', t: 'check', l: 'Ground shadow' },
+  ['Fit & wordmark'],
+  { k: 'fit', t: 'range', l: 'Mark radius', min: 28, max: 46, step: 0.5 },
+  { k: 'simplify', t: 'check', l: 'Simplify ≤ 48 px' },
+  { k: 'font', t: 'select', l: 'Wordmark', o: [['EB Garamond', 'EB Garamond'], ['Cormorant Garamond', 'Cormorant Garamond'], ['Libre Caslon Text', 'Libre Caslon'], ['Bricolage Grotesque', 'Bricolage (current)']] },
+];
+
+
+/* ---------- geometry helpers (design space 0..512, y down) ---------- */
+function rrect(x0, y0, x1, y1, r) {
+  const m = Math.min((x1 - x0) / 2, (y1 - y0) / 2), R = k => Math.max(0, Math.min(m, r[k] || 0)), out = [];
+  const arc = (cx, cy, rad, a0) => { for (let i = 0; i <= 6; i++) { const a = (a0 + 90 * i / 6) * Math.PI / 180; out.push([cx + rad * Math.cos(a), cy + rad * Math.sin(a)]); } };
+  arc(x0 + R('tl'), y0 + R('tl'), R('tl'), 180); arc(x1 - R('tr'), y0 + R('tr'), R('tr'), 270);
+  arc(x1 - R('br'), y1 - R('br'), R('br'), 0); arc(x0 + R('bl'), y1 - R('bl'), R('bl'), 90);
+  return out;
+}
+const capsule = (x0, y0, x1, y1) => { const r = Math.min(x1 - x0, y1 - y0) / 2; return rrect(x0, y0, x1, y1, { tl: r, tr: r, br: r, bl: r }); };
+function cubicPts(a, b, c, d, n) { const o = []; for (let i = 0; i <= n; i++) { const u = i / n, v = 1 - u; o.push([0, 1].map(k => v * v * v * a[k] + 3 * v * v * u * b[k] + 3 * v * u * u * c[k] + u * u * u * d[k])); } return o; }
+function circlePts(cx, cy, r, n) { const o = []; for (let i = 0; i < n; i++) { const a = i / n * 2 * Math.PI; o.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); } return o; }
+function rotPts(pts, deg, p) { if (!deg) return pts; const a = deg * Math.PI / 180, C = Math.cos(a), S = Math.sin(a); return pts.map(([x, y]) => [p[0] + (x - p[0]) * C - (y - p[1]) * S, p[1] + (x - p[0]) * S + (y - p[1]) * C]); }
+function spanAt(pts, y) { const xs = []; pts.forEach((p, i) => { const q = pts[(i + 1) % pts.length]; if ((p[1] - y) * (q[1] - y) <= 0 && p[1] !== q[1]) xs.push(p[0] + (y - p[1]) * (q[0] - p[0]) / (q[1] - p[1])); }); return xs.length ? [Math.min(...xs), Math.max(...xs)] : null; }
+function topAt(pts, x) { let top = Infinity; pts.forEach((p, i) => { const q = pts[(i + 1) % pts.length]; if ((p[0] - x) * (q[0] - x) <= 0 && p[0] !== q[0]) top = Math.min(top, p[1] + (x - p[0]) * (q[1] - p[1]) / (q[0] - p[0])); }); return top; }
+function rng(seed) { let a = seed >>> 0; return () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+/* ---------- the arm: compartments (carved out of the frame) and solid carving ---------- */
+function geo(c) {
+  const F = 392, s = c.s, t = c.t, X0 = 100, XO = X0 + c.armLen;
+  const yS = F - c.armH, yb = yS - s;              // base interior top; floor of the upper row
+  const xR0 = XO, xL0 = XO - c.foreW0, wy = yb - c.foreH;
+  const xR1 = XO - c.foreLean, xL1 = xR1 - c.foreW1;
+  const cub = (a, b1, b2, d, u) => { const v = 1 - u; return v * v * v * a + 3 * v * v * u * b1 + 3 * v * u * u * b2 + u * u * u * d; };
+  const outerX = u => cub(xR0, xR0 + c.foreBulge, xR1 + c.foreBulge * 0.35, xR1, u);
+  const innerX = u => cub(xL0, xL0 - c.foreBulge * 0.12, xL1 + c.foreBulge * 0.1, xL1, u);
+  const yAt = u => yb + (wy - yb) * u;
+  const comps = [], solids = [], layered = [], overlay = [], grooves = [];
+
+  // upper arm (the base) and the elbow compartment under the forearm
+  const baseR = c.divider ? xL0 - s : XO, half = c.armH * 0.48;
+  let base;
+  if (c.shoulder === 'taper') base = [[X0 + 26, yS], ...rrect(X0 + 26, yS, baseR, F, { tr: 3, br: c.divider ? 3 : c.elbowR }).slice(7, 21), [X0 + 6, F], [X0, F - 12]];
+  else base = rrect(X0, yS, baseR, F, c.shoulder === 'round' ? { tl: half, bl: half, tr: 3, br: c.divider ? 3 : c.elbowR } : { tl: 4, bl: 4, tr: 3, br: c.divider ? 3 : c.elbowR });
+  comps.push({ name: 'base', pts: base, low: true });
+  if (c.shoulder === 'sleeve') solids.push(rrect(X0 - t - 12, yS - t - 9, X0 - t + 7, F + t + 9, { tl: 5, tr: 3, br: 3, bl: 5 }));
+  if (c.divider) comps.push({ name: 'elbow', pts: rrect(xL0, yS, XO, F, { tl: 3, tr: 3, br: c.elbowR, bl: 3 }), low: true });
+
+  // biceps: an asymmetric dome on the upper arm, kept a wall's width from the forearm
+  const bx0 = X0 + c.bicepStart * c.armLen, bx1 = xL0 - s, px = bx0 + (bx1 - bx0) * c.bicepPeak, H = c.bicepH, fu = c.bicepFull;
+  const innerAtY = y => innerX(Math.max(0, Math.min(1, (y - yb) / (wy - yb))));
+  let bp = [...cubicPts([bx0, yb], [bx0 + (px - bx0) * 0.08, yb - H * fu], [px - (px - bx0) * fu, yb - H], [px, yb - H], 18),
+            ...cubicPts([px, yb - H], [px + (bx1 - px) * fu, yb - H], [bx1, yb - H * fu], [bx1, yb], 18).slice(1)];
+  bp = bp.map(([x, y]) => [Math.min(x, innerAtY(y) - s), y]);
+  comps.push({ name: 'bicep', pts: bp });
+
+  // forearm, tapering to the wrist, with an optional middle shelf
+  const fore = (u0, u1) => { const n = 14, L = [], R = []; for (let i = 0; i <= n; i++) { const u = u0 + (u1 - u0) * i / n; R.push([outerX(u), yAt(u)]); L.push([innerX(u), yAt(u)]); } return [...R, ...L.reverse()]; };
+  if (c.foreShelf) { const du = (s / 2) / c.foreH; comps.push({ name: 'fore', pts: fore(0, 0.5 - du), tall: true }, { name: 'fore2', pts: fore(0.5 + du, 1), tall: true }); }
+  else comps.push({ name: 'fore', pts: fore(0, 1), tall: true });
+
+  // fist
+  const fy1 = wy - s, fy0 = fy1 - c.fistH, fx1 = xR1 + 4, fx0 = fx1 - c.fistW, pivot = [(fx0 + fx1) / 2, wy];
+  if (c.fist === 'knob') {
+    const rr = c.fistH * 0.56, cx = (xL1 + xR1) / 2 - 2, cy = wy - s - rr;
+    comps.push({ name: 'fist', pts: circlePts(cx, cy, rr, 48), gen: circlePts(cx, cy, rr, 48), fist: true, rot: 0, pivot });
+    solids.push(rrect(xL1 - t - 6, wy - s - 4, xR1 + t + 6, wy + 3, { tl: 4, tr: 4, br: 4, bl: 4 }));
+  } else {
+    const rot = pts => rotPts(pts, c.fistTilt, pivot);
+    const box = rrect(fx0, fy0, fx1, fy1, c.fist === 'block' ? { tl: 16, tr: 22, br: 14, bl: 10 } : { tl: 6, tr: 22, br: 10, bl: 6 });
+    comps.push({ name: 'fist', pts: rot(box), gen: box, fist: true, rot: c.fistTilt, pivot });
+    if (handFist(c)) {
+      // curled fingers on the side facing the biceps; index finger on top
+      const n = Math.round(c.fingers), lobeW = c.fistW * 0.3, top = fy0 - t, bot = fy1 + t * 0.9, xin = fx0 + t * 0.5, segH = (bot - top) / n;
+      const pat = [0.92, 1, 0.94, 0.78].slice(0, n);
+      const lefts = pat.map(p => fx0 - t - lobeW + (1 - p) * lobeW * c.knuckle * 1.6);
+      const pads = lefts.map((xl, i) => capsule(xl - c.knuckle * 5, top + segH * i + 0.6, xin, top + segH * (i + 1) - 0.6));
+      if (c.fist === 'mitten') {
+        solids.push(rot(rrect(Math.max(...lefts) + segH * 0.3, top, xin, bot, { tl: 4, bl: 4 })), ...pads.map(rot));
+        for (let i = 1; i < n; i++) { const y = top + segH * i, xl = Math.min(lefts[i - 1], lefts[i]) - c.knuckle * 5; grooves.push(rot([[xl + 3, y], [xl + lobeW * 0.45, y + 1.2], [xl + lobeW * 0.8, y + 0.4]])); }
+      } else {
+        for (let i = n - 1; i >= 0; i--) layered.push(rot(pads[i]));
+      }
+      if (c.thumb) {
+        const th = segH * 0.78, x0 = Math.min(...lefts) + lobeW * 0.2, x1 = fx0 + t * 0.6 + c.fistW * 0.45 * c.thumbLen, ty = top + segH * 0.6;
+        overlay.push(rot(rotPts(capsule(x0, ty - th / 2, x1, ty + th / 2), -7, [x0, ty])));
+      }
+    }
+  }
+
+  // fit everything inside a circle of radius c.fit (tile units, half-size 50)
+  const pad = t + c.ow, all = [];
+  comps.forEach(k => k.pts.forEach(p => all.push([p, pad])));
+  [...solids, ...layered, ...overlay].forEach(pts => pts.forEach(p => all.push([p, c.ow])));
+  const xs = all.map(([p, d]) => [p[0] - d, p[0] + d]).flat(), ys = all.map(([p, d]) => [p[1] - d, p[1] + d]).flat();
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const maxD = Math.max(...all.map(([p, d]) => Math.hypot(p[0] - cx, p[1] - cy) + d));
+  const k = c.fit * 5.12 / maxD;
+  return { comps, solids, layered, overlay, grooves, k, tf: `translate(256 256) scale(${f(k)}) translate(${f(-cx)} ${f(-cy)})`,
+           floor: F, ribbon: [xL0 + c.foreW0 * 0.42, yb - 4], shadow: [cx, F + t + 4, (Math.max(...xs) - Math.min(...xs)) * 0.44] };
+}
+
+
+/* ---------- books ---------- */
+function spine(x, yb, w, h, col, o) {
+  const y = yb - h, rx = 1.4 * Math.min(2, o.bs || 1);
+  let s = `<rect x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" rx="${f(rx)}" fill="${col}"/>`;
+  if (o.mono) { if (!o.small) s += [0.12, 0.86].map(fy => `<rect x="${f(x)}" y="${f(y + h * fy)}" width="${f(w)}" height="${f(Math.max(1.6, h * 0.035))}" fill="${PAPER}"/>`).join(''); }
+  else if (o.small) { /* flat */ }
+  else if (o.detail !== 'fine') {
+    // bold: one band near the top, in a tone that stands out from the spine
+    const band = lum(col) > 0.3 ? shade(col, -0.38) : mix(col, '#F1E7D2', 0.55);
+    s += `<rect x="${f(x)}" y="${f(y + h * 0.13)}" width="${f(w)}" height="${f(Math.max(2.2, h * 0.07))}" fill="${band}"/>`;
+  } else {
+    s += `<rect x="${f(x + w * 0.7)}" y="${f(y)}" width="${f(w * 0.3)}" height="${f(h)}" rx="${f(rx)}" fill="#000" opacity=".17"/>`;
+    const bc = o.gold ? GOLD : '#000', bo = o.gold ? 1 : 0.28;
+    s += [0.09, 0.15, 0.85, 0.91].map(fy => `<rect x="${f(x)}" y="${f(y + h * fy)}" width="${f(w)}" height="${o.gold ? 1.8 : 2.2}" fill="${bc}" opacity="${bo}"/>`).join('');
+    if (o.label) s += `<rect x="${f(x + w * 0.22)}" y="${f(y + h * 0.26)}" width="${f(w * 0.56)}" height="${f(h * 0.13)}" rx=".8" fill="${CREAM}" opacity=".85"/>`;
+  }
+  return o.rot ? `<g transform="rotate(${f(o.rot)} ${f(x + w)} ${f(yb)})">${s}</g>` : s;
+}
+function lying(x, yb, len, th, col, o) {
+  const y = yb - th;
+  let s = `<rect x="${f(x)}" y="${f(y)}" width="${f(len)}" height="${f(th)}" rx="1.4" fill="${col}"/>`;
+  if (o.mono || o.small) return s;
+  if (o.detail !== 'fine') { const band = lum(col) > 0.3 ? shade(col, -0.38) : mix(col, '#F1E7D2', 0.55); return s + `<rect x="${f(x + len * 0.84)}" y="${f(y)}" width="${f(Math.max(2.2, len * 0.05))}" height="${f(th)}" fill="${band}"/>`; }
+  return s + `<rect x="${f(x)}" y="${f(y + th * 0.68)}" width="${f(len)}" height="${f(th * 0.32)}" rx="1.4" fill="#000" opacity=".17"/>` +
+    [0.08, 0.92].map(fx => `<rect x="${f(x + len * fx)}" y="${f(y)}" width="1.8" height="${f(th)}" fill="${o.gold ? GOLD : '#000'}" opacity="${o.gold ? 1 : 0.28}"/>`).join('');
+}
+// A trinket standing on a shelf, as tall as fits around x-centre xc (the room under a curved top varies with x).
+// relative sizes, so a skull isn't as big as a desk lamp
+const TSCALE = { skull: 0.62, apple: 0.75, inkwell: 0.78, clock: 0.85, hourglass: 0.9, bust: 0.92, lamp: 0.9, plant: 0.95, candle: 1, globe: 1 };
+function placeTrinket(kind, pts, floor, xa, xb, xc, maxH) {
+  const T = TRINKETS[kind]; if (!T) return null;
+  let h = Math.min(maxH, (floor - topAt(pts, xc)) * 0.8) * (TSCALE[kind] || 1);
+  for (let i = 0; i < 10 && h > 8; i++) {
+    const w = h * T.aspect, x0 = Math.max(xa + 3, Math.min(xb - 3 - w, xc - w / 2));
+    const room = Math.min(floor - topAt(pts, x0 + 1), floor - topAt(pts, x0 + w - 1), floor - topAt(pts, x0 + w / 2)) - 4;
+    if (h <= room && x0 + w <= xb - 2) return { T, x0, w, h };
+    h *= 0.9;
+  }
+  return null;
+}
+function booksFor(comp, c, rnd, o, slots) {
+  const bs = c.bookSize, pickCol = () => o.pal[Math.floor(rnd() * o.pal.length)];
+  if (comp.fist) {
+    const g = comp.gen, xs = g.map(p => p[0]), ys = g.map(p => p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y1 = Math.max(...ys), floor = c.fist === 'knob' ? y1 - (y1 - Math.min(...ys)) * 0.14 : y1;
+    let s = '';
+    if (TRINKETS[c.cubbyItem]) { const p = placeTrinket(c.cubbyItem, g, floor, x0, x1, (x0 + x1) / 2 + (c.fist === 'knob' ? 0 : 3), 999); if (p) s = p.T.draw(p.x0, floor, p.h, o); }
+    else if (c.cubbyItem === 'books') { let x = x0 + (c.fist === 'knob' ? (x1 - x0) * 0.2 : 6); const end = x1 - (c.fist === 'knob' ? (x1 - x0) * 0.2 : 4);
+      while (x < end - 6) { const w = o.small ? 14 : (8 + rnd() * 4) * bs; if (x + w > end) break; const room = floor - Math.max(topAt(g, x), topAt(g, x + w)) - 3; if (room > 10) s += spine(x, floor, w, room * (0.7 + rnd() * 0.25), pickCol(), { ...o, gold: c.gold && rnd() < 0.3 }); x += w + 0.8; } }
+    return comp.rot ? `<g transform="rotate(${f(comp.rot)} ${f(comp.pivot[0])} ${f(comp.pivot[1])})">${s}</g>` : s;
+  }
+  const pts = comp.pts, floor = Math.max(...pts.map(p => p[1])), span = spanAt(pts, floor - 1.5);
+  if (!span) return '';
+  const [xa, xb] = span, small = o.small;
+  let s = '';
+  // trinkets first; books flow around them
+  const gaps = [];
+  (slots || []).forEach(sl => {
+    if (!sl.kind || sl.kind === 'none') return;
+    const p = placeTrinket(sl.kind, pts, floor, xa, xb, xa + (xb - xa) * sl.pos, 74);
+    if (p && !gaps.some(g => p.x0 < g[1] && p.x0 + p.w > g[0])) { s += p.T.draw(p.x0, floor, p.h, o); gaps.push([p.x0 - 3, p.x0 + p.w + 3]); }
+  });
+  const wmin = small ? Math.max(18, 9 * bs) : 9 * bs, wmax = small ? Math.max(26, 14 * bs) : 14 * bs;
+  const end = xb - 2 - (1 - c.density) * (xb - xa) * 0.6;
+  let x = xa + 2, leaned = false;
+  while (x < end) {
+    const g = gaps.find(g => x >= g[0] && x < g[1]); if (g) { x = g[1]; continue; }
+    const w = wmin + rnd() * (wmax - wmin), next = gaps.find(g => g[0] >= x && g[0] < x + w);
+    if (next) { x = next[1]; continue; }
+    if (x + w > xb - 1) break;
+    const top = Math.max(topAt(pts, x + 0.5), topAt(pts, x + w / 2), topAt(pts, x + w - 0.5)), room = floor - top - 3;
+    if (!(room > 12)) { x += w; continue; }
+    if (!small && comp.low && rnd() < 0.13 && xb - x > 70 * Math.min(bs, 1.3) && !gaps.some(g => g[0] > x && g[0] < x + 80)) {
+      const len = (50 + rnd() * 14) * Math.min(bs, 1.3), th = (9 + rnd() * 3) * Math.min(bs, 1.6); let y = floor;
+      for (let i = 0; i < 3 && floor - y + th < room; i++) { s += lying(x + rnd() * 5, y, len - i * 4, th, pickCol(), { ...o, gold: c.gold && rnd() < 0.4 }); y -= th; }
+      x += len + 4; continue;
+    }
+    if (!small && c.lean && !leaned && rnd() < 0.12 && x > xa + 30) {
+      const h = room * 0.82, ang = 14, dx = h * Math.tan(ang * Math.PI / 180);
+      if (!gaps.some(g => g[0] > x && g[0] < x + w + dx + 2)) { s += spine(x + dx, floor, w, h, pickCol(), { ...o, rot: -ang, gold: c.gold && rnd() < 0.4 }); x += w + dx + 2; leaned = true; continue; }
+    }
+    const h = room * (comp.tall ? 0.62 + rnd() * 0.32 : 0.74 + rnd() * 0.22);
+    s += spine(x, floor, w, h, pickCol(), { ...o, gold: c.gold && rnd() < 0.3, label: rnd() < 0.22 });
+    x += w + 0.8;
+  }
+  return s;
+}
+function slotsFor(name, c) {
+  if (name === 'bicep') return [{ kind: c.tr1, pos: c.bicepPeak }];
+  if (name === 'base') return c.divider ? [{ kind: c.tr2, pos: 0.76 }] : [{ kind: c.tr2, pos: 0.52 }, { kind: c.tr3, pos: 0.88 }];
+  if (name === 'elbow') return [{ kind: c.tr3, pos: 0.5 }];
+  return [];
+}
+
+
+/* ---------- drawing ---------- */
+const memo = new Map();
+function draw(c, state, t, uid) {
+  const key = uid + '|' + state + '|' + JSON.stringify(c);
+  if (memo.has(key)) return memo.get(key);
+  if (memo.size > 600) memo.clear();
+  const out = render(c, state, uid);
+  memo.set(key, out);
+  return out;
+}
+function render(c0, state, uid) {
+  const [bgName, sm] = state.split('-'), small = sm === 's', mono = bgName === 'mono';
+  const c = small ? Object.assign({}, c0, { t: c0.t * 1.3, s: c0.s * 1.15, ow: c0.ow * 1.5, density: Math.min(c0.density, 0.55) }) : c0;
+  const G = geo(c), t = c.t, ow = c.ow, K = colors(c);
+  const wood = mono ? INK : K.wood, outl = mono ? INK : K.outline, back = mono ? PAPER : K.back, woodHi = shade(K.wood, 0.2);
+  const o = { small, mono, woodHi, wood: K.wood, ink: INK, paper: PAPER, gold: GOLD, detail: c.detail, bs: c.bookSize, pal: mono ? [INK] : K.spines };
+  let defs = '', tile = '';
+  const full = '<rect x="-50" y="-50" width="100" height="100"';
+  if (bgName === 'parch' || bgName === 'circle') { defs += `<radialGradient id="${uid}bg" cx="50%" cy="44%" r="72%"><stop offset="0" stop-color="#F3EAD7"/><stop offset="1" stop-color="#E4D3B0"/></radialGradient>`; tile = `${full} fill="url(#${uid}bg)"/>`; }
+  else if (bgName === 'green') { defs += `<radialGradient id="${uid}bg" cx="50%" cy="44%" r="72%"><stop offset="0" stop-color="#3A5A47"/><stop offset="1" stop-color="#24392C"/></radialGradient>`; tile = `${full} fill="url(#${uid}bg)"/>`; }
+  else if (bgName === 'dark') tile = `${full} fill="#1E1A16"/>`;
+  else if (mono) tile = `${full} fill="${PAPER}"/>`;
+  defs += `<linearGradient id="${uid}w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${mono ? INK : shade(wood, 0.1)}"/><stop offset="1" stop-color="${mono ? INK : shade(wood, -0.12)}"/></linearGradient>`;
+  const light = lum(back) > 0.35;
+  defs += `<linearGradient id="${uid}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${mono ? PAPER : light ? shade(back, -0.1) : back}"/><stop offset="1" stop-color="${mono ? PAPER : light ? back : shade(back, 0.14)}"/></linearGradient>`;
+  const W = `url(#${uid}w)`;
+  let g = '';
+  if (c.shadow && !mono) g += `<ellipse cx="${f(G.shadow[0])}" cy="${f(G.shadow[1])}" rx="${f(G.shadow[2])}" ry="7" fill="${K.outline}" opacity=".22"/>`;
+  const path = (pts, a) => `<path d="${poly(pts)}" ${a}/>`, J = 'stroke-linejoin="round"';
+  // outline, then wood: compartments get a thick stroke (the frame), solids are carved wood
+  G.comps.forEach(k => g += path(k.pts, `fill="${outl}" stroke="${outl}" stroke-width="${f(2 * t + 2 * ow)}" ${J}`));
+  G.solids.forEach(p => g += path(p, `fill="${outl}" stroke="${outl}" stroke-width="${f(2 * ow + 0.01)}" ${J}`));
+  G.comps.forEach(k => g += path(k.pts, `fill="${W}" stroke="${W}" stroke-width="${f(2 * t)}" ${J}`));
+  G.solids.forEach(p => g += path(p, `fill="${W}"`));
+  G.layered.forEach(p => g += path(p, `fill="${outl}" stroke="${outl}" stroke-width="${f(2 * ow + 0.01)}" ${J}`) + path(p, `fill="${W}"`));
+  G.grooves.forEach(p => g += `<path d="M${p.map(q => f(q[0]) + ' ' + f(q[1])).join('L')}" fill="none" stroke="${outl}" stroke-width="${f(Math.max(1.6, ow * 1.1))}" stroke-linecap="round" ${J}/>`);
+  // inside: backs, books and trinkets, a lit shelf edge
+  G.comps.forEach((k, i) => {
+    defs += `<clipPath id="${uid}k${i}"><path d="${poly(k.pts)}"/></clipPath>`;
+    g += path(k.pts, `fill="url(#${uid}b)"`);
+    g += `<g clip-path="url(#${uid}k${i})">${booksFor(k, c, rng(c.seed * 97 + i * 13 + 1), o, slotsFor(k.name, c))}</g>`;
+    if (!mono && !k.fist) { const fl = Math.max(...k.pts.map(p => p[1])), sp = spanAt(k.pts, fl - 0.5); if (sp) g += `<rect x="${f(sp[0])}" y="${f(fl + 1)}" width="${f(sp[1] - sp[0])}" height="2.2" fill="${woodHi}"/>`; }
+  });
+  G.overlay.forEach(p => g += path(p, `fill="${outl}" stroke="${outl}" stroke-width="${f(2 * ow + 0.01)}" ${J}`) + path(p, `fill="${W}"`));
+  if (c.ribbon && !small) { const [x, y] = G.ribbon, w = 4.2, L = 34; g += `<path d="M${f(x)},${f(y)} H${f(x + w)} V${f(y + L)} L${f(x + w / 2)},${f(y + L - w * 0.9)} L${f(x)},${f(y + L)} Z" fill="${mono ? INK : '#8E2F2A'}"/>`; }
+  let body = tile + `<g transform="translate(-50 -50) scale(0.1953125)"><g transform="${G.tf}">${g}</g></g>`;
+  if (bgName === 'circle') { defs += `<clipPath id="${uid}cc"><circle r="50"/></clipPath>`; body = `<g clip-path="url(#${uid}cc)">${body}</g>`; }
+  return `<defs>${defs}</defs>${body}`;
+}
+
+
+/* ---------- where it lives ---------- */
+function contextScene(c, state) {
+  const bg = state.split('-')[0], sm = c.simplify ? bg + '-s' : bg, ff = `font-family:'${c.font}', Georgia, serif`;
+  const app = (bgc, name) => `<div class="hsapp"><div class="ic" style="background:${bgc}"></div><span>${name}</span></div>`;
+  return {
+    html: `<div class="ctx">
+      <div class="phone"><div class="status"><span>9:41</span><span>●●● ▮</span></div><div class="apps">
+        ${app('linear-gradient(#ffe27a,#f7b733)', 'Notes')}${app('linear-gradient(#6fd0ff,#1e7cf2)', 'Safari')}
+        <div class="hsapp"><div class="ic slotHome"></div><span>own-shelf</span></div>${app('linear-gradient(#ffb15c,#ef6b2c)', 'Books')}
+        ${app('linear-gradient(#9be15d,#2fb36b)', 'Messages')}${app('linear-gradient(#e7e7ea,#c9c9cf)', 'Settings')}${app('linear-gradient(#ff6a88,#d6334f)', 'Music')}${app('linear-gradient(#5a5a62,#2b2b30)', 'Camera')}
+      </div></div>
+      <div class="right">
+        <div class="browser"><div class="tabs"><div class="tab"><span class="slotFav"></span>own-shelf</div><div class="tab dim">MIT Technology Review</div></div><div class="addr">ngnnah.github.io/own-shelf</div></div>
+        <div class="appbar"><span class="slotBrand"></span><b class="wm" style="${ff}">own-shelf</b><span class="btns">Notebook · Add to shelf</span></div>
+        <div class="signin"><div class="slotHero"></div><h3 style="${ff}">Your shelf, on every device.</h3><div class="mock">Sign in with Google</div></div>
+        <div class="sizes">${[180, 96, 64, 48, 32, 16].map(n => `<figure><div class="ic sz${n}" style="width:${n}px;height:${n}px"></div><figcaption>${n}${n <= 48 && c.simplify ? ' · simple' : ''}</figcaption></figure>`).join('')}</div>
+      </div></div>`,
+    slots: [
+      { sel: '.slotHome', px: 60 },
+      { sel: '.slotFav', px: 16, state: sm },
+      { sel: '.slotBrand', px: 34, state: c.simplify ? 'mark-s' : 'mark' },
+      { sel: '.slotHero', px: 124, state: 'mark' },
+      { sel: '.sz180', px: 180 }, { sel: '.sz96', px: 96 }, { sel: '.sz64', px: 64 },
+      { sel: '.sz48', px: 48, state: sm }, { sel: '.sz32', px: 32, state: sm }, { sel: '.sz16', px: 16, state: sm },
+    ],
+  };
+}
+
+
+function readout(c) {
+  const k = geo(c).k, at32 = c.t * k * 32 / 512, at32s = c.t * 1.3 * k * 32 / 512, K = colors(c);
+  const ks = K.spines.map(s => contrast(s, K.back)), kmin = Math.min(...ks), kavg = ks.reduce((a, b) => a + b, 0) / ks.length;
+  const kp = contrast(K.wood, '#F3EAD7'), kg = contrast(K.outline, '#2F4A3A');
+  const warn = (b, m) => b ? ` <span class="warn">${m}</span>` : '';
+  return `Spines on the inside <b>${kavg.toFixed(1)}:1</b> average, <b>${kmin.toFixed(1)}:1</b> weakest${warn(kmin < 2.5, '· some spines blend into the inside')}` +
+    ` · frame on parchment <b>${kp.toFixed(1)}:1</b>, outline on green <b>${kg.toFixed(1)}:1</b>${warn(kp < 2.5, '· frame faint on parchment')}` +
+    `<br>Mark radius <b>${c.fit}</b> of 50${warn(c.fit > 40, '· outside the Android safe circle (40): launchers will crop it')}` +
+    ` · frame at 32 px <b>${at32.toFixed(1)} px</b>${c.simplify ? ` (simple ${at32s.toFixed(1)} px)` : ''}${warn((c.simplify ? at32s : at32) < 1, '· thinner than a pixel')}`;
+}
+
+function surprise(c) {
+  const tk = () => pick(['none', ...TRINKET_KINDS, ...TRINKET_KINDS]);
+  return { shoulder: pick(['round', 'sleeve', 'taper']), armLen: Math.round(rand(240, 330)), armH: Math.round(rand(48, 74)),
+    bicepH: Math.round(rand(70, 135)), bicepPeak: rand(0.45, 0.75), bicepFull: rand(0.45, 0.78), bicepStart: rand(0.02, 0.2), elbowR: Math.round(rand(14, 46)),
+    foreH: Math.round(rand(110, 175)), foreW0: Math.round(rand(64, 96)), foreW1: Math.round(rand(46, 70)), foreLean: Math.round(rand(0, 30)), foreBulge: Math.round(rand(0, 24)),
+    fist: pick(['mitten', 'fingers', 'knob', 'mitten']), fistW: Math.round(rand(76, 112)), fistH: Math.round(rand(52, 84)), fistTilt: Math.round(rand(-16, 6)),
+    knuckle: rand(0.2, 0.9), thumbLen: rand(0.35, 0.85), scheme: pick(Object.keys(SCHEMES)), bookSize: rand(1, 2.2), density: rand(0.35, 0.8),
+    seed: Math.round(rand(1, 99)), cubbyItem: pick(TRINKET_KINDS), tr1: tk(), tr2: tk(), tr3: tk() };
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ENGINE: usually no edits below. Controls, presets, pins, send, persistence, loop.
+// ═════════════════════════════════════════════════════════════════════════════
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(LAB.key + ':' + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(LAB.key + ':' + k, JSON.stringify(v)); } catch {} },
+};
+// #preset=Name opens that preset fresh (for headless checks; the companion server only serves "/", so no query string).
+const hashPreset = decodeURIComponent((location.hash.match(/preset=([^&]+)/) || [])[1] || '');
+let presetName = PRESETS[hashPreset] ? hashPreset : store.get('preset', Object.keys(PRESETS)[0]);
+let cfg = Object.assign({}, BASE, PRESETS[presetName] || {}, PRESETS[hashPreset] ? {} : store.get('cfg', {}));
+let pins = store.get('pins', []);
+let curState = store.get('state', STATES[0][0]);
+let dirty = true;
+
+function f(n) { return (Math.round(n * 100) / 100).toString(); }
+function poly(pts) { return 'M' + pts.map(p => f(p[0]) + ' ' + f(p[1])).join('L') + 'Z'; }
+function squircle(r, n) { const pts = []; for (let i = 0; i < 96; i++) { const th = i / 96 * 2 * Math.PI, c = Math.cos(th), s = Math.sin(th); pts.push([r * Math.sign(c) * Math.pow(Math.abs(c), 2 / n), r * Math.sign(s) * Math.pow(Math.abs(s), 2 / n)]); } return poly(pts); }
+function rgb(h) { h = h.replace('#', ''); if (h.length === 3) h = [...h].map(x => x + x).join(''); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function hex(a) { return '#' + a.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join(''); }
+function mix(a, b, t) { const A = rgb(a), B = rgb(b); return hex(A.map((v, i) => v + (B[i] - v) * t)); }
+function shade(a, amt) { return amt < 0 ? mix(a, '#000000', -amt) : mix(a, '#ffffff', amt); }
+function lum(h) { const c = rgb(h).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; }
+function contrast(a, b) { const A = lum(a), B = lum(b); return (Math.max(A, B) + 0.05) / (Math.min(A, B) + 0.05); }
+function rand(a, b) { return a + Math.random() * (b - a); }
+function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); }
+function svgWrap(px, inner) { return `<svg width="${f(px)}" height="${f(px)}" viewBox="-50 -50 100 100" style="display:block;overflow:visible">${inner}</svg>`; }
+
+// Animated instances: re-drawn each frame. Static parts are rebuilt only when something changed.
+const instances = [];
+let uidN = 0;
+function addInstance(el, px, getCfg, getState) { instances.push({ el, px, getCfg, getState, uid: 'u' + (uidN++) }); }
+function dropInstances(group) { for (let i = instances.length - 1; i >= 0; i--) if (instances[i].group === group) instances.splice(i, 1); }
+
+function rebuildContext() {
+  dropInstances('ctx');
+  const box = document.getElementById('context');
+  const sc = contextScene(cfg, curState);
+  box.innerHTML = sc.html;
+  for (const s of sc.slots) box.querySelectorAll(s.sel).forEach(el => { addInstance(el, s.px, () => cfg, () => s.state || curState); instances[instances.length - 1].group = 'ctx'; });
+  document.getElementById('readout').innerHTML = readout(cfg);
+}
+function rebuildGrid() {
+  dropInstances('grid');
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  for (const [id, label, cap] of STATES) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `<div class="stage"><div></div></div><div class="cap">${label}<small>${cap}</small></div>`;
+    grid.appendChild(card);
+    addInstance(card.querySelector('.stage > div'), 104, () => cfg, () => id);
+    instances[instances.length - 1].group = 'grid';
+  }
+}
+function rebuildPins() {
+  dropInstances('pin');
+  const box = document.getElementById('pins');
+  box.innerHTML = '';
+  document.getElementById('pinBtn').textContent = pins.length ? `Pin this variant (${pins.length} pinned)` : 'Pin this variant';
+  if (!pins.length) { box.innerHTML = '<div class="empty">Nothing pinned yet. Pin variants to compare them side by side.</div>'; return; }
+  pins.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'pin';
+    row.innerHTML = `<div class="name">${escapeHtml(p.name)}<small>${escapeHtml(p.preset || '')}</small></div>
+      <div class="strip">${PIN_STATES.map(st => `<div data-st="${st}" title="${st}"></div>`).join('')}</div>
+      <div class="row-buttons"><button data-load="${i}">Load</button><button data-del="${i}">Remove</button></div>`;
+    box.appendChild(row);
+    // Fill in defaults: a pin saved before a setting existed still draws.
+    const pc = Object.assign({}, BASE, p.cfg);
+    row.querySelectorAll('[data-st]').forEach(el => { addInstance(el, 40, () => pc, () => el.dataset.st); instances[instances.length - 1].group = 'pin'; });
+  });
+}
+
+let last = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (now - last < 1000 / 30) return;
+  last = now;
+  if (dirty) { dirty = false; rebuildContext(); rebuildGrid(); rebuildPins(); store.set('cfg', cfg); }
+  const t = now / 1000;
+  // static subject: only touch the DOM when an instance's drawing changed
+  for (const b of instances) { const h = svgWrap(b.px, draw(b.getCfg(), b.getState(), t, b.uid)); if (b.last !== h) { b.el.innerHTML = h; b.last = h; } }
+}
+
+function buildControls() {
+  const root = document.getElementById('controls');
+  root.innerHTML = '';
+  let sec = null;
+  for (const item of SCHEMA) {
+    if (Array.isArray(item)) { sec = document.createElement('div'); sec.className = 'sec'; sec.innerHTML = `<div class="sec-title">${item[0]}</div>`; root.appendChild(sec); continue; }
+    const row = document.createElement('div');
+    row.className = 'ctl' + (item.t === 'check' ? ' check' : '');
+    row.dataset.k = item.k;
+    const id = 'c_' + item.k;
+    if (item.t === 'range') {
+      row.innerHTML = `<label for="${id}">${item.l}</label><input id="${id}" type="range" min="${item.min}" max="${item.max}" step="${item.step}"><span class="val"></span>`;
+      const inp = row.querySelector('input'), val = row.querySelector('.val');
+      inp.value = cfg[item.k]; val.textContent = fmt(cfg[item.k], item);
+      inp.addEventListener('input', () => { cfg[item.k] = parseFloat(inp.value); val.textContent = fmt(cfg[item.k], item); changed(); });
+    } else if (item.t === 'select') {
+      row.innerHTML = `<label for="${id}">${item.l}</label><select id="${id}">${item.o.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>`;
+      const sel = row.querySelector('select'); sel.value = String(cfg[item.k]);
+      sel.addEventListener('change', () => { cfg[item.k] = sel.value; changed(); });
+    } else if (item.t === 'check') {
+      row.innerHTML = `<label for="${id}">${item.l}</label><input id="${id}" type="checkbox">`;
+      const cb = row.querySelector('input'); cb.checked = !!cfg[item.k];
+      cb.addEventListener('change', () => { cfg[item.k] = cb.checked; changed(); });
+    } else if (item.t === 'text') {
+      row.innerHTML = `<label for="${id}">${item.l}</label><input id="${id}" type="text">`;
+      const tx = row.querySelector('input'); tx.value = cfg[item.k] || '';
+      tx.addEventListener('input', () => { cfg[item.k] = tx.value; changed(); });
+    } else if (item.t === 'color') {
+      row.innerHTML = `<label for="${id}">${item.l}</label><div class="colorwrap"><input id="${id}" type="color"><span class="hex"></span></div>` +
+        (item.swatches ? `<span></span><div class="swatches">${SWATCHES.map(s => `<span style="background:${s}" data-sw="${s}" title="${s}"></span>`).join('')}</div>` : '');
+      const inp = row.querySelector('input[type=color]'), hx = row.querySelector('.hex');
+      const show = () => { inp.value = cfg[item.k]; hx.textContent = cfg[item.k].toUpperCase(); };
+      show();
+      inp.addEventListener('input', () => { cfg[item.k] = inp.value; show(); changed(); });
+      row.querySelectorAll('[data-sw]').forEach(sw => sw.addEventListener('click', () => { cfg[item.k] = sw.dataset.sw; show(); changed(); }));
+    }
+    sec.appendChild(row);
+  }
+  refreshVisibility();
+}
+function fmt(v, item) { const n = item.step < 0.1 ? v.toFixed(2) : (item.step < 1 ? v.toFixed(1) : String(Math.round(v))); return n + (item.u || ''); }
+function refreshVisibility() {
+  for (const item of SCHEMA) {
+    if (Array.isArray(item) || !item.when) continue;
+    const row = document.querySelector(`.ctl[data-k="${item.k}"]`);
+    if (row) row.classList.toggle('hidden', !item.when(cfg));
+  }
+}
+function changed() { dirty = true; refreshVisibility(); }
+
+function buildPresets() {
+  const box = document.getElementById('presets');
+  box.innerHTML = '';
+  for (const name of Object.keys(PRESETS)) {
+    const b = document.createElement('button');
+    b.textContent = name;
+    if (name === presetName) b.classList.add('primary');
+    b.addEventListener('click', () => { presetName = name; store.set('preset', name); cfg = Object.assign({}, BASE, PRESETS[name]); buildPresets(); buildControls(); changed(); });
+    box.appendChild(b);
+  }
+}
+function buildStateSeg() {
+  const seg = document.getElementById('stateSeg');
+  seg.innerHTML = '';
+  for (const [id, label] of STATES) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    if (id === curState) b.classList.add('on');
+    b.addEventListener('click', () => { curState = id; store.set('state', id); buildStateSeg(); changed(); });
+    seg.appendChild(b);
+  }
+}
+
+function toast(msg) { const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 1800); }
+// The companion injects window.brainstorm. A sent object lands only in $SCREEN_DIR/.server.log, as a
+// line with "source":"user-event" (the server writes .events only for click events with a `choice`).
+// The server stops after 30 idle minutes and any request counts as activity, so the page pings it
+// while the tab is visible, which also tells us honestly whether Send can reach Claude.
+let online = false;
+async function heartbeat() {
+  const conn = document.getElementById('conn');
+  if (location.protocol === 'file:') { online = false; conn.textContent = 'Opened as a file: Send will not reach Claude'; return; }
+  try { await fetch('/heartbeat', { cache: 'no-store' }); online = true; }
+  catch { online = false; }
+  conn.textContent = online ? (window.brainstorm ? 'Connected to Claude' : 'No companion helper on this page: use Copy JSON')
+                            : 'Server stopped: Send will not reach Claude. Ask Claude to restart it; your pins are safe in this browser.';
+  conn.classList.toggle('warn', !online);
+}
+heartbeat();
+addEventListener('load', heartbeat); // the companion's helper script loads after this one
+setInterval(() => { if (!document.hidden) heartbeat(); }, 4 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) heartbeat(); });
+async function send(payload) {
+  await heartbeat();
+  if (online && window.brainstorm && window.brainstorm.send) { window.brainstorm.send(payload); return true; }
+  return false;
+}
+// Numbers rounded to 2 decimals, so the JSON reads cleanly.
+function clean(o) { return JSON.parse(JSON.stringify(o, (k, v) => typeof v === 'number' ? Math.round(v * 100) / 100 : v)); }
+// The preset the config started from, and which settings differ from it now (after edits or Surprise me).
+function presetInfo() {
+  const ref = Object.assign({}, BASE, PRESETS[presetName] || {});
+  const edited = Object.keys(ref).filter(k => JSON.stringify(clean({ v: ref[k] }).v) !== JSON.stringify(clean({ v: cfg[k] }).v));
+  return { startedFrom: presetName, edited };
+}
+function payload(action) { return clean({ type: 'lab', lab: LAB.key, action, ...presetInfo(), state: curState, note: document.getElementById('note').value, cfg, pins }); }
+
+document.getElementById('pinBtn').addEventListener('click', () => {
+  // no prompt(): VS Code's browser and other embedded views block it, which silently dropped pins
+  const name = `Variant ${pins.length + 1}`;
+  const info = presetInfo();
+  pins.push({ name, preset: info.startedFrom, cfg: clean(cfg) });
+  store.set('pins', pins); changed();
+  send(clean({ type: 'lab', lab: LAB.key, action: 'pin', name, ...info, cfg }));
+  toast(`Pinned as ${name}: see Pinned variants below`);
+});
+document.getElementById('pins').addEventListener('click', e => {
+  const l = e.target.dataset.load, d = e.target.dataset.del;
+  if (l !== undefined) { cfg = Object.assign({}, BASE, JSON.parse(JSON.stringify(pins[+l].cfg))); buildControls(); changed(); toast('Loaded ' + pins[+l].name); }
+  if (d !== undefined) { pins.splice(+d, 1); store.set('pins', pins); changed(); }
+});
+document.getElementById('sendBtn').addEventListener('click', async () => toast(await send(payload('send')) ? 'Sent. Tell Claude in the terminal.' : 'Not sent: the server is down. Use Copy JSON, or ask Claude to restart it.'));
+document.getElementById('copyBtn').addEventListener('click', async () => { try { await navigator.clipboard.writeText(JSON.stringify(payload('copy'), null, 2)); toast('Copied'); } catch { toast('Copy failed'); } });
+document.getElementById('surprise').addEventListener('click', () => { cfg = Object.assign({}, cfg, surprise(cfg)); buildControls(); changed(); });
+document.getElementById('reset').addEventListener('click', () => { cfg = Object.assign({}, BASE, PRESETS[presetName]); buildControls(); changed(); });
+
+document.title = LAB.title;
+document.getElementById('labTitle').textContent = LAB.title;
+document.getElementById('mainTitle').textContent = LAB.subject;
+document.getElementById('blurb').textContent = LAB.blurb;
+buildPresets(); buildControls(); buildStateSeg();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
