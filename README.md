@@ -1,6 +1,6 @@
 # own-shelf
 
-*Knowledge is power. Know thyself in the margins.*
+*Knowledge is power. Wisdom in the margins.*
 
 A personal reading app, and one place to gather your readings and notes into practical wisdom. Put PDFs, pasted articles and web links on a bookshelf, read them with sections and checkpoints, highlight and annotate, and export your notes as Markdown, HTML or plain text. It syncs across devices through Firebase, or keeps everything on one device.
 

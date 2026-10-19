@@ -1,7 +1,7 @@
 {
   "name": "own-shelf",
   "short_name": "own-shelf",
-  "description": "Know thyself in the margins. A personal reading shelf for PDFs, articles and links, with highlights and notes gathered into practical wisdom.",
+  "description": "Wisdom in the margins. A personal reading shelf for PDFs, articles and links, with highlights and notes gathered into practical wisdom.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

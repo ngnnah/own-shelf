@@ -85,7 +85,7 @@ function renderShelf(){
   $('#contWrap').innerHTML=cont?`<div class="cont"><span class="cv" style="background:${cover(cont.id)[0]}"></span><div class="ct"><small>Continue reading</small><b>${esc(cont.title)}</b><span>${Math.round(cont.progress*100)}%${cont.words?` · about ${Math.max(1,Math.round(cont.words*(1-cont.progress)/230))} min left`:''}</span></div><button class="btn" data-open="${cont.id}">Continue</button></div>`:'';
   const body=$('#shelfBody');
   if(!all.length){
-    body.innerHTML=`<div class="empty-shelf"><img src="icons/mark.svg" alt=""><p class="motto">Knowledge is power.</p><h2>An empty shelf, for now.</h2><p>Add a PDF, a text file, or paste any article. It lands here as a book you can read, highlight and come back to.</p><button class="btn sea" data-add>Add your first text</button></div>`;
+    body.innerHTML=`<div class="empty-shelf"><img src="icons/mark.svg" alt=""><h2>An empty shelf, for now.</h2><p>Add a PDF, a text file, or paste any article. It lands here as a book you can read, highlight and come back to.</p><button class="btn sea" data-add>Add your first text</button></div>`;
     return;
   }
   const list=filtered();

@@ -50,12 +50,11 @@ label.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--muted)}
 .brand{display:flex;align-items:center;gap:.4rem;font:600 1.45rem var(--display);margin-right:auto}
 /* the mark has ~17% empty margin on each side: pull it back to the content edge */
 .brand img{width:42px;height:42px;margin:-6px -4px -6px -7px}
-/* a motto, like the legend on a bookplate: "Knowledge is power." with the mark, "Know thyself in the margins." with the notes */
+/* a motto, like the legend on a bookplate: "Knowledge is power." and "Wisdom in the margins." */
 .motto{font:italic 400 1.05rem/1.3 var(--display);color:var(--muted);margin:0}
-/* beside the wordmark on wide screens only; an empty shelf shows it under the big mark instead */
-.brand .motto{display:none}
-@media (min-width:1000px){.brand .motto{display:inline;margin-left:.5rem;padding-left:.9rem;border-left:1px solid var(--rule)}}
-#shelf:has(.empty-shelf) .brand .motto{display:none}
+/* both mottos under "Your shelf", on every screen size */
+.sh-motto{font-size:clamp(1.1rem,2.6vw,1.35rem);margin:.5rem 0 0}
+.sh-motto+.sh-stats{margin-top:.3rem}
 .search{position:relative;flex:0 1 260px}
 @media (max-width:600px){.search{order:3;flex-basis:100%}}
 .search input{padding-left:2.2rem;border-radius:999px;background:var(--sheet)}
@@ -112,7 +111,6 @@ label.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--muted)}
 @media (pointer:coarse){.c-more{opacity:1}}
 .empty-shelf{text-align:center;padding:2rem 1rem 3rem;border:2px dashed var(--wave);border-radius:28px;background:var(--sheet)}
 .empty-shelf img{display:block;width:120px;height:120px;margin:0 auto .2rem}
-.empty-shelf .motto{font:italic 400 1.15rem/1.3 var(--display);margin:0 auto .9rem}
 .empty-shelf h2{font:500 2.2rem/1.1 var(--display);margin:0 0 .6rem;text-wrap:balance}
 .empty-shelf p{color:var(--muted);font-size:1.15rem;margin:0 auto 1.4rem;max-width:44ch;line-height:1.5}
 /* list view */

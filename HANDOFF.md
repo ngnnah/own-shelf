@@ -21,7 +21,7 @@ A personal reading app: a bookshelf of PDFs, pasted articles and web pages, read
 | Firestore rules | Written, not published |
 | Safety: typed "yes" and the Trash | Clear all, removing a book with highlights, and Empty Trash need "yes" typed. Removed books, highlights and cleared notes go to the Trash (Settings → Trash) for 30 days and can be restored. A removed book's content stays in `doc:`/`state:` until it's purged |
 | Length on the shelf | Each cover shows its word count and a block of page edges whose thickness grows with length (log scale, 3–32 px); the List view has a sortable Length column (hidden on phones) |
-| Taglines | "Knowledge is power." (sign-in, empty shelf, wide app bar) and "Know thyself in the margins." (sign-in, Notebook, metadata). Alternatives are in the commit history if Nhat wants to swap |
+| Taglines | "Knowledge is power. Wisdom in the margins." together under "Your shelf" (every screen size); "Knowledge is power." under the wordmark on sign-in; "Wisdom in the margins." on sign-in, as the Notebook subtitle and in the metadata |
 | own-shelf rebrand | Done: icons (`npm run icons` from `design/`), theme, shelf, sign-in, reader motifs. Checked in light and dark at phone and desktop sizes |
 | GitHub Pages | Live since 2026-10-18; every push to `main` deploys. Checked in headless Chrome: boots, Firebase SDK loads, local mode works, service worker active |
 
