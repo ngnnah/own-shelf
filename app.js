@@ -7,7 +7,8 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 function hash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return (h>>>0).toString(36);}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),2100);}
 const COLORS=[['sun','Sunny'],['mint','Mint'],['coral','Coral'],['sky','Sky']];
-const COVERS=[['#2563A8','#F8FBF9'],['#E0503C','#FFF6F2'],['#1F7A5C','#F2FBF6'],['#F2B632','#14283A'],['#14283A','#EAF1EC'],['#7A4FA0','#F7F2FB'],['#C9DCD2','#14283A'],['#B5462F','#FFF1E8']];
+// cloth bindings: [cover, text]. Books store an index into this list; changing its length recolours them.
+const COVERS=[['#2F5A43','#F3EAD7'],['#8E2F2A','#F8EEDD'],['#23395B','#EFE4CC'],['#B7802A','#2E2119'],['#5C3B24','#F3EAD7'],['#45706C','#F8EEDD'],['#D9C9A8','#2E2119'],['#6B3426','#F3D9B0']];
 const cover=id=>{const m=META.find(x=>x.id===id);return COVERS[m&&m.color!=null?m.color%COVERS.length:parseInt(hash(id),36)%COVERS.length];};
 const fmtMonth=ms=>new Date(ms).toLocaleDateString(undefined,{month:'long',year:'numeric'});
 const fmtDay=ms=>new Date(ms).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
@@ -67,7 +68,6 @@ function bookHTML(m){
     <button class="cover" data-open="${m.id}" style="--bc:${bc};--bt:${bt};--h:${h}px" aria-label="${esc(m.title)}${m.author?' by '+esc(m.author):''}, ${m.finished?'finished':pct+'% read'}">
       <span class="c-t">${esc(m.title)}</span>${m.author?`<span class="c-a">${esc(m.author)}</span>`:''}
       <span class="c-f"><span>${yr}</span><span>${m.hl?`✎ ${m.hl}`:''}${pct&&!m.finished?` · ${pct}%`:''}</span></span>
-      <svg class="c-w" viewBox="0 0 80 20" aria-hidden="true"><path d="M0 10 Q10 2 20 10 T40 10 T60 10 T80 10" fill="none" stroke="currentColor" stroke-width="3"/></svg>
       <span class="c-p"><i style="width:${pct}%"></i></span></button>
     <button class="c-more" data-edit="${m.id}" aria-label="Details for ${esc(m.title)}">⋯</button></div>`;
 }
@@ -80,7 +80,7 @@ function renderShelf(){
   $('#contWrap').innerHTML=cont?`<div class="cont"><span class="cv" style="background:${cover(cont.id)[0]}"></span><div class="ct"><small>Continue reading</small><b>${esc(cont.title)}</b><span>${Math.round(cont.progress*100)}% · about ${Math.max(1,Math.round(cont.words*(1-cont.progress)/230))} min left</span></div><button class="btn" data-open="${cont.id}">Continue</button></div>`:'';
   const body=$('#shelfBody');
   if(!all.length){
-    body.innerHTML=`<div class="empty-shelf"><h2>An empty shelf, for now.</h2><p>Add a PDF, a text file, or paste any article. It lands here as a book you can read, highlight and come back to.</p><button class="btn sea" data-add>Add your first text</button></div>`;
+    body.innerHTML=`<div class="empty-shelf"><img src="icons/mark.svg" alt=""><h2>An empty shelf, for now.</h2><p>Add a PDF, a text file, or paste any article. It lands here as a book you can read, highlight and come back to.</p><button class="btn sea" data-add>Add your first text</button></div>`;
     return;
   }
   const list=filtered();
@@ -333,7 +333,7 @@ function buildReader(){
   const col=$('#col');blockIndex={};order={};secOf={};
   const S=DOC.sections,N=S.length,mins=minsOf(DOC.words);
   $('#barTitle').innerHTML=esc(DOC.title)+`<small>${mins} min</small>`;
-  document.title=DOC.title+' · Upwind';
+  document.title=DOC.title+' · own-shelf';
   const tw=DOC.title.split(/\s+/),per=Math.ceil(tw.length/Math.min(3,tw.length)),lines=[];
   for(let i=0;i<tw.length;i+=per) lines.push(tw.slice(i,i+per).join(' '));
   let h=`<header class="hero"><h1${DOC.title.length>34?' class="long"':''}>${lines.map(l=>`<span class="ln">${esc(l)}</span>`).join('')}</h1>
@@ -636,7 +636,7 @@ function renderExport(books,fmt){
   });
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>
-<style>body{font:18px/1.6 Georgia,serif;color:#14283A;background:#F8FBF9;max-width:40rem;margin:0 auto;padding:2.5rem 1.2rem}h1,h2,h3{font-family:system-ui,sans-serif;line-height:1.15}h1{font-size:2.2rem}h2{margin-top:2.4rem}h3{color:#2563A8;font-size:1.05rem;margin-top:1.8rem}.meta{color:#556A79;font:15px system-ui,sans-serif}blockquote{margin:1.1rem 0;padding:.2rem 0 .2rem 1rem;border-left:5px solid}blockquote p{margin:.3rem 0}.note{font:15px/1.5 system-ui,sans-serif;background:#EAF1EC;border-radius:10px;padding:.5rem .8rem;margin:-.4rem 0 1.4rem}article+article{border-top:2px solid #C3D4CB;margin-top:3rem}a{color:#2563A8}.stamp{color:#556A79;font:14px system-ui,sans-serif}</style></head>
+<style>body{font:18px/1.6 Georgia,serif;color:#2E2119;background:#FBF6EA;max-width:40rem;margin:0 auto;padding:2.5rem 1.2rem}h1,h2,h3{font-family:system-ui,sans-serif;line-height:1.15}h1{font-size:2.2rem}h2{margin-top:2.4rem}h3{color:#2F5A43;font-size:1.05rem;margin-top:1.8rem}.meta{color:#6B5A48;font:15px system-ui,sans-serif}blockquote{margin:1.1rem 0;padding:.2rem 0 .2rem 1rem;border-left:5px solid}blockquote p{margin:.3rem 0}.note{font:15px/1.5 system-ui,sans-serif;background:#F3EAD7;border-radius:10px;padding:.5rem .8rem;margin:-.4rem 0 1.4rem}article+article{border-top:2px solid #DCCBA8;margin-top:3rem}a{color:#2F5A43}.stamp{color:#6B5A48;font:14px system-ui,sans-serif}</style></head>
 <body>${multi?`<h1>My reading notes</h1><p class="stamp">Exported ${esc(today)}</p>`:''}${body}</body></html>
 `;
 }
@@ -847,7 +847,7 @@ function openSettings(){
   $('#acct').textContent=cloud?`Signed in as ${(u&&u.email)||'your Google account'}`:'On this device only';
   $('#acctLocal').classList.toggle('hidden',cloud);
   $('#signOut').classList.toggle('hidden',!cloud);$('#signIn').classList.toggle('hidden',cloud||!fb);
-  $('#sWorker').value=SETTINGS.workerUrl||'';$('#sWorker').placeholder=WORKER_URL||'https://upwind-fetch.example.workers.dev';$('#sWorker').disabled=!cloud;
+  $('#sWorker').value=SETTINGS.workerUrl||'';$('#sWorker').placeholder=WORKER_URL||'https://own-shelf-fetch.example.workers.dev';$('#sWorker').disabled=!cloud;
   $('#setErr').classList.add('hidden');openModal('#setM');
 }
 $('#setBtn').onclick=openSettings;
@@ -861,7 +861,7 @@ $('#backupBtn').onclick=async e=>{
   const b=e.currentTarget,label=b.textContent;b.disabled=true;b.textContent='Backing up…';
   try{
     await DB.flush();const data=await exportShelf(DB,META);
-    download(`upwind-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(data),'application/json');
+    download(`own-shelf-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(data),'application/json');
     toast(`Backed up ${data.books.length} book${data.books.length===1?'':'s'}`);
   }catch(err){console.error(err);setErr('The backup failed. Try again.');}
   finally{b.disabled=false;b.textContent=label;}
@@ -870,7 +870,7 @@ $('#restoreBtn').onclick=()=>$('#restoreFile').click();
 $('#restoreFile').onchange=async e=>{
   const f=e.target.files[0];e.target.value='';if(!f) return;
   $('#setErr').classList.add('hidden');
-  let data;try{data=JSON.parse(await f.text());}catch(err){setErr('That file isn’t an Upwind backup.');return;}
+  let data;try{data=JSON.parse(await f.text());}catch(err){setErr('That file isn’t an own-shelf backup.');return;}
   try{
     const r=await importShelf(DB,data,META,metaFor);
     r.metas.forEach(m=>{META=META.filter(x=>x.id!==m.id).concat(m);});
@@ -878,7 +878,7 @@ $('#restoreFile').onchange=async e=>{
     toast(r.added||r.merged?`Restored ${r.added} book${r.added===1?'':'s'}${r.highlights?` and ${r.highlights} highlight${r.highlights===1?'':'s'}`:''}`:'Everything in that backup is already here');
   }catch(err){
     console.error(err);
-    setErr(err.message==='not_backup'?'That file isn’t an Upwind backup.':err.message==='newer_version'?'That backup comes from a newer version of Upwind.':'The restore stopped partway. Run it again; books already restored are skipped.');
+    setErr(err.message==='not_backup'?'That file isn’t an own-shelf backup.':err.message==='newer_version'?'That backup comes from a newer version of own-shelf.':'The restore stopped partway. Run it again; books already restored are skipped.');
   }
 };
 
@@ -918,7 +918,7 @@ function startCloud(user){
 function showSignin(msg){
   unwatch();unwatch=()=>{};DB=null;META=[];DOC=null;ST=null;HL=[];SETTINGS={};
   document.querySelectorAll('.modal').forEach(m=>m.classList.add('hidden'));
-  show('signin');document.title='Upwind Reader';
+  show('signin');document.title='own-shelf';
   $('#siGoogle').classList.toggle('hidden',!fb);
   $('#siErr').textContent=msg||'';$('#siErr').classList.toggle('hidden',!msg);
 }
@@ -974,7 +974,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
   const local=ls.get('mode',null)==='local';
   if(local) startLocal();
   try{fb=await loadFirebase();}catch(e){console.warn('Firebase did not load',e);fb=null;}
-  if(!fb){if(!local) showSignin('Sign-in isn’t available right now (offline?). You can still use Upwind on this device only.');return;}
+  if(!fb){if(!local) showSignin('Sign-in isn’t available right now (offline?). You can still use own-shelf on this device only.');return;}
   fb.A.getRedirectResult(fb.auth).catch(authError);
   fb.A.onAuthStateChanged(fb.auth,user=>{
     if(user) startCloud(user);

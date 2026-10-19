@@ -3,15 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Upwind Reader</title>
-<meta name="description" content="A personal reading shelf for PDFs, articles and links, with highlights and notes.">
+<title>own-shelf</title>
+<meta name="description" content="own-shelf: a personal reading shelf for PDFs, articles and links, with highlights and notes.">
+<meta name="theme-color" content="#F3EAD7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1E1A16" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="apple-mobile-web-app-title" content="Upwind">
+<meta name="apple-mobile-web-app-title" content="own-shelf">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..700;1,400..700&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <script async src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script async src="https://cdn.jsdelivr.net/npm/@mozilla/readability@0.5.0/Readability.js"></script>
@@ -23,7 +25,8 @@
 <!-- ================= SIGN IN ================= -->
 <section id="signin" class="hidden">
   <div class="si">
-    <svg class="si-boat" viewBox="0 0 34 30" aria-hidden="true"><use href="#boatSym"/></svg>
+    <img class="si-mark" src="icons/mark.svg" alt="">
+    <p class="si-name">own-shelf</p>
     <h1>Your shelf, on every device.</h1>
     <p>Sign in with Google to keep your books, highlights and notes in sync. Or keep everything on this device only.</p>
     <div class="si-acts">
@@ -36,7 +39,7 @@
 <!-- ================= SHELF ================= -->
 <section id="shelf" class="hidden">
   <div class="sh-top">
-    <div class="brand"><svg viewBox="0 0 34 30" aria-hidden="true"><use href="#boatSym"/></svg>Upwind</div>
+    <div class="brand"><img src="icons/mark-small.svg" alt="">own-shelf</div>
     <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input class="f" id="q" type="search" placeholder="Search titles and authors" aria-label="Search shelf"></label>
     <button class="ib" id="setBtn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></button>
     <button class="btn ghost" id="nbBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7c-2.6-1.8-5.6-2.3-9-1.6v12.8c3.4-.7 6.4-.2 9 1.6 2.6-1.8 5.6-2.3 9-1.6V5.4c-3.4-.7-6.4-.2-9 1.6zM12 7v12.8"/></svg>Notebook</button>
@@ -177,7 +180,7 @@
       <p class="sub hidden" id="acctLocal">To move these books to your account: back up the shelf, sign in, then restore the backup.</p>
       <div class="set-row"><button class="btn ghost" id="signOut">Sign out</button><button class="btn sea" id="signIn">Sign in with Google</button></div>
     </div>
-    <label class="fl set-gap">Link import helper URL<input class="f" id="sWorker" type="url" inputmode="url" autocomplete="off" placeholder="https://upwind-fetch.example.workers.dev"></label>
+    <label class="fl set-gap">Link import helper URL<input class="f" id="sWorker" type="url" inputmode="url" autocomplete="off" placeholder="https://own-shelf-fetch.example.workers.dev"></label>
     <p class="set-hint" id="sWorkerHint">The Cloudflare Worker that fetches web pages for “import a link”. Needs Google sign-in.</p>
     <div class="opt"><span>Backup</span>
       <div class="set-row"><button class="btn ghost" id="backupBtn">Back up shelf</button><button class="btn ghost" id="restoreBtn">Restore from backup</button></div>

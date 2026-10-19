@@ -34,7 +34,7 @@ await t.run(async()=>{
   ok('settings show local account',(await text('#acct'))==='On this device only'&&!(await vis('#signOut')));
   await t.shot('settings');
   await page.click('#backupBtn');
-  const bk=await waitForFile(t.dl,/^upwind-backup-.*\.json$/);
+  const bk=await waitForFile(t.dl,/^own-shelf-backup-.*\.json$/);
   const data=bk&&JSON.parse(readFileSync(join(t.dl,bk),'utf8'));
   ok('backup file has both books with highlights',data&&data.app==='upwind'&&data.books.length===2&&data.books.reduce((a,b)=>a+b.state.hl.length,0)===3);
   await (await page.$('#restoreFile')).uploadFile(join(t.dl,bk));
