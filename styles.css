@@ -96,6 +96,15 @@ label.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--muted)}
 .cover::before,.cover::after{content:"";position:absolute;left:13px;right:6px;height:4px;border-block:1px solid color-mix(in srgb,#D8B25C 62%,var(--bt));opacity:.75;pointer-events:none}
 .cover::before{top:7px}
 .cover::after{bottom:10px}
+/* a Kindle notebook holds your highlights, not the book: ruled paper with a margin line and punched holes instead of
+   cloth and gilt. Fixed colours, like the cloth (set here, not through --bt, which every cover sets inline).
+   The holes repeat with 'round' so a whole number fits and none is cut at the head or tail */
+.cover.nb{color:#23395B;padding-left:1.8rem;
+  background:radial-gradient(circle at 7px 50%,#3B3A36 2.1px,transparent 2.7px) 0 0/14px 16px no-repeat round,
+    linear-gradient(90deg,transparent 21px,rgba(196,72,62,.55) 21px 22.5px,transparent 22.5px),
+    repeating-linear-gradient(180deg,transparent 0 17px,rgba(74,110,165,.26) 17px 18px) 0 24px/100% 100% no-repeat,#F5EFDF;
+  box-shadow:inset 0 0 0 1px rgba(60,45,25,.14),0 2px 0 rgba(0,0,0,.08)}
+.cover.nb::before,.cover.nb::after{display:none}
 .cover .c-t{font:600 1.14rem/1.1 var(--display);display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
 .cover .c-a{font:italic 400 .95rem/1.25 var(--display);opacity:.88;margin-top:.4rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .cover .c-f{margin-top:auto;display:flex;justify-content:space-between;align-items:center;font:600 .72rem var(--ui);opacity:.9}
@@ -127,6 +136,7 @@ label.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--muted)}
 .tbl tbody tr:hover td{background:color-mix(in srgb,var(--sea) 6%,transparent)}
 .tbl .tt{display:flex;align-items:center;gap:.7rem;font:600 1.08rem/1.25 var(--display)}
 .tbl .tt i{width:12px;height:18px;border-radius:2px 4px 4px 2px;flex:none}
+.tbl .tt i.nb{background:repeating-linear-gradient(180deg,transparent 0 3px,rgba(74,110,165,.45) 3px 4px) #F5EFDF;box-shadow:inset 0 0 0 1px rgba(60,45,25,.3)}
 .tbl .mut{color:var(--muted)}
 .tbl .c-words{white-space:nowrap}
 .pbar{display:inline-block;width:70px;height:6px;border-radius:9px;background:var(--rule);vertical-align:middle;margin-right:.4rem;overflow:hidden}

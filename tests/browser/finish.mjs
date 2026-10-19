@@ -1,4 +1,4 @@
-// Finishing a book: real reading time is needed, the cover says "✓ Finished", and Details can undo it.
+// Finishing a book: real reading time is needed, the cover says "✓ Finished", and Details can override it either way.
 // Usage: node tests/browser/finish.mjs [repo dir]
 import {start,enterLocalMode,addQuietEngine,addMarkdown,sleep} from './lib.mjs';
 
@@ -28,21 +28,29 @@ await t.run(async()=>{
   ok('screen readers hear "finished"',(await page.$eval('.book .cover',e=>e.getAttribute('aria-label'))).endsWith('finished'));
   await t.shot('finished-cover');
 
-  // Details → Mark as unfinished
+  // Details: the state, and a manual override either way
+  const closeDet=async()=>{await page.click('#detM [data-cancel]');await until(()=>document.querySelector('#detM').classList.contains('hidden'));};
+  const toggled=label=>until(l=>document.querySelector('#dFinish').textContent===l,label);
   await page.click('.book .c-more');await page.waitForSelector('#detM:not(.hidden)');
-  ok('Details shows ✓ Finished with Mark as unfinished',await vis('#dDone')&&(await text('#dUnfinish'))==='Mark as unfinished');
+  ok('Details shows ✓ Finished with Mark as reading',await vis('#dDone')&&(await text('#dState'))==='✓ Finished'&&(await text('#dFinish'))==='Mark as reading');
   await t.shot('details');
-  await page.click('#dUnfinish');await until(()=>document.querySelector('#dDone').classList.contains('hidden'));
-  ok('Mark as unfinished drops ✓ Finished from the cover',(await text('#toast'))==='Marked as unfinished'&&(await done('The Quiet Engine'))===false);
+  await page.click('#dFinish');await toggled('Mark as finished');
+  ok('Mark as reading drops ✓ Finished from the cover',(await text('#toast'))==='Marked as reading'&&(await done('The Quiet Engine'))===false&&(await text('#dState')).startsWith('Reading · '));
   ok('progress goes back below 100%',!(await text('.book .c-f')).includes('100%'));
-  await page.click('#detM [data-cancel]');await until(()=>document.querySelector('#detM').classList.contains('hidden'));
+  await closeDet();
   await page.click('.book .c-more');await page.waitForSelector('#detM:not(.hidden)');
-  ok('an unfinished book shows no Finished row in Details',!(await vis('#dDone')));
-  await page.click('#detM [data-cancel]');await until(()=>document.querySelector('#detM').classList.contains('hidden'));
+  ok('an unfinished book shows Reading with Mark as finished',(await text('#dState')).startsWith('Reading · ')&&(await text('#dFinish'))==='Mark as finished');
+  await page.click('#dFinish');await toggled('Mark as reading');
+  ok('Mark as finished puts ✓ Finished on the cover',(await text('#toast'))==='Marked as finished'&&(await done('The Quiet Engine'))===true);
+  await closeDet();
 
   // a long book: jumping to the end and reading for 30 s isn't enough
   const md='# A Long Read\n\n'+Array.from({length:12},(_,i)=>`## Part ${i+1}\n\n`+'Words fill the long read so it takes a while. '.repeat(30)).join('\n\n');
   await addMarkdown(t,'long-read.md',md,'A Long Read');
   await toEnd();await page.evaluate(()=>__advance(30000));await toEnd();await tick();await home();
   ok('a long book jumped to the end is not finished after 30 s of reading',(await done('A Long Read'))===false);
+  await page.click('.cover[aria-label^="A Long Read"]');await page.waitForSelector('#reader:not(.hidden)');
+  await page.$eval('#barTitle',e=>e.click());await page.waitForSelector('#detM:not(.hidden)'); // the title is hidden at phone width
+  await page.click('#dFinish');await toggled('Mark as reading');await closeDet();await home();
+  ok('Mark as finished from the reader finishes the open book',(await done('A Long Read'))===true);
 });
