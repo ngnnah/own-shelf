@@ -7,5 +7,7 @@ node_modules/
 backups/
 *.pdf
 upwind-backup*.json
+# browser test screenshots
+tests/browser/out/
 # agent worktrees (Claude Code)
 .claude/worktrees/
