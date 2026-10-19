@@ -31,7 +31,7 @@ await t.run(async()=>{
   await page.click('#drList .hcard [data-a="note"]');await page.waitForSelector('#noteBox:not(.hidden)');
   ok('card offers Edit note with the text',(await page.$eval('#noteTa',e=>e.value))==='A synthetic note');
   await page.$eval('#noteTa',e=>{e.value='';});await page.click('#noteSave');
-  ok('note cleared',(await text('#toast')).includes('Note cleared'));
+  ok('note cleared',(await text('#toast')).includes('Moved to Trash'));
   ok('drawer still open after clearing',await page.$eval('#drawer',e=>e.classList.contains('open')));
   ok('"With note" chip disappears',(await chipText('noted'))===null);
   ok('drawer falls back to All with 2 cards',(await pressed('all'))==='true'&&(await cards())===2);

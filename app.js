@@ -9,7 +9,8 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clea
 const COLORS=[['sun','Sunny'],['mint','Mint'],['coral','Coral'],['sky','Sky']];
 // cloth bindings: [cover, text]. Books store an index into this list; changing its length recolours them.
 const COVERS=[['#2F5A43','#F3EAD7'],['#8E2F2A','#F8EEDD'],['#23395B','#EFE4CC'],['#B7802A','#2E2119'],['#5C3B24','#F3EAD7'],['#45706C','#F8EEDD'],['#D9C9A8','#2E2119'],['#6B3426','#F3D9B0']];
-const cover=id=>{const m=META.find(x=>x.id===id);return COVERS[m&&m.color!=null?m.color%COVERS.length:parseInt(hash(id),36)%COVERS.length];};
+const coverOf=m=>COVERS[m.color!=null?m.color%COVERS.length:parseInt(hash(m.id),36)%COVERS.length];
+const cover=id=>coverOf(META.find(x=>x.id===id)||{id});
 const fmtMonth=ms=>new Date(ms).toLocaleDateString(undefined,{month:'long',year:'numeric'});
 const fmtDay=ms=>new Date(ms).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
 const ls={get(k,d){try{const v=localStorage.getItem('upwind:'+k);return v?JSON.parse(v):d;}catch(e){return d;}},set(k,v){try{localStorage.setItem('upwind:'+k,JSON.stringify(v));}catch(e){}}};
@@ -231,6 +232,7 @@ async function addDoc(d){
   const used=META.slice().sort((a,b)=>b.added-a.added).slice(0,3).map(m=>m.color);let c=META.length%COVERS.length;while(used.includes(c))c=(c+1)%COVERS.length;d.color=c;
   const st={hl:[],pos:0,maxP:0,done:[],opened:Date.now()};
   await DB.put('doc:'+d.id,d);await DB.put('state:'+d.id,st);const m=metaFor(d,st);await DB.put('meta:'+d.id,m);META.push(m);
+  untrashBook(d.id); // the same text added again while its old copy is in the Trash
   openBook(d.id);
 }
 // drop anywhere
@@ -277,15 +279,18 @@ $('#cfGo').onclick=()=>{if(cfOk()&&cfDone)cfDone(true);};
 // Cancel, a tap outside or Escape all hide the dialog: that answers no
 new MutationObserver(()=>{if($('#confirmM').classList.contains('hidden')&&cfDone)cfDone(false);}).observe($('#confirmM'),{attributes:true,attributeFilter:['class']});
 const lossText=(n,nn)=>`${n} highlight${n===1?'':'s'}${nn?` and ${nn} note${nn===1?'':'s'}`:''}`;
-const UNDO_NOTE="This can't be undone. To keep a copy, back up the shelf in Settings first.";
+const TRASH_NOTE='They go to the Trash, where you can restore them for 30 days.';
+// A soft delete: only the shelf entry goes. The book and its reading state stay until the Trash lets go of them.
 $('#dRemove').onclick=async e=>{
   const id=detId,m=META.find(x=>x.id===id);if(!m)return;
+  const open=!!(DOC&&DOC.id===id),hl=open?HL:m.hl?(((await DB.get('state:'+id))||{}).hl||[]):[];
   if(m.hl){
-    const hl=DOC&&DOC.id===id?HL:(((await DB.get('state:'+id))||{}).hl||[]);
-    if(!await confirmTyped('Remove this book?',`This removes “${m.title}” and its ${lossText(hl.length||m.hl,hl.filter(h=>h.note).length)}. ${UNDO_NOTE}`,'Remove book'))return;
+    if(!await confirmTyped('Remove this book?',`This removes “${m.title}” and its ${lossText(hl.length||m.hl,hl.filter(h=>h.note).length)}. ${TRASH_NOTE}`,'Remove book'))return;
   } else if(!armed(e.currentTarget,'Tap again to remove'))return;
-  await DB.del('doc:'+id);await DB.del('state:'+id);await DB.del('meta:'+id);META=META.filter(x=>x.id!==id);
-  closeModal('#detM');toast('Removed from shelf');if(DOC&&DOC.id===id){DOC=null;goShelf();} else renderShelf();
+  if(open){clearTimeout(stT);ST.pos=scrollY;ST.hl=HL;DB.put('state:'+id,ST);DOC=null;} // saved without its shelf entry
+  toTrash('book',{bookId:id,title:m.title,meta:m,hl:hl.length||m.hl,notes:hl.filter(h=>h.note).length});
+  await DB.del('meta:'+id);META=META.filter(x=>x.id!==id);
+  closeModal('#detM');toast('Moved to Trash');if(open) goShelf(); else renderShelf();
 };
 $('#barTitle').onclick=()=>DOC&&openDetails(DOC.id);
 
@@ -523,7 +528,7 @@ tool.addEventListener('click',e=>{
     if(editing){editing.color=b.dataset.c;commit();rerender(editing.segs.map(s=>s.pid));}
     else if(pendingSegs){addHighlight(pendingSegs,b.dataset.c);getSelection().removeAllRanges();}
     hideTool();return;}
-  if(b.dataset.a==='del'&&editing){const pids=editing.segs.map(s=>s.pid);HL=HL.filter(x=>x!==editing);commit();rerender(pids);hideTool();toast('Highlight removed');return;}
+  if(b.dataset.a==='del'&&editing){const pids=editing.segs.map(s=>s.pid);trashHighlights([editing]);HL=HL.filter(x=>x!==editing);commit();rerender(pids);hideTool();toast('Moved to Trash');return;}
   if(b.dataset.a==='copy'&&pendingSegs){copyText(pendingSegs.map(s=>blockIndex[s.pid].text.slice(s.s,s.e)).join('\n\n'),'Copied');return;}
   if(b.dataset.a==='note'){let h=editing;if(!h&&pendingSegs){h=addHighlight(pendingSegs,'sun');getSelection().removeAllRanges();}if(h)openNote(h,tool.getBoundingClientRect());hideTool();}
 });
@@ -551,11 +556,20 @@ function openNote(h,rect){
   setTimeout(()=>$('#noteTa').focus(),30);
 }
 $('#noteCancel').onclick=()=>$('#noteBox').classList.add('hidden');
-$('#noteSave').onclick=()=>{if(noteTarget){noteTarget.note=$('#noteTa').value.trim();commit();rerender(noteTarget.segs.map(s=>s.pid));toast(noteTarget.note?'Note saved':'Note cleared');}$('#noteBox').classList.add('hidden');};
+$('#noteSave').onclick=()=>{
+  const h=noteTarget;
+  if(h){
+    const old=h.note||'';h.note=$('#noteTa').value.trim();
+    const trashed=!!(old&&!h.note&&DOC); // a cleared note goes to the Trash
+    if(trashed) toTrash('note',{bookId:DOC.id,title:DOC.title,hlId:h.id,text:old,quote:quoteOf(h),color:h.color});
+    commit();rerender(h.segs.map(s=>s.pid));toast(h.note?'Note saved':trashed?'Moved to Trash':'Note cleared');
+  }
+  $('#noteBox').classList.add('hidden');
+};
 
 /* highlights drawer & export */
 let filter='all';
-function sorted(){return [...HL].sort((a,b)=>{const A=a.segs[0],B=b.segs[0];return ((order[A.pid]??1e9)-(order[B.pid]??1e9))||(A.s-B.s);});}
+function sorted(list=HL){return [...list].sort((a,b)=>{const A=a.segs[0],B=b.segs[0];return ((order[A.pid]??1e9)-(order[B.pid]??1e9))||(A.s-B.s);});}
 const secName=h=>{const i=secOf[h.segs[0].pid];return i===-1?'Notes':i!=null&&DOC.sections[i]?`${i+1}. ${DOC.sections[i].title}`:'';};
 function renderDrawer(){
   const counts={};HL.forEach(h=>counts[h.color]=(counts[h.color]||0)+1);const nn=HL.filter(h=>h.note).length;
@@ -569,15 +583,16 @@ function renderDrawer(){
     const h=HL.find(x=>x.id===card.dataset.id);
     card.querySelector('.q').onclick=()=>jumpTo(h);card.querySelector('.q').onkeydown=e=>{if(e.key==='Enter')jumpTo(h);};
     card.querySelector('[data-a="note"]').onclick=()=>openNote(h,card.getBoundingClientRect());
-    card.querySelector('[data-a="del"]').onclick=()=>{const pids=h.segs.map(s=>s.pid);HL=HL.filter(x=>x!==h);commit();rerender(pids);};
+    card.querySelector('[data-a="del"]').onclick=()=>{const pids=h.segs.map(s=>s.pid);trashHighlights([h]);HL=HL.filter(x=>x!==h);commit();rerender(pids);toast('Moved to Trash');};
   });
 }
 function jumpTo(h){closeDrawers();const m=document.querySelector(`mark[data-h="${h.id}"]`);if(!m)return;m.scrollIntoView({block:'center'});document.querySelectorAll(`mark[data-h="${h.id}"]`).forEach(x=>{x.classList.remove('flash');void x.offsetWidth;x.classList.add('flash');});}
 $('#segFmt').onclick=e=>{const b=e.target.closest('button');if(!b)return;prefs.fmt=b.dataset.fmt;savePrefs();applyPrefs();};
 $('#clearAll').onclick=async()=>{
   if(!HL.length)return;
-  if(!await confirmTyped('Clear all highlights?',`This deletes all ${lossText(HL.length,HL.filter(h=>h.note).length)} in “${DOC.title}”. ${UNDO_NOTE}`,'Clear all'))return;
-  const pids=HL.flatMap(h=>h.segs.map(s=>s.pid));HL=[];commit();rerender(pids);toast('Highlights cleared');
+  if(!await confirmTyped('Clear all highlights?',`This removes all ${lossText(HL.length,HL.filter(h=>h.note).length)} in “${DOC.title}”. ${TRASH_NOTE}`,'Clear all'))return;
+  trashHighlights(HL);
+  const pids=HL.flatMap(h=>h.segs.map(s=>s.pid));HL=[];commit();rerender(pids);toast('Moved to Trash');
 };
 function exportText(){
   const list=sorted();const cname=c=>(COLORS.find(x=>x[0]===c)||[c,c])[1];
@@ -872,6 +887,7 @@ function openSettings(){
   $('#acctLocal').classList.toggle('hidden',cloud);
   $('#signOut').classList.toggle('hidden',!cloud);$('#signIn').classList.toggle('hidden',cloud||!fb);
   $('#sWorker').value=SETTINGS.workerUrl||'';$('#sWorker').placeholder=WORKER_URL||'https://own-shelf-fetch.example.workers.dev';$('#sWorker').disabled=!cloud;
+  $('#trashN').textContent='Trash';DB.all('trash:').then(l=>{$('#trashN').textContent=trashLabel(l.length);},()=>{});
   $('#setErr').classList.add('hidden');openModal('#setM');
 }
 $('#setBtn').onclick=openSettings;
@@ -897,13 +913,102 @@ $('#restoreFile').onchange=async e=>{
   let data;try{data=JSON.parse(await f.text());}catch(err){setErr('That file isn’t an own-shelf backup.');return;}
   try{
     const r=await importShelf(DB,data,META,metaFor);
-    r.metas.forEach(m=>{META=META.filter(x=>x.id!==m.id).concat(m);});
+    r.metas.forEach(m=>{META=META.filter(x=>x.id!==m.id).concat(m);untrashBook(m.id);});
     closeModal('#setM');renderShelf();
     toast(r.added||r.merged?`Restored ${r.added} book${r.added===1?'':'s'}${r.highlights?` and ${r.highlights} highlight${r.highlights===1?'':'s'}`:''}`:'Everything in that backup is already here');
   }catch(err){
     console.error(err);
     setErr(err.message==='not_backup'?'That file isn’t an own-shelf backup.':err.message==='newer_version'?'That backup comes from a newer version of own-shelf.':'The restore stopped partway. Run it again; books already restored are skipped.');
   }
+};
+
+/* ================= trash ================= */
+// Removed books, highlights and notes wait 30 days under "trash:<id>", then go for good. Entries:
+//   {id, kind:'book', deletedAt, bookId, title, meta, hl, notes}       only meta: was deleted; doc: and state: stay
+//   {id, kind:'highlights', deletedAt, bookId, title, items, quote}    items: the full highlight objects
+//   {id, kind:'note', deletedAt, bookId, title, hlId, text, quote, color}
+// Backups (exportShelf) cover the shelf only, so trashed books aren't in them.
+const TRASH_DAYS=30,DAY=864e5;
+let TRASH=[]; // the open Trash dialog's entries, newest first
+// a highlight's text in about 140 characters, its blocks joined as in the plain-text export
+const quoteOf=h=>{const s=segText(h).replace(/\n\n/g,' … ').replace(/\s+/g,' ').trim();return s.length>140?s.slice(0,140).replace(/\s+\S*$/,'')+'…':s;};
+function toTrash(kind,o){
+  const e=JSON.parse(JSON.stringify(Object.assign({id:kind[0]+Date.now().toString(36)+Math.random().toString(36).slice(2,6),kind,deletedAt:Date.now()},o)));
+  DB.put('trash:'+e.id,e);return e;
+}
+// highlights removed from the open book; the quote is the first one in reading order
+function trashHighlights(items){toTrash('highlights',{bookId:DOC.id,title:DOC.title,items,quote:quoteOf(sorted(items)[0])});}
+// Puts an entry back. Returns '' or why it can't.
+async function restoreEntry(e){
+  const id=e.bookId,open=!!(DOC&&DOC.id===id);
+  const doc=open?DOC:await DB.get('doc:'+id);
+  if(!doc) return 'Can’t restore: the book was deleted for good.';
+  if(e.kind==='book'){
+    if(!META.some(m=>m.id===id)){const m=metaFor(doc,(await DB.get('state:'+id))||{});META.push(m);DB.put('meta:'+id,m);}
+  } else {
+    // a book that is itself in the Trash still gets these back in its state
+    const st=open?ST:(await DB.get('state:'+id))||{hl:[],pos:0,maxP:0,done:[]};
+    const hl=open?HL:(st.hl=st.hl||[]);let pids;
+    if(e.kind==='highlights'){const have=new Set(hl.map(h=>h.id)),add=e.items.filter(h=>!have.has(h.id));hl.push(...add);pids=add.flatMap(h=>h.segs.map(s=>s.pid));}
+    else{
+      const h=hl.find(x=>x.id===e.hlId);
+      if(!h) return 'Can’t restore: that highlight is gone. If it’s in the Trash, restore it first.';
+      h.note=h.note?h.note+'\n'+e.text:e.text;pids=h.segs.map(s=>s.pid);
+    }
+    if(open){commit();rerender(pids);}
+    else{
+      DB.put('state:'+id,st);
+      if(META.some(m=>m.id===id)){const m=metaFor(doc,st);META=META.filter(x=>x.id!==id).concat(m);DB.put('meta:'+id,m);}
+    }
+  }
+  DB.del('trash:'+e.id);return '';
+}
+// a book back on the shelf (added again, or restored from a backup) leaves the Trash
+function untrashBook(id){DB.all('trash:').then(l=>l.forEach(e=>{if(e.kind==='book'&&e.bookId===id)DB.del('trash:'+e.id);})).catch(()=>{});}
+// Deletes an entry for good; a book takes its content along, unless it's back on the shelf (added again, or restored elsewhere).
+function forget(e,db=DB){
+  db.del('trash:'+e.id);
+  if(e.kind==='book'&&!META.some(m=>m.id===e.bookId)){db.del('doc:'+e.bookId);db.del('state:'+e.bookId);}
+}
+// once per start, quietly
+async function purgeTrash(){
+  const db=DB,cut=Date.now()-TRASH_DAYS*DAY;
+  try{(await db.all('trash:')).filter(e=>e.deletedAt<cut).forEach(e=>forget(e,db));}catch(err){console.warn('Trash purge',err);}
+}
+const trashLabel=n=>n?`Trash · ${n} item${n===1?'':'s'}`:'Trash is empty';
+function ago(ms){const m=Math.floor(ms/6e4),h=Math.floor(m/60),d=Math.floor(h/24);return m<1?'just now':m<60?`${m} min ago`:h<24?`${h} hour${h===1?'':'s'} ago`:d===1?'yesterday':`${d} days ago`;}
+function trashRow(e){
+  const now=Date.now(),left=Math.max(1,Math.ceil((e.deletedAt+TRASH_DAYS*DAY-now)/DAY));
+  let what,stripe,body;
+  if(e.kind==='book'){
+    const m=e.meta||{id:e.bookId};what='Book';stripe=coverOf(m)[0];
+    body=`<p class="tr-meta">${esc([m.author,e.hl?lossText(e.hl,e.notes):'No highlights'].filter(Boolean).join(' · '))}</p>`;
+  } else if(e.kind==='highlights'){
+    const n=e.items.length;what=n===1?'Highlight':`${n} highlights`;stripe=`var(--${esc(e.items[0].color)}S)`;
+    body=`<p class="q">${esc(e.quote)}</p>`;
+  } else {what='Note';stripe=`var(--${esc(e.color||'sun')}S)`;body=`<p class="q">${esc(e.quote)}</p><div class="nt">${esc(e.text)}</div>`;}
+  return `<div class="hcard tr-row" style="border-left-color:${stripe}" data-id="${esc(e.id)}"><div class="sec"><b>${what}</b> · ${esc(e.title)}</div>${body}
+    <div class="tr-foot"><span class="tr-when">deleted ${ago(now-e.deletedAt)} · ${left} day${left===1?'':'s'} left</span><span class="tr-acts"><button class="btn danger" data-a="forget">Delete forever</button><button class="btn ghost" data-a="restore">Restore</button></span></div></div>`;
+}
+function renderTrash(){
+  $('#trashList').innerHTML=TRASH.length?TRASH.map(trashRow).join(''):'<div class="empty">The Trash is empty.</div>';
+  $('#trashEmpty').classList.toggle('hidden',!TRASH.length);
+}
+async function openTrash(){
+  closeModal('#setM');TRASH=[];$('#trashList').innerHTML='<div class="empty">Opening the Trash…</div>';$('#trashEmpty').classList.add('hidden');openModal('#trashM');
+  TRASH=(await DB.all('trash:')).sort((a,b)=>b.deletedAt-a.deletedAt);renderTrash();
+}
+$('#trashBtn').onclick=openTrash;
+$('#trashList').onclick=async ev=>{
+  const b=ev.target.closest('[data-a]'),row=b&&b.closest('[data-id]'),e=row&&TRASH.find(x=>x.id===row.dataset.id);if(!e)return;
+  if(b.dataset.a==='forget'){if(!armed(b,'Tap again to delete'))return;forget(e);toast('Deleted for good');}
+  else{b.disabled=true;const why=await restoreEntry(e);if(why){b.disabled=false;toast(why);return;}toast('Restored');if(onShelf())renderShelf();}
+  TRASH=TRASH.filter(x=>x!==e);renderTrash();
+};
+$('#trashEmpty').onclick=async()=>{
+  const n=TRASH.length;if(!n)return;
+  if(!await confirmTyped('Empty the Trash?',`This deletes ${n} item${n===1?'':'s'} for good. They can’t be restored.`,'Empty Trash'))return;
+  TRASH.forEach(e=>forget(e));TRASH=[];renderTrash();toast('Trash emptied');
 };
 
 /* ================= accounts ================= */
@@ -929,6 +1034,7 @@ async function start(store){
     },e=>{syncError(e);settle([]);});
   });
   SETTINGS=(await DB.get('settings:app'))||{};
+  purgeTrash();
   const last=ls.get('last',null);
   if(incoming){show('shelf');renderShelf();runIncoming();}
   else if(last&&META.find(m=>m.id===last)) openBook(last); else {show('shelf');renderShelf();}

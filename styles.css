@@ -398,3 +398,23 @@ body.focus .fn-card .hp{opacity:1}
 #nbList .hcard .sec b{color:var(--ink);font-weight:600}
 #nbList .hcard .q{font-size:1.08rem;line-height:1.55;overflow-wrap:anywhere}
 #nbList .hcard .nt{background:var(--paper);font:italic .98rem/1.45 var(--body);overflow-wrap:anywhere}
+
+/* ================= TRASH ================= */
+#confirmM{z-index:101} /* Empty Trash asks over the Trash dialog */
+.tr-open{display:flex;align-items:center;gap:.7rem;width:100%;border:1.5px solid var(--rule);background:var(--paper);border-radius:14px;padding:.75rem .9rem;font:600 1.08rem var(--display);color:var(--ink);text-align:left}
+.tr-open:hover{border-color:var(--wave)}
+.tr-open span{flex:1;min-width:0}
+.tr-open svg{width:20px;height:20px;flex:none;color:var(--muted)}
+.tr-open .chev{width:16px;height:16px}
+.dlg.trash{width:min(560px,100%)}
+.tr-row .sec{font:500 .8rem/1.4 var(--ui);overflow-wrap:anywhere}
+.tr-row .sec b{color:var(--ink);font-weight:650}
+.tr-row .q{cursor:default;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.tr-row .q:hover{text-decoration:none}
+.tr-row .nt{overflow-wrap:anywhere}
+.tr-meta{font:italic 1.02rem/1.45 var(--body);margin:0}
+/* the date, then the buttons; on a phone the buttons wrap together under the date */
+.tr-foot{display:flex;align-items:center;flex-wrap:wrap;gap:.45rem .6rem;margin-top:.6rem}
+.tr-when{flex:1 1 12rem;font:500 .78rem var(--ui);color:var(--muted)}
+.tr-acts{display:flex;gap:.45rem;margin-left:auto}
+.tr-acts .btn{padding:.36rem .85rem;font-size:.92rem}
