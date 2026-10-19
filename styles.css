@@ -156,7 +156,7 @@ label.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--muted)}
 #hbar .fill{position:absolute;inset:0 auto 0 0;width:0;background:var(--sea)}
 /* the bookmark ribbon hangs from the bar at the reading position */
 .bookmark{position:absolute;pointer-events:none;overflow:visible;filter:drop-shadow(0 2px 1.5px rgba(40,24,12,.22))}
-#hbar .bookmark{top:-3px;width:12px;height:22px;transform:translateX(-50%)}
+#hbar .bookmark{top:-1px;width:9px;height:13px;transform:translateX(-50%)} /* short, so it doesn't cover the line under the bar */
 
 /* rail: a straight spine, with a diamond per section */
 #rail{position:fixed;left:clamp(14px,2.2vw,40px);top:calc(env(safe-area-inset-top,0px) + 110px);bottom:calc(env(safe-area-inset-bottom,0px) + 50px);width:60px;z-index:30;display:none}

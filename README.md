@@ -2,7 +2,7 @@
 
 A personal reading app. Put PDFs, pasted articles and web links on a bookshelf, read them with sections and checkpoints, highlight and annotate, and export your notes as Markdown, HTML or plain text. It syncs across devices through Firebase, or keeps everything on one device.
 
-**Status:** working locally; cloud setup and a rebrand (the UI still says "Upwind") are next. See [HANDOFF.md](HANDOFF.md) for the state, the architecture and the next steps.
+**Status:** live at https://ngnnah.github.io/own-shelf/ (local-only mode works; Google sign-in and sync wait on the Firebase setup). See [HANDOFF.md](HANDOFF.md) for the state, the architecture and the next steps.
 
 ## Run locally
 
@@ -10,6 +10,7 @@ A personal reading app. Put PDFs, pasted articles and web links on a bookshelf, 
 npm test               # Worker, storage and parser tests
 npm run test:browser   # headless-Chrome tests (run npm install once first)
 npm run serve          # http://localhost:8080
+npm run icons          # regenerate icons/ from design/icon.json
 ```
 
 ## Deploy

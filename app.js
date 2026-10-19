@@ -1,4 +1,4 @@
-// Upwind app. Ported from legacy/app-script.js; all data goes through the store.js adapters.
+// own-shelf app (formerly Upwind). Ported from legacy/app-script.js; all data goes through the store.js adapters.
 import {makeLocal,makeCloud,exportShelf,importShelf} from './store.js';
 import {firebaseConfig,FIREBASE_VERSION,WORKER_URL} from './config.js';
 /* ================= utils ================= */
