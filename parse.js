@@ -255,7 +255,7 @@ function finalize(blocks,o){
   blocks.forEach(b=>{if(b.text!==undefined){b.marks=b.marks||[];b.fns=[];}});
   let title=o.title||'',strong=!!o.title,author=o.author||'',written=o.written||'';
   let k=0,guard=0;
-  while(k<blocks.length&&guard++<10){
+  while(!o.verbatim&&k<blocks.length&&guard++<10){
     const b=blocks[k];
     if(b.t==='img'||b.t==='hr'){k++;continue;}
     const tx=b.text.trim();
@@ -275,10 +275,10 @@ function finalize(blocks,o){
   if(!title) title=o.hint||((blocks.find(b=>b.text)||{}).text||'Untitled').split(/\s+/).slice(0,8).join(' ');
   // notes
   let ni=-1;const from=Math.floor(blocks.length*0.4);
-  for(let i=from;i<blocks.length;i++){const b=blocks[i];if(b.text&&/^(notes|footnotes|endnotes)$/i.test(b.text.trim())){ni=i;break;}}
+  for(let i=from;!o.verbatim&&i<blocks.length;i++){const b=blocks[i];if(b.text&&/^(notes|footnotes|endnotes)$/i.test(b.text.trim())){ni=i;break;}}
   let body=blocks,tail=[];
   if(ni>=0){body=blocks.slice(0,ni);tail=blocks.slice(ni+1);}
-  else{
+  else if(!o.verbatim){
     const gi=blocks.findIndex((b,i)=>i>=from&&b.t==='p'&&/^Notes\s*\[1\]/.test(b.text));
     if(gi>=0){blocks[gi].text=blocks[gi].text.replace(/^Notes\s*/,'');body=blocks.slice(0,gi);tail=blocks.slice(gi);}
     else{
@@ -333,6 +333,82 @@ function computeSections(doc){
   doc.sections=secs; doc.secLevel=secLevel;
   doc.words=B.reduce((a,b)=>a+(b.text?b.text.split(/\s+/).length:0),0)+(doc.notes||[]).reduce((a,n)=>a+n.text.split(/\s+/).length,0);
 }
+/* ---------- Kindle notebook export ---------- */
+// Kindle's "Notebook Export" .html holds the highlights, not the book. Its markup is machine-made and regular, so it is
+// read as text (no DOMParser, so Node tests run it): each tag with one of these classes starts an item that runs to the
+// next one. Older exports use <h3> headings and close noteText with </h3>; that works too.
+const KINDLE_TAG=/<([a-z][a-z0-9]*)\b[^>]*\bclass\s*=\s*["']?(bookTitle|authors|sectionHeading|noteHeading|noteText)\b[^>]*>/gi;
+const KINDLE_COLORS={yellow:'sun',orange:'coral',pink:'coral',red:'coral',blue:'sky',purple:'sky',green:'mint',aqua:'mint'};
+const ENTITIES={amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' '};
+function isKindleNotebook(html){return /\bclass\s*=\s*["']?noteHeading\b/i.test(html)&&/\bclass\s*=\s*["']?noteText\b/i.test(html);}
+function htmlText(s){
+  return s.replace(/<br\s*\/?>/gi,' ').replace(/<[^>]*>/g,'')
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi,(m,e)=>{
+      if(e[0]!=='#') return ENTITIES[e.toLowerCase()]||m;
+      const n=/x/i.test(e[1])?parseInt(e.slice(2),16):+e.slice(1);return n>0&&n<0x110000?String.fromCodePoint(n):m;})
+    .replace(/[\s ]+/g,' ').trim();
+}
+// "Abercrombie, Joe" → "Joe Abercrombie"; several authors come separated by semicolons.
+const flipName=s=>s.split(/\s*;\s*/).map(p=>{const m=p.match(/^([^,]+),\s*([^,]+)$/);return m?m[2]+' '+m[1]:p;}).join(', ');
+// "Highlight(yellow) - Like a King > Page 4 · Location 133", "Note - Page 4 · Location 134", "Bookmark - Location 60"
+function kindleHead(s){
+  const m=/^(.*?)\s*(?:\(([^)]*)\))?\s+[-–—]\s+(.*)$/.exec(s)||[s,s,'',''];
+  const color=(m[2]||'').trim().toLowerCase(),parts=m[3].split(/\s+>\s+/),end=parts[parts.length-1];
+  const where=/\b(page|location)\b/i.test(end);
+  return {kind:/^bookmark/i.test(m[1])?'bookmark':color?'highlight':/^note/i.test(m[1])?'note':'highlight',
+    color:KINDLE_COLORS[color]||'sun',chapter:(where?parts.slice(0,-1):parts).join(' > '),loc:+((/location\s+(\d+)/i.exec(end)||[])[1])||null};
+}
+// A note belongs to the highlight just before it when its location falls inside that passage (about 60 characters a
+// location, plus slack). Without locations, it belongs to the one before it.
+const noteFits=(b,h)=>b.kh.loc==null||h.loc==null||(h.loc>=b.kh.loc&&h.loc-b.kh.loc<=Math.ceil(b.text.length/60)+2);
+// → {title, author, blocks}. Parts become h2, chapters h3 (again after each new part), each highlight a paragraph that
+// carries kh:{color, note, loc} for kindleHighlights(). A note on no highlight is a passage of its own. Bookmarks are skipped.
+function kindleNotebook(html){
+  html=html.replace(/<(script|style)\b[\s\S]*?<\/\1>/gi,'');
+  const tags=[];let m;KINDLE_TAG.lastIndex=0;
+  while((m=KINDLE_TAG.exec(html))) tags.push({cls:m[2].toLowerCase(),from:m.index+m[0].length,at:m.index});
+  let title='',author='',sec='',chap='',head=null,last=null;const blocks=[];
+  tags.forEach((t,i)=>{
+    const text=htmlText(html.slice(t.from,i+1<tags.length?tags[i+1].at:html.length));
+    if(t.cls==='booktitle'){title=title||text;return;}
+    if(t.cls==='authors'){author=author||flipName(text);return;}
+    if(t.cls==='sectionheading'){if(text){blocks.push({t:'h',level:2,text,marks:[]});sec=text;chap='';last=null;}return;}
+    if(t.cls==='noteheading'){head=kindleHead(text);return;}
+    const h=head;head=null;
+    if(!h||!text||h.kind==='bookmark') return;
+    if(h.chapter&&h.chapter!==chap){chap=h.chapter;if(chap!==sec){blocks.push({t:'h',level:3,text:chap,marks:[]});last=null;}}
+    if(h.kind==='note'){
+      if(last&&noteFits(last,h)) last.kh.note=last.kh.note?last.kh.note+'\n\n'+text:text;
+      else{blocks.push({t:'p',text,marks:[],kh:{color:'sun',note:text,loc:h.loc}});last=null;}
+      return;
+    }
+    last={t:'p',text,marks:[],kh:{color:h.color,note:'',loc:h.loc}};blocks.push(last);
+  });
+  return {title,author,blocks};
+}
+// After finalize(): one full-passage highlight per kh block, newest first in book order. Removes kh from the blocks.
+function kindleHighlights(doc,at){
+  const hl=[];
+  doc.blocks.forEach(b=>{if(!b.kh) return;const k=b.kh,i=hl.length;delete b.kh;
+    hl.push({id:'h'+at.toString(36)+i.toString(36).padStart(3,'0'),color:k.color,note:k.note||'',segs:[{pid:b.id,s:0,e:b.text.length}],at:at-i});});
+  return hl;
+}
+// A newer export of a Kindle book on the shelf. Old blocks map to new ones by type and text, in order, so the old
+// highlights (own-shelf colours, notes, partial highlights) move to the new doc; a Kindle highlight is added only for a
+// passage that wasn't there before. Highlights on passages gone from the new export are dropped.
+// → {hl, added, dropped, same}; same: the export holds exactly the old passages.
+function mergeKindle(oldDoc,oldHl,newDoc,newHl){
+  const key=b=>b.t+'\u0001'+b.text,free=new Map();
+  newDoc.blocks.forEach(b=>{if(b.text===undefined) return;const k=key(b);if(!free.has(k)) free.set(k,[]);free.get(k).push(b.id);});
+  const map={};let olds=0;
+  oldDoc.blocks.forEach(b=>{if(b.text===undefined) return;olds++;const q=free.get(key(b));if(q&&q.length) map[b.id]=q.shift();});
+  const had=new Set(Object.values(map));let dropped=0;const hl=[];
+  oldHl.forEach(h=>{const segs=h.segs.map(s=>map[s.pid]&&Object.assign({},s,{pid:map[s.pid]}));if(segs.length&&segs.every(Boolean)) hl.push(Object.assign({},h,{segs}));else dropped++;});
+  const add=newHl.filter(h=>!had.has(h.segs[0].pid));
+  const news=newDoc.blocks.filter(b=>b.text!==undefined).length;
+  return {hl:hl.concat(add),added:add.length,dropped,same:had.size===olds&&olds===news};
+}
+
 /* ---------- links ---------- */
 // First http(s) link in shared text, without trailing punctuation or brackets.
 function firstUrl(s){const m=String(s||'').match(/https?:\/\/[^\s<>"'“”‘’]+/i);return m?m[0].replace(/[.,;:!?)\]}>]+$/,''):'';}
@@ -344,4 +420,4 @@ function decodeBody(buf,type){
   try{return new TextDecoder(cs||'utf-8').decode(buf);}catch(e){return new TextDecoder('utf-8').decode(buf);}
 }
 // ===== PARSE END =====
-if(typeof module!=='undefined') module.exports={linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,decodeBody};
+if(typeof module!=='undefined') module.exports={linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,decodeBody,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle};

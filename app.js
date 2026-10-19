@@ -128,13 +128,15 @@ function openImport(file){
   if(file) loadFile(file); else setTimeout(()=>$('#paste').focus(),50);
 }
 $('#pickFile').onclick=()=>$('#file').click();
-$('#file').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f) loadFile(f);};
+// One file goes through the review step; several go straight to the shelf.
+const addFiles=fs=>{if(fs.length===1) loadFile(fs[0]); else if(fs.length) addMany(fs);};
+$('#file').onchange=e=>{const fs=[...e.target.files];e.target.value='';addFiles(fs);};
 const dz=$('#dz');
 ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('over');}));
 ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('over');}));
-dz.addEventListener('drop',e=>{e.stopPropagation();const f=e.dataTransfer.files[0];if(f) loadFile(f);});
+dz.addEventListener('drop',e=>{e.stopPropagation();addFiles([...e.dataTransfer.files]);});
 function renderPending(){
-  $('#dzHint').innerHTML=pending?`<span class="chipf">${esc(pending.name)}<button aria-label="Remove file" id="rmFile">✕</button></span>`:'PDF, .txt, .md or .html — or drop it here';
+  $('#dzHint').innerHTML=pending?`<span class="chipf">${esc(pending.name)}<button aria-label="Remove file" id="rmFile">✕</button></span>`:'PDF, .txt, .md, .html or a Kindle notebook — or drop them here';
   if(pending) $('#rmFile').onclick=()=>{pending=null;renderPending();detect();};
 }
 const nameTitle=n=>n.replace(/\.[^.]+$/,'').replace(/^\d{6,}_/,'').replace(/[_-]+/g,' ').trim();
@@ -149,15 +151,39 @@ async function pdfBlocks(file){
   const mt=(info.Title||'').trim();const okT=mt&&!/^(untitled|microsoft word|document\d*|.*\.(pdf|docx?))$/i.test(mt)&&mt.length<160;
   return {blocks,hint:okT?mt:(L.titleHint||nameTitle(file.name)),author:(info.Author||'').trim().length<80?(info.Author||'').trim():'',source:L.source};
 }
+// A file → {blocks, hint, author, source, …}. A Kindle notebook export also sets `kindle`, the book's id: it comes from
+// the export's own title and author, so a newer export of the same book merges into it.
+async function readFile(f){
+  if(/\.pdf$/i.test(f.name)||f.type==='application/pdf') return pdfBlocks(f);
+  const t=await f.text();
+  if(isKindleNotebook(t)){const k=kindleNotebook(t);return {blocks:k.blocks,title:k.title,hint:k.title,author:k.author,source:'',kindle:'k'+hash((k.title+'|'+k.author).toLowerCase())};}
+  return {blocks:/\.html?$/i.test(f.name)||/^\s*</.test(t)?htmlToBlocks(t):mdToBlocks(t),hint:nameTitle(f.name),author:'',source:''};
+}
 async function loadFile(f){
   $('#impErr').classList.add('hidden');$('#dzHint').textContent='Reading '+f.name+'…';
-  try{
-    let r;
-    if(/\.pdf$/i.test(f.name)||f.type==='application/pdf') r=await pdfBlocks(f);
-    else{const t=await f.text(); r={blocks:/\.html?$/i.test(f.name)||/^\s*</.test(t)?htmlToBlocks(t):mdToBlocks(t),hint:nameTitle(f.name),author:'',source:''};}
-    pending=Object.assign({name:f.name},r);
-  }catch(e){console.error(e);pending=null;impErr(/pdf\.js/.test(e.message)?"The PDF reader didn't load. Try again, or paste the text instead.":"Couldn't read any text from that file. If it's a scanned PDF, paste the text instead.");}
+  try{pending=Object.assign({name:f.name},await readFile(f));}
+  catch(e){console.error(e);pending=null;impErr(/pdf\.js/.test(e.message)?"The PDF reader didn't load. Try again, or paste the text instead.":"Couldn't read any text from that file. If it's a scanned PDF, paste the text instead.");}
   renderPending();detect();
+}
+// The source plus whatever the review step's fields override → a finalized doc, or an error message.
+function finalizeSource(s,o){
+  const d=finalize(s.blocks,Object.assign({title:s.title,hint:s.hint,author:s.author,written:s.written,source:s.source,verbatim:!!s.kindle},o));
+  if(s.kindle){if(!d.blocks.some(b=>b.kh)) return {err:'That Kindle notebook has no highlights.'};d.id=s.kindle;}
+  else if(d.words<20&&!d.blocks.some(b=>b.t==='img')) return {err:'That looks too short to read — paste the full text.'};
+  return {d};
+}
+const plural=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
+async function addMany(files){
+  $('#impErr').classList.add('hidden');toast(`Adding ${plural(files.length,'file')}…`);
+  const n={added:0,merged:0,same:0,failed:0};
+  for(const [i,f] of files.entries()){
+    $('#dzHint').textContent=`Adding ${i+1} of ${files.length}…`;
+    try{const s=await readFile(f),{d}=finalizeSource(s);if(!d){n.failed++;continue;}n[await addDoc(d,{kindle:!!s.kindle,quiet:true})]++;}
+    catch(e){console.error(e);n.failed++;}
+  }
+  closeModal('#importM');renderPending();if(!DOC) renderShelf();
+  const msg=[n.added&&`added ${plural(n.added,'book')}`,n.merged&&`merged ${n.merged}`,n.same&&`${n.same} already on the shelf`,n.failed&&`${n.failed} couldn't be read`].filter(Boolean).join(' · ');
+  toast(msg[0].toUpperCase()+msg.slice(1));
 }
 function impErr(m){const e=$('#impErr');e.textContent=m;e.classList.remove('hidden');}
 // rich paste
@@ -216,35 +242,57 @@ function currentSource(){
 function detect(){
   const s=currentSource();const det=$('#det');
   if(!s){det.textContent='';$('#fTitle').placeholder='Detected automatically';return;}
-  const d=finalize(s.blocks,{title:s.title,hint:s.hint,author:s.author,written:s.written,source:s.source});
-  const c={li:0,img:0,h:0};d.blocks.forEach(b=>{if(c[b.t]!==undefined)c[b.t]++;});
-  det.innerHTML=`Found <b>${esc(d.title)}</b>${d.author?` by <b>${esc(d.author)}</b>`:''}${d.written?`, written <b>${esc(d.written)}</b>`:''} · ${d.words.toLocaleString()} words · ${d.sections.length} section${d.sections.length===1?'':'s'}${c.li?` · ${c.li} list items`:''}${c.img?` · ${c.img} image${c.img>1?'s':''}`:''}${d.notes.length?` · ${d.notes.length} notes`:''}`;
+  const d=finalize(s.blocks,{title:s.title,hint:s.hint,author:s.author,written:s.written,source:s.source,verbatim:!!s.kindle});
+  const c={li:0,img:0,h:0};d.blocks.forEach(b=>{if(c[b.t]!==undefined)c[b.t]++;});const kh=d.blocks.filter(b=>b.kh).length;
+  det.innerHTML=`Found <b>${esc(d.title)}</b>${d.author?` by <b>${esc(d.author)}</b>`:''}${d.written?`, written <b>${esc(d.written)}</b>`:''} · ${d.words.toLocaleString()} words · ${d.sections.length} section${d.sections.length===1?'':'s'}${c.li?` · ${c.li} list items`:''}${c.img?` · ${c.img} image${c.img>1?'s':''}`:''}${d.notes.length?` · ${d.notes.length} notes`:''}${kh?` · ${plural(kh,'Kindle highlight')}`:''}`;
   $('#fTitle').placeholder=d.title;$('#fAuthor').placeholder=d.author||'Optional';$('#fWritten').placeholder=d.written||'e.g. July 2023';
 }
 $('#impGo').onclick=async()=>{
   const s=currentSource();
   if(!s){impErr('Choose a file or paste something first.');return;}
-  const d=finalize(s.blocks,{title:$('#fTitle').value.trim()||s.title,hint:s.hint,author:$('#fAuthor').value.trim()||s.author,written:$('#fWritten').value.trim()||s.written,source:s.source});
-  if(d.words<20&&!d.blocks.some(b=>b.t==='img')){impErr('That looks too short to read — paste the full text.');return;}
-  await addDoc(d);closeModal('#importM');
+  const {d,err}=finalizeSource(s,{title:$('#fTitle').value.trim()||s.title,author:$('#fAuthor').value.trim()||s.author,written:$('#fWritten').value.trim()||s.written});
+  if(err){impErr(err);return;}
+  await addDoc(d,{kindle:!!s.kindle});closeModal('#importM');
 };
-async function addDoc(d){
-  d.id=hash(JSON.stringify(d.blocks.map(b=>b.text||b.src)).slice(0,200000))+hash(d.title);
-  const exists=META.find(m=>m.id===d.id);
-  if(exists){toast('Already on your shelf — opening it');openBook(d.id);return;}
+// Adds a finalized doc and opens it (quiet: neither opens nor toasts, for a batch). A Kindle notebook's kh blocks become
+// its highlights, and a newer export of a Kindle book on the shelf merges into it. → 'added', 'merged' or 'same'.
+async function addDoc(d,{kindle,quiet}={}){
+  const hl=kindleHighlights(d,Date.now());
+  d.id=d.id||hash(JSON.stringify(d.blocks.map(b=>b.text||b.src)).slice(0,200000))+hash(d.title);
+  if(META.some(m=>m.id===d.id)){
+    const r=kindle?await mergeInto(d,hl,quiet):null;
+    if(!quiet){toast(r?`Merged: ${plural(r.added,'new highlight')}${r.dropped?` · ${r.dropped} no longer in the notebook`:''}`:kindle?'No new highlights — opening it':'Already on your shelf — opening it');openBook(d.id);}
+    return r?'merged':'same';
+  }
   d.added=Date.now();
   const used=META.slice().sort((a,b)=>b.added-a.added).slice(0,3).map(m=>m.color);let c=META.length%COVERS.length;while(used.includes(c))c=(c+1)%COVERS.length;d.color=c;
-  const st={hl:[],pos:0,maxP:0,done:[],opened:Date.now()};
+  const st={hl,pos:0,maxP:0,done:[],opened:Date.now()};
   await DB.put('doc:'+d.id,d);await DB.put('state:'+d.id,st);const m=metaFor(d,st);await DB.put('meta:'+d.id,m);META.push(m);
   untrashBook(d.id); // the same text added again while its old copy is in the Trash
-  openBook(d.id);
+  if(!quiet) openBook(d.id);
+  return 'added';
+}
+// A newer export of a Kindle book on the shelf: the book is rebuilt from it and keeps its highlights (see mergeKindle)
+// and what Details can edit. → {added, dropped}, or null when the export holds nothing new. An open book is reloaded.
+async function mergeInto(d,hl,quiet){
+  const id=d.id,open=!!(DOC&&DOC.id===id);
+  if(open){ST.pos=scrollY;await saveState(true);}
+  const old=open?DOC:await DB.get('doc:'+id),st=(open?ST:await DB.get('state:'+id))||{hl:[],pos:0,maxP:0,done:[]};
+  const r=old?mergeKindle(old,st.hl||[],d,hl):{hl,added:hl.length,dropped:0};
+  if(r.same) return null;
+  if(old) ['added','color','title','author','written','writtenSort','source'].forEach(k=>{d[k]=old[k];}); else d.added=Date.now();
+  st.hl=r.hl;
+  await DB.put('doc:'+id,d);await DB.put('state:'+id,st);const m=metaFor(d,st);META=META.filter(x=>x.id!==id).concat(m);await DB.put('meta:'+id,m);
+  if(open&&quiet) await openBook(id);
+  return {added:r.added,dropped:r.dropped};
 }
 // drop anywhere
 let dragDepth=0;
 addEventListener('dragenter',e=>{if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')&&$('#importM').classList.contains('hidden')){dragDepth++;$('#dropAll').classList.add('on');}});
 addEventListener('dragleave',()=>{dragDepth=Math.max(0,dragDepth-1);if(!dragDepth)$('#dropAll').classList.remove('on');});
 addEventListener('dragover',e=>e.preventDefault());
-addEventListener('drop',e=>{e.preventDefault();dragDepth=0;$('#dropAll').classList.remove('on');const f=e.dataTransfer&&e.dataTransfer.files[0];if(f&&$('#importM').classList.contains('hidden')) openImport(f);});
+addEventListener('drop',e=>{e.preventDefault();dragDepth=0;$('#dropAll').classList.remove('on');const fs=[...((e.dataTransfer&&e.dataTransfer.files)||[])];
+  if(!fs.length||!$('#importM').classList.contains('hidden')) return;if(fs.length>1) addMany(fs); else openImport(fs[0]);});
 
 /* ================= details ================= */
 let detId=null;

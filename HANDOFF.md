@@ -21,12 +21,13 @@ A personal reading app: a bookshelf of PDFs, pasted articles and web pages, read
 | Firestore rules | Written, not published |
 | Safety: typed "yes" and the Trash | Clear all, removing a book with highlights, and Empty Trash need "yes" typed. Removed books, highlights and cleared notes go to the Trash (Settings → Trash) for 30 days and can be restored. A removed book's content stays in `doc:`/`state:` until it's purged |
 | Finishing a book | Counts only when the end is on screen after real reading time: 30% of the estimated minutes, at least 20 s, accrued while the page is visible and you've interacted in the last 90 s. The cover shows "✓ Finished" (the cover ribbon is gone; ribbon now only marks reading position). Details → "Mark as unfinished" resets progress to the sections reached |
+| Kindle notebooks | Done and browser-tested. A Kindle "Notebook Export" .html becomes a book of its highlights: parts as sections, chapters as subheadings, each passage highlighted in its Kindle color (yellow → Sunny; orange, pink, red → Coral; blue, purple → Sky; green, aqua → Mint), notes on their highlights, bookmarks skipped, page/location not shown. A newer export of the same book merges into it (spec: `docs/superpowers/specs/2026-10-20-kindle-notebook-import-design.md`). The Add dialog and drop-anywhere take several files at once (any type) and add them without the review step |
 | Length on the shelf | Each cover shows its word count and a block of page edges whose thickness grows with length (log scale, 3–32 px); the List view has a sortable Length column (hidden on phones) |
 | Taglines | "Knowledge is power. Wisdom in the margins." together under "Your shelf" (every screen size); "Knowledge is power." under the wordmark on sign-in; "Wisdom in the margins." on sign-in, as the Notebook subtitle and in the metadata |
 | own-shelf rebrand | Done: icons (`npm run icons` from `design/`), theme, shelf, sign-in, reader motifs. Checked in light and dark at phone and desktop sizes |
 | GitHub Pages | Live since 2026-10-18; every push to `main` deploys. Checked in headless Chrome: boots, Firebase SDK loads, local mode works, service worker active |
 
-Tests: `npm test` (52 unit checks: Worker, storage with a fake Firestore including the trash, parser) and `npm run test:browser` (178 headless-Chrome checks: the local-only flow, Notebook, search, the note filter, typed-"yes" deletes, the Trash, length on the shelf, artifact → app migration). Run `npm install` once first; the browser suite needs Chrome (`CHROME_PATH` off macOS), python3 and a network connection. `TEST_PORT_OFFSET` shifts its ports so two checkouts can run it at once. Both pass as of 2026-10-20.
+Tests: `npm test` (70 unit checks: Worker, storage with a fake Firestore including the trash, parser including Kindle exports and merging) and `npm run test:browser` (204 headless-Chrome checks: the local-only flow, Notebook, search, the note filter, typed-"yes" deletes, the Trash, length on the shelf, Kindle notebooks, artifact → app migration). Run `npm install` once first; the browser suite needs Chrome (`CHROME_PATH` off macOS), python3 and a network connection. `TEST_PORT_OFFSET` shifts its ports so two checkouts can run it at once. Both pass as of 2026-10-20.
 
 ## File map
 
@@ -34,7 +35,7 @@ Tests: `npm test` (52 unit checks: Worker, storage with a fake Firestore includi
 index.html           Markup: sign-in screen, shelf, reader, dialogs (import, details, export, settings)
 app.js               The app (ES module). Ported from legacy/app-script.js plus accounts, settings, link import, deep links, boot
 store.js             makeLocal() IndexedDB adapter, makeCloud() Firestore adapter, chunkBlocks(), exportShelf()/importShelf()
-parse.js             Classic script, globals: PDF lines → blocks, Markdown, rich HTML, finalize(), firstUrl(), decodeBody()
+parse.js             Classic script, globals: PDF lines → blocks, Markdown, rich HTML, Kindle notebook exports, finalize(), mergeKindle(), firstUrl(), decodeBody()
 styles.css           All styles (light/dark tokens)
 config.js            Firebase config, SDK version, optional default Worker URL
 sw.js                Service worker (offline app shell)
@@ -45,6 +46,7 @@ firestore.rules      Owner-only access rules
 worker/worker.js     Cloudflare Worker: authenticated page/PDF fetcher
 *.test.mjs, worker/worker.test.mjs, test-util.mjs   npm test (unit)
 tests/browser/       npm run test:browser (headless Chrome via puppeteer-core; screenshots in tests/browser/out/, gitignored)
+tests/fixtures/      Synthetic Kindle notebook export (the real markup, made-up text), used by both suites
 legacy/              The artifact as one file (app-artifact.html, kept identical to the live version), its split markup/script, a synthetic test fixture
 ```
 
@@ -97,6 +99,7 @@ legacy/              The artifact as one file (app-artifact.html, kept identical
 - **Deep links add the book straight away** after a successful fetch (one tap from the share sheet); the dialog's **Import** button fills the dialog for review instead.
 - **A lone link pasted into the paste box imports as a link** when signed in with a helper URL set; otherwise it pastes as text, as before.
 - **Backup/restore lives in `store.js`** so Node tests cover it.
+- **Kindle exports are read as text, not with DOMParser:** the markup is machine-made and regular, and it keeps the parser under Node tests. A Kindle book's id is `k` + hash of the export's own title and author, so every export of a book has the same id and a newer one merges: old blocks map to new ones by type and text, own-shelf colors, notes and partial highlights carry over, a Kindle highlight is added only for a new passage (so one removed in own-shelf stays removed), and highlights on passages gone from the export are dropped (the toast counts them).
 - **Public repo:** GitHub Pages on a free account requires one. The code holds no data; Firebase web config values aren't secrets.
 - **Local-only mode** stays as an escape hatch: no account, offline first load, or a Firebase outage.
 
@@ -106,6 +109,7 @@ legacy/              The artifact as one file (app-artifact.html, kept identical
 - **Same origin, same data:** the local adapter and the artifact use the same IndexedDB name and keys. Serve `legacy/app-artifact.html` and the app from different origins when testing (e.g. `127.0.0.1` vs `localhost`), or they share one shelf.
 - **Sign-in on iOS:** call `signInWithPopup` from a tap. Redirect sign-in breaks in Safari while `authDomain` is `upwind-reader.firebaseapp.com`; the fix is a custom domain and Firebase's "redirect best practices". A deep link stays in the address bar until the app consumes it, so it survives a redirect sign-in.
 - **iOS home-screen apps** keep storage separate from Safari, so you sign in once in each.
-- **Highlights** are character offsets into each block's `text`. Re-parsing a book changes ids and offsets, so never silently re-parse stored books.
+- **Highlights** are character offsets into each block's `text`. Re-parsing a book changes ids and offsets, so never silently re-parse stored books. (Kindle merging re-parses on purpose and remaps every highlight by passage text.)
+- **Kindle exports skip `finalize`'s guessing** (`verbatim`): otherwise a first highlight like "By the dead, …" becomes the byline, and a part called "Notes" becomes footnotes. Only English headings are recognised as Note or Bookmark; in other languages a note imports as a highlight.
 - **Service worker:** `SHELL` in `sw.js` must list files that exist, or installation fails. App files are network-first, so deploys show up on the next online load without bumping `CACHE`.
 - **Copyright:** never commit articles, PDFs or backups to this public repo (`.gitignore` covers the usual names). Test with synthetic fixtures such as `legacy/test-fixture-rich-paste.html`.
