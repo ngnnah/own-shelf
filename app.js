@@ -261,11 +261,31 @@ function armed(btn,label){
   btn.dataset.orig=btn.textContent;btn.textContent=label;
   btn.dataset.armed=setTimeout(()=>{btn.textContent=btn.dataset.orig;delete btn.dataset.armed;},3500);return false;
 }
+// Deleting highlights or notes needs "yes" typed in a dialog; resolves true only then.
+let cfDone=null;
+const cfOk=()=>$('#cfInput').value.trim().toLowerCase()==='yes';
+function confirmTyped(title,body,label){
+  return new Promise(res=>{
+    $('#cfH').textContent=title;$('#cfBody').textContent=body;$('#cfGo').textContent=label;$('#cfInput').value='';$('#cfGo').disabled=true;
+    cfDone=v=>{cfDone=null;closeModal('#confirmM');res(v);};
+    openModal('#confirmM');$('#cfInput').focus(); // synchronous, so iOS opens the keyboard when this runs from a tap
+  });
+}
+$('#cfInput').addEventListener('input',()=>{$('#cfGo').disabled=!cfOk();});
+$('#cfInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&cfOk()&&cfDone){e.preventDefault();cfDone(true);}});
+$('#cfGo').onclick=()=>{if(cfOk()&&cfDone)cfDone(true);};
+// Cancel, a tap outside or Escape all hide the dialog: that answers no
+new MutationObserver(()=>{if($('#confirmM').classList.contains('hidden')&&cfDone)cfDone(false);}).observe($('#confirmM'),{attributes:true,attributeFilter:['class']});
+const lossText=(n,nn)=>`${n} highlight${n===1?'':'s'}${nn?` and ${nn} note${nn===1?'':'s'}`:''}`;
+const UNDO_NOTE="This can't be undone. To keep a copy, back up the shelf in Settings first.";
 $('#dRemove').onclick=async e=>{
-  const m=META.find(x=>x.id===detId);if(!m)return;
-  if(!armed(e.currentTarget,m.hl?`Tap again — removes ${m.hl} highlight${m.hl>1?'s':''} too`:'Tap again to remove'))return;
-  await DB.del('doc:'+detId);await DB.del('state:'+detId);await DB.del('meta:'+detId);META=META.filter(x=>x.id!==detId);
-  closeModal('#detM');toast('Removed from shelf');if(DOC&&DOC.id===detId){DOC=null;goShelf();} else renderShelf();
+  const id=detId,m=META.find(x=>x.id===id);if(!m)return;
+  if(m.hl){
+    const hl=DOC&&DOC.id===id?HL:(((await DB.get('state:'+id))||{}).hl||[]);
+    if(!await confirmTyped('Remove this book?',`This removes “${m.title}” and its ${lossText(hl.length||m.hl,hl.filter(h=>h.note).length)}. ${UNDO_NOTE}`,'Remove book'))return;
+  } else if(!armed(e.currentTarget,'Tap again to remove'))return;
+  await DB.del('doc:'+id);await DB.del('state:'+id);await DB.del('meta:'+id);META=META.filter(x=>x.id!==id);
+  closeModal('#detM');toast('Removed from shelf');if(DOC&&DOC.id===id){DOC=null;goShelf();} else renderShelf();
 };
 $('#barTitle').onclick=()=>DOC&&openDetails(DOC.id);
 
@@ -554,7 +574,11 @@ function renderDrawer(){
 }
 function jumpTo(h){closeDrawers();const m=document.querySelector(`mark[data-h="${h.id}"]`);if(!m)return;m.scrollIntoView({block:'center'});document.querySelectorAll(`mark[data-h="${h.id}"]`).forEach(x=>{x.classList.remove('flash');void x.offsetWidth;x.classList.add('flash');});}
 $('#segFmt').onclick=e=>{const b=e.target.closest('button');if(!b)return;prefs.fmt=b.dataset.fmt;savePrefs();applyPrefs();};
-$('#clearAll').onclick=e=>{if(!HL.length)return;if(!armed(e.currentTarget,`Tap again to clear ${HL.length}`))return;const pids=HL.flatMap(h=>h.segs.map(s=>s.pid));HL=[];commit();rerender(pids);};
+$('#clearAll').onclick=async()=>{
+  if(!HL.length)return;
+  if(!await confirmTyped('Clear all highlights?',`This deletes all ${lossText(HL.length,HL.filter(h=>h.note).length)} in “${DOC.title}”. ${UNDO_NOTE}`,'Clear all'))return;
+  const pids=HL.flatMap(h=>h.segs.map(s=>s.pid));HL=[];commit();rerender(pids);toast('Highlights cleared');
+};
 function exportText(){
   const list=sorted();const cname=c=>(COLORS.find(x=>x[0]===c)||[c,c])[1];
   if(prefs.fmt==='md'){

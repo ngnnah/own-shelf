@@ -156,6 +156,16 @@
   </div>
 </div>
 
+<!-- typed confirmation before deleting highlights or notes -->
+<div class="modal hidden" id="confirmM" role="alertdialog" aria-modal="true" aria-labelledby="cfH" aria-describedby="cfBody">
+  <div class="dlg sm">
+    <h2 id="cfH"></h2>
+    <p class="sub" id="cfBody"></p>
+    <label class="fl">Type “yes” to confirm<input class="f" id="cfInput" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="done"></label>
+    <div class="dlg-acts"><button class="btn ghost" data-cancel>Cancel</button><button class="btn danger" id="cfGo" disabled></button></div>
+  </div>
+</div>
+
 <!-- export dialog -->
 <div class="modal hidden" id="expM" role="dialog" aria-modal="true" aria-labelledby="expH">
   <div class="dlg">

@@ -31,6 +31,7 @@ a{color:var(--sea)}
 .btn.sea{background:var(--sea);color:var(--sheet)}
 .btn.ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 2px var(--rule)}
 .btn.danger{background:transparent;color:var(--buoy);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--buoy) 40%,transparent)}
+.btn:disabled{opacity:.42;cursor:not-allowed}
 .btn svg{width:18px;height:18px}
 .ib{border:0;background:transparent;border-radius:12px;padding:.45rem .6rem;font:600 .92rem var(--display);display:inline-flex;align-items:center;gap:.35rem;color:var(--ink)}
 .ib:hover{background:color-mix(in srgb,var(--sea) 12%,transparent)}
