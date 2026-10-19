@@ -42,6 +42,7 @@ export function makeLocal({ onError = () => {} } = {}) {
 //   books/{id}/chunks/{i}     slices of the blocks array, each well under Firestore's 1 MiB doc limit
 //   state/{id}                highlights, reading position, checkpoints
 //   settings/app              app settings that follow you between devices
+//   trash/{id}                deleted books, highlights and notes, kept 30 days (the app purges them)
 export const CHUNK_BYTES = 700 * 1024;
 const enc = new TextEncoder();
 const size = v => enc.encode(JSON.stringify(v)).length;
@@ -64,7 +65,8 @@ export function makeCloud(fs, db, uid, { onError = () => {}, delay = 2500 } = {}
   const col = (...p) => fs.collection(db, ...base, ...p);
   const split = k => { const i = k.indexOf(':'); return [k.slice(0, i), k.slice(i + 1)]; };
   const plain = v => v == null ? v : JSON.parse(JSON.stringify(v)); // drops undefined, keeps Firestore happy
-  const pathFor = (kind, id) => kind === 'meta' ? ['meta', id] : kind === 'state' ? ['state', id] : kind === 'settings' ? ['settings', id] : null;
+  const LISTED = { meta: 'meta', trash: 'trash' };   // key kinds that all(prefix) can list
+  const pathFor = (kind, id) => ['meta', 'state', 'settings', 'trash'].includes(kind) ? [kind, id] : null;
 
   // Read the server copy when it answers quickly, otherwise the offline cache.
   async function fresh(r, ms = 2500) {
@@ -139,7 +141,7 @@ export function makeCloud(fs, db, uid, { onError = () => {}, delay = 2500 } = {}
         return;
       }
       const p = pathFor(kind, id); if (!p) return;
-      if (kind === 'settings') { write(p, v); return; }
+      if (kind === 'settings' || kind === 'trash') { write(p, v); return; }   // rare: write straight away
       pending.set(k, { p, v: plain(v) });
       if (!timer) timer = setTimeout(flush, delay);
     },
@@ -154,10 +156,14 @@ export function makeCloud(fs, db, uid, { onError = () => {}, delay = 2500 } = {}
       const p = pathFor(kind, id); if (p) fs.deleteDoc(ref(...p)).catch(onError);
     },
     async all(prefix) {
-      if (prefix !== 'meta:') return [];
+      const name = LISTED[prefix.replace(/:$/, '')];
+      if (!name) return [];
       let s = null;
-      try { s = await fs.getDocs(col('meta')); } catch (e) { try { s = await fs.getDocsFromCache(col('meta')); } catch (e2) {} }
-      return s ? s.docs.map(d => d.data()) : [];
+      try { s = await fs.getDocs(col(name)); } catch (e) { try { s = await fs.getDocsFromCache(col(name)); } catch (e2) {} }
+      const list = s ? s.docs.map(d => d.data()) : [];
+      // include queued writes (meta is coalesced) so callers see what they just put
+      pending.forEach((job, key) => { if (key.startsWith(prefix)) { const i = list.findIndex(x => x.id === job.v.id); if (i >= 0) list[i] = job.v; else list.push(job.v); } });
+      return list;
     },
     // live shelf: other devices' changes show up without a reload
     watchMeta(cb, onErr = onError) {
