@@ -2,7 +2,7 @@
 
 A personal reading app: a bookshelf of PDFs, pasted articles and web pages, read with sections, checkpoints, highlights, notes and export. It began as a single-file Claude artifact called Upwind. This repo runs it on **GitHub Pages** (hosting) + **Firebase** (Google sign-in, Firestore sync) + a **Cloudflare Worker** (link import).
 
-- Repo: [`ngnnah/own-shelf`](https://github.com/ngnnah/own-shelf) (public). Site, once Pages is on: `https://ngnnah.github.io/own-shelf/`
+- Repo: [`ngnnah/own-shelf`](https://github.com/ngnnah/own-shelf) (public). Live site: https://ngnnah.github.io/own-shelf/ (GitHub Pages from `main` / root)
 - Firebase project: `upwind-reader` (config in `config.js`)
 - Old app (artifact, still live): https://claude.ai/artifact/WeBG2owiR3FP4ff25uHXGn. It now has a **Back up shelf** button for migration.
 - The UI still says "Upwind". The rebrand to own-shelf is in design (see Next steps).
@@ -19,9 +19,9 @@ A personal reading app: a bookshelf of PDFs, pasted articles and web pages, read
 | Artifact → app migration | Done and tested end to end (artifact backup → app restore → highlights show) |
 | Kindle-style essentials | Done and browser-tested: Notebook (every highlight across books, with search and filters; replaces the shelf's "Export notes" button), search inside a book, "With note" filter in the highlights drawer. Bookmarks skipped |
 | Firestore rules | Written, not published |
-| GitHub Pages | Off until the rebrand settles the look; the name (and so the URL) is final |
+| GitHub Pages | Live since 2026-10-18; every push to `main` deploys. Checked in headless Chrome: boots, Firebase SDK loads, local mode works, service worker active |
 
-Verified on 2026-10-18: `npm test` (45 checks) and a headless-Chrome smoke test of the local-only flow (rich paste, nested lists, highlights inside a block and across list items, footnote highlights, all three export formats, reload, backup/restore, deep link, offline reload, no page errors).
+Tests: `npm test` (45 unit checks: Worker, storage with a fake Firestore, parser) and `npm run test:browser` (95 headless-Chrome checks: the local-only flow, Notebook, search, the note filter, artifact → app migration). Run `npm install` once first; the browser suite needs Chrome (`CHROME_PATH` off macOS), python3 and a network connection. Both pass as of 2026-10-19.
 
 ## File map
 
@@ -37,7 +37,8 @@ manifest.webmanifest PWA manifest with the Android share target
 icons/               icon.svg (source, favicon), icon-192/512.png, apple-touch-icon.png (rendered from the SVG)
 firestore.rules      Owner-only access rules
 worker/worker.js     Cloudflare Worker: authenticated page/PDF fetcher
-*.test.mjs, worker/worker.test.mjs, test-util.mjs   npm test
+*.test.mjs, worker/worker.test.mjs, test-util.mjs   npm test (unit)
+tests/browser/       npm run test:browser (headless Chrome via puppeteer-core; screenshots in tests/browser/out/, gitignored)
 legacy/              The artifact as one file (app-artifact.html, kept identical to the live version), its split markup/script, a synthetic test fixture
 ```
 
@@ -57,9 +58,9 @@ legacy/              The artifact as one file (app-artifact.html, kept identical
 1. **One-time setup** (below): Firebase, Cloudflare.
 2. **Test cloud mode locally:** `npm run serve`, open `http://localhost:8080` (localhost is an authorized domain by default). Check: Google sign-in; add a PDF, a rich paste and a Markdown file; two browsers signed in to the same account see each other's changes; an offline reload while signed in still opens books; link import after putting the Worker URL in Settings; the Paste button; `?add=<url>`.
 3. **Migrate:** in the artifact, tap **Back up shelf** and save the `.json`. In the new app: Settings → **Restore from backup**. Don't commit the file (it's gitignored).
-4. **Rebrand to own-shelf** (in design with Nhat): the name in the UI, a new icon (a 💪-shaped bookshelf, minimalist and antique), the sign-in and shelf look. Decide whether the reader keeps its sailing motifs (boat progress bar, wave rail, "Land ho.", "Your catch"). Internal ids stay as they are: `upwind:*` localStorage keys, the `upwind` IndexedDB, `app: 'upwind'` in backups, the `upwind-reader` Firebase project.
+4. **Rebrand to own-shelf, full** (decided 2026-10-19; in design with Nhat): the name in the UI, a new icon (a 💪-shaped wooden bookshelf, antique and minimal; the parametric "arm lab" is under `.superpowers/`, gitignored), the sign-in and shelf look, and replacing the reader's sailing motifs (boat progress bar, wave rail, "Land ho.", "Your catch") with library ones. Internal ids stay as they are: `upwind:*` localStorage keys, the `upwind` IndexedDB, `app: 'upwind'` in backups, the `upwind-reader` Firebase project.
 5. **iPhone Safari pass.** The main flow to get right: in another iOS app (e.g. MIT Technology Review) select all and copy an article → own-shelf → Add to shelf → paste → read and annotate. Paste is the main path for paywalled sources, because link import fetches without the reader's login. On a real iPhone also check: selection and highlighting (iOS's own callout vs our bottom-docked toolbar), the Paste button's permission bubble, home-screen install, and the Shortcut below.
-6. **Ship:** add an empty `.nojekyll`, push `main`, then GitHub → Settings → Pages → deploy from `main` / root, or `gh api -X POST repos/ngnnah/own-shelf/pages -f 'source[branch]=main' -f 'source[path]=/'`.
+6. **Shipped:** Pages is on (with `.nojekyll`); pushing `main` deploys.
 
 ## One-time setup (Nhat)
 

@@ -11,3 +11,5 @@ upwind-backup*.json
 tests/browser/out/
 # agent worktrees (Claude Code)
 .claude/worktrees/
+# design-lab companion files (Claude Code)
+.superpowers/

@@ -7,13 +7,14 @@ A personal reading app. Put PDFs, pasted articles and web links on a bookshelf, 
 ## Run locally
 
 ```sh
-npm test        # Worker, storage and parser tests
-npm run serve   # http://localhost:8080
+npm test               # Worker, storage and parser tests
+npm run test:browser   # headless-Chrome tests (run npm install once first)
+npm run serve          # http://localhost:8080
 ```
 
 ## Deploy
 
-- **Site:** GitHub Pages from `main` / root. There's no build step.
+- **Site:** https://ngnnah.github.io/own-shelf/, GitHub Pages from `main` / root. There's no build step.
 - **Data:** Firebase project `upwind-reader` (Google sign-in + Firestore). Publish `firestore.rules` in the console.
 - **Link import:** paste `worker/worker.js` into a Cloudflare Worker and set `FIREBASE_PROJECT_ID`, `ALLOWED_ORIGINS` and `ALLOWED_EMAILS`.
 

@@ -8,6 +8,6 @@
     "serve": "npx --yes http-server -c-1 -p 8080 ."
   },
   "devDependencies": {
-    "puppeteer-core": "23.11.1"
+    "puppeteer-core": "25.12.0"
   }
 }
