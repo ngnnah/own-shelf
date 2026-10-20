@@ -42,7 +42,11 @@ a{color:var(--sea)}
 .seg button{border:0;background:transparent;border-radius:999px;font:500 .85rem var(--ui);padding:.4rem .8rem;color:var(--ink)}
 .seg button[aria-pressed="true"]{background:var(--ink);color:var(--sheet)}
 input.f,textarea.f{width:100%;border-radius:12px;border:1.5px solid var(--rule);background:var(--paper);color:var(--ink);padding:.6rem .8rem;font:1rem var(--body)}
-label.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--muted)}
+label.fl,div.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--muted)}
+/* the cover picker in Details: one small binding per cloth colour */
+.cv-sws{display:flex;flex-wrap:wrap;gap:.55rem;padding:.15rem 0}
+.cv-sw{width:26px;height:34px;border:0;padding:0;border-radius:3px 6px 6px 3px;background:var(--c);cursor:pointer;box-shadow:inset 3px 0 0 rgba(0,0,0,.2),inset 0 0 0 1px rgba(0,0,0,.12)}
+.cv-sw[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:2px}
 
 /* ================= SHELF ================= */
 #shelf{min-height:100vh;padding:calc(env(safe-area-inset-top,0px) + 1.2rem) clamp(1rem,4vw,3rem) 4rem;max-width:1240px;margin:0 auto}
