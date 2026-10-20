@@ -1,7 +1,7 @@
 // own-shelf app (formerly Upwind). Ported from legacy/app-script.js; all data goes through the store.js adapters.
 import {makeLocal,makeCloud,exportShelf,importShelf} from './store.js';
 import {firebaseConfig,FIREBASE_VERSION,WORKER_URL} from './config.js';
-import {isDue,schedule,nextLabel,cloze} from './vocab.js';
+import {wordId,normTerm,termKey,sentenceAround,isDue,schedule,nextLabel,cloze,datamuseUrl,parseDatamuse,wiktionaryUrl,parseWiktionary,baseForms} from './vocab.js';
 /* ================= utils ================= */
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -398,6 +398,7 @@ function inlineHTML(b,plain){
   marks.forEach(m=>{cuts.add(cl(m.s));cuts.add(cl(m.e));});
   const fns=plain?[]:(b.fns||[]);fns.forEach(f=>cuts.add(cl(f.at)));
   const hs=[];if(!plain)HL.forEach(h=>h.segs.forEach(s=>{if(s.pid===b.id){hs.push({s:s.s,e:s.e,h});cuts.add(cl(s.s));cuts.add(cl(s.e));}}));
+  const wds=plain?[]:wordSpans(b);wds.forEach(w=>{cuts.add(cl(w.s));cuts.add(cl(w.e));}); // saved words (see vocabulary)
   const c=[...cuts].sort((a,z)=>a-z);let out='';
   const fnAt=p=>fns.filter(f=>cl(f.at)===p).map(f=>`<button class="fn" data-n="${f.n}" aria-expanded="false" aria-label="Note ${f.n}">${f.n}</button>`).join('');
   for(let i=0;i<c.length-1;i++){
@@ -406,6 +407,7 @@ function inlineHTML(b,plain){
     if(act.some(m=>m.k==='code')) s=`<code>${s}</code>`;
     if(act.some(m=>m.k==='i')) s=`<em>${s}</em>`;
     if(act.some(m=>m.k==='b')) s=`<strong>${s}</strong>`;
+    const wd=wds.find(w=>w.s<=a&&w.e>=z);if(wd) s=`<span class="wd" data-w="${esc(wd.id)}" data-ws="${wd.s}">${s}</span>`;
     let cov=null;hs.forEach(x=>{if(x.s<=a&&x.e>=z)cov=x.h;});
     if(cov) s=`<mark class="hl c-${cov.color}${cov.note?' noted':''}" data-h="${cov.id}">${s}</mark>`;
     const ln=act.find(m=>m.k==='a');
@@ -606,7 +608,7 @@ function updateCount(){
 function showTool(rect,h){
   editing=h||null;
   tool.innerHTML=COLORS.map((c,i)=>`<button class="sw${h&&h.color===c[0]?' on':''}" style="background:var(--${c[0]}S)" data-c="${c[0]}" aria-label="${c[1]} (${i+1})"></button>`).join('')+
-    `<span class="sep"></span><button class="tb" data-a="note">${h&&h.note?'Edit note':'Note'}</button>`+(h?`<button class="tb" data-a="del">Remove</button>`:`<button class="tb" data-a="copy">Copy</button>`);
+    `<span class="sep"></span><button class="tb" data-a="note">${h&&h.note?'Edit note':'Note'}</button>`+(h?`<button class="tb" data-a="del">Remove</button>`:`<button class="tb" data-a="word">Word</button><button class="tb" data-a="copy">Copy</button>`);
   tool.classList.remove('hidden');
   if(coarse){tool.classList.add('docked');return;}
   tool.classList.remove('docked');const w=tool.offsetWidth,hh=tool.offsetHeight;
@@ -622,6 +624,7 @@ tool.addEventListener('click',e=>{
     else if(pendingSegs){addHighlight(pendingSegs,b.dataset.c);getSelection().removeAllRanges();}
     hideTool();return;}
   if(b.dataset.a==='del'&&editing){const pids=editing.segs.map(s=>s.pid);trashHighlights([editing]);HL=HL.filter(x=>x!==editing);commit();rerender(pids);hideTool();toast('Moved to Trash');return;}
+  if(b.dataset.a==='word'&&pendingSegs){saveWordFromSel(pendingSegs);return;}
   if(b.dataset.a==='copy'&&pendingSegs){copyText(pendingSegs.map(s=>blockIndex[s.pid].text.slice(s.s,s.e)).join('\n\n'),'Copied');return;}
   if(b.dataset.a==='note'){let h=editing;if(!h&&pendingSegs){h=addHighlight(pendingSegs,'sun');getSelection().removeAllRanges();}if(h)openNote(h,tool.getBoundingClientRect());hideTool();}
 });
@@ -939,6 +942,7 @@ const nbFold=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u
 const nbCount=(n,w)=>`<b>${n}</b> ${w}${n===1?'':'s'}`;
 async function openNotebook(){
   const run=++NB.run;show('notebook');window.scrollTo(0,0);
+  nbTab(prefs.nbTab==='wd'?'wd':'hl',true);
   NB.f='all';$('#nbQ').value='';$('#nbStats').innerHTML='';$('#nbCtrl').classList.add('hidden');
   $('#nbList').innerHTML='<div class="empty">Gathering your highlights…</div>';
   const books=await Promise.all(META.filter(m=>m.hl>0).map(async m=>{const [d,s]=await Promise.all([DB.get('doc:'+m.id),DB.get('state:'+m.id)]);return d&&s?{doc:d,hl:s.hl||[]}:null;}));
@@ -971,6 +975,229 @@ $('#nbChips').onclick=e=>{const b=e.target.closest('[data-f]');if(!b)return;NB.f
 $('#nbExp').onclick=()=>openExport('shelf');
 $('#nbList').onclick=e=>nbOpen(e.target.closest('[data-hl]'));
 $('#nbList').onkeydown=e=>{if(e.key==='Enter') nbOpen(e.target.closest('[data-hl]'));};
+// Two tabs: Highlights (above) and Words (see vocabulary). The last one picked opens next time; opening resets its filters.
+function nbTab(tab,opening){
+  const wd=tab==='wd';
+  if(prefs.nbTab!==tab){prefs.nbTab=tab;savePrefs();}
+  $('#nbTabHl').setAttribute('aria-selected',!wd);$('#nbTabWd').setAttribute('aria-selected',wd);
+  $('#nbTabHl').tabIndex=wd?-1:0;$('#nbTabWd').tabIndex=wd?0:-1;
+  $('#nbPanelHl').classList.toggle('hidden',wd);$('#nbPanelWd').classList.toggle('hidden',!wd);
+  $('#nbStats').classList.toggle('hidden',wd);$('#wdStats').classList.toggle('hidden',!wd);
+  if(opening){$('#wdQ').value='';$('#wdBook').value='';}
+  if(wd) openWords(opening);
+}
+$('#nbTabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(b&&b.getAttribute('aria-selected')!=='true') nbTab(b.dataset.tab);};
+$('#nbTabs').onkeydown=e=>{if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;const t=prefs.nbTab==='wd'?'hl':'wd';nbTab(t);$(t==='wd'?'#nbTabWd':'#nbTabHl').focus();};
+
+/* ================= vocabulary ================= */
+// Words saved from the reader with the sentences they were found in (format: vocab.js). The toolbar's Word saves the
+// selection and shows its card; the meaning is looked up in the background; saved places are underlined in the text
+// (inlineHTML); the Notebook's Words tab lists them all. WORDS caches the account's words (id → word): loaded on
+// first use, kept in step with every change made here, and reloaded each time the Notebook opens.
+let WORDS=null,wordsDb=null,wordsLoad=null,wordsWait=false;
+let WIDX=null; // the open book's saved places by block id: {book, map: {pid: [{s, e, id, term}]}}
+function loadWords(fresh){
+  if(wordsDb!==DB){wordsDb=DB;WORDS=null;wordsLoad=null;WIDX=null;}
+  if(fresh) wordsLoad=null;
+  if(!wordsLoad){const db=DB;wordsLoad=db.all('word:').catch(()=>[]).then(list=>{if(db===DB){WORDS=new Map(list.filter(w=>w&&w.id).map(w=>[w.id,w]));WIDX=null;}return WORDS;});}
+  return wordsLoad;
+}
+function putWord(w){WORDS.set(w.id,w);WIDX=null;DB.put('word:'+w.id,w);}
+function wordIndex(){
+  if(WIDX&&WIDX.book===DOC.id) return WIDX.map;
+  const map={};
+  WORDS.forEach(w=>(w.examples||[]).forEach(x=>{if(x.bookId===DOC.id)(map[x.pid]=map[x.pid]||[]).push({s:x.ws,e:x.we,id:w.id,term:w.term});}));
+  WIDX={book:DOC.id,map};return map;
+}
+// For inlineHTML: the saved places in block b of the open book, where the text still reads the word. None until the
+// words have loaded; the blocks that have some are drawn again once they arrive.
+function wordSpans(b){
+  if(!DOC||!b.text) return [];
+  if(!WORDS||wordsDb!==DB){
+    if(!wordsWait){wordsWait=true;loadWords().then(()=>{wordsWait=false;if(DOC&&WORDS) rerender(Object.keys(wordIndex()));});}
+    return [];
+  }
+  return (wordIndex()[b.id]||[]).filter(x=>x.e>x.s&&termKey(b.text.slice(x.s,x.e))===termKey(x.term));
+}
+
+// The toolbar's Word: a word or a phrase of up to 4 words inside one block, stretched to whole words and without the
+// punctuation around it, is saved with the sentence around it. No highlight is made.
+const WCH=/[\p{L}\p{M}\p{N}]/u;
+async function saveWordFromSel(segs){
+  const seg=segs.length===1?segs[0]:null,b=seg&&blockIndex[seg.pid],t=b?b.text:'',isW=i=>i>=0&&i<t.length&&WCH.test(t[i]);
+  let ws=seg?seg.s:0,we=seg?seg.e:0;
+  while(isW(ws-1)&&isW(ws))ws--;
+  while(isW(we)&&isW(we-1))we++;
+  while(ws<we&&!isW(ws))ws++;
+  while(we>ws&&!isW(we-1))we--;
+  const raw=normTerm(t.slice(ws,we));
+  if(!raw||raw.split(' ').length>4||raw.length>60){toast('Select a word or a short phrase');return;}
+  const sel=getSelection(),rect=sel.rangeCount?sel.getRangeAt(0).getBoundingClientRect():null;
+  sel.removeAllRanges();hideTool();
+  const ex=Object.assign(sentenceAround(t,ws,we),{bookId:DOC.id,pid:b.id,ws,we,title:DOC.title,at:Date.now()});
+  // lower case, unless it's capitalised mid-sentence (likely a name)
+  const name=b.t!=='h'&&/^\p{Lu}/u.test(raw)&&/[\p{L}\p{N}]/u.test(ex.text.slice(0,ex.s));
+  const term=name?raw:raw.toLowerCase(),id=wordId(term);
+  await loadWords();if(!WORDS) return; // signed out meanwhile
+  let w=WORDS.get(id);
+  const dup=!!w&&(w.examples||[]).some(x=>x.bookId===ex.bookId&&x.pid===ex.pid&&x.ws===ex.ws);
+  if(!w){w={id,term,def:'',pos:'',defSource:'',examples:[ex],added:ex.at};LOOKUP.delete(id);} // no srs yet: new, and due
+  else if(!dup) w.examples=[...(w.examples||[]),ex];
+  if(!dup){putWord(w);rerender([b.id]);}
+  toast(dup?'Already in Words':'Saved to Words');
+  openWordCard(id,ex,rect);
+}
+
+// Meanings: Datamuse, then Datamuse on simple base forms ("ships" → "ship"), then Wiktionary.
+// → {def, pos, defSource}; null when none of them has the word; undefined when offline or a service failed.
+async function lookUp(term){
+  if(navigator.onLine===false) return;
+  const get=async(url,soft)=>{const r=await fetch(url,{signal:AbortSignal.timeout?.(8000)});if(r.ok) return r.json();if(soft&&r.status===404) return null;throw new Error('HTTP '+r.status);};
+  try{
+    for(const f of [term,...baseForms(term)]){const d=parseDatamuse(await get(datamuseUrl(f)));if(d) return d;}
+    return parseWiktionary(await get(wiktionaryUrl(term),true));
+  }catch(e){return;}
+}
+// One lookup per word and session: 'busy', 'done', 'none' (nothing found; tried again after a reload) or 'fail'
+// (offline or a service failed; tried again the next time the word is shown). Saving never waits for it.
+const LOOKUP=new Map();
+function fillDef(w){
+  const st=LOOKUP.get(w.id);if(w.def||(st&&st!=='fail')) return;
+  LOOKUP.set(w.id,'busy');
+  lookUp(w.term).then(d=>{
+    LOOKUP.set(w.id,d?'done':d===null?'none':'fail');
+    const cur=WORDS&&WORDS.get(w.id);if(!cur) return;
+    if(d&&!cur.def){cur.def=d.def;cur.pos=d.pos||cur.pos||'';cur.defSource=d.defSource;putWord(cur);}
+    showDef(cur);
+  });
+  showDef(w);
+}
+const defPh=w=>({busy:'Looking up the meaning…',none:'No meaning found. Write your own.',fail:'Couldn’t look it up. Write your own.'})[LOOKUP.get(w.id)]||'Write the meaning';
+const srcText=w=>w.def&&w.defSource?'from '+w.defSource:'';
+// A meaning typed by hand is no longer the dictionary's. → whether it changed.
+function setDef(w,v){v=v.replace(/\s+/g,' ').trim();if(v===(w.def||'')) return false;w.def=v;w.defSource='';putWord(w);return true;}
+// A lookup's result, in the open card and the Words tab; a meaning already typed there stays.
+function showDef(w){
+  if(CARD&&CARD.id===w.id){
+    const ta=$('#wbDef');if(!ta.value.trim()&&w.def) ta.value=w.def;
+    ta.placeholder=defPh(w);$('#wbPos').textContent=w.pos||'';$('#wbSrc').textContent=srcText(w);
+  }
+  const c=document.querySelector(`#wdList .wcard[data-id="${w.id}"]`);if(!c) return;
+  const d=c.querySelector('.w-def');if(!d.textContent.trim()&&w.def) d.textContent=w.def;
+  d.dataset.ph=defPh(w);c.querySelector('.w-pos').textContent=w.pos||'';c.querySelector('.w-src').textContent=srcText(w);
+}
+const exampleHTML=x=>esc(x.text.slice(0,x.s))+'<b>'+esc(x.text.slice(x.s,x.e))+'</b>'+esc(x.text.slice(x.e));
+
+// The word card: term, part of speech, the meaning to edit, and the sentence (the one at `at`, else the newest).
+let CARD=null; // {id} while open
+function openWordCard(id,at,rect){
+  const w=WORDS&&WORDS.get(id);if(!w) return;
+  const exs=w.examples||[],ex=(at&&exs.find(x=>x.bookId===at.bookId&&x.pid===at.pid&&x.ws===at.ws))||exs[exs.length-1];
+  CARD={id};
+  $('#wbTerm').textContent=w.term;$('#wbDef').value=w.def||'';$('#wbEx').innerHTML=ex?exampleHTML(ex):'';
+  showDef(w);fillDef(w);
+  const box=$('#wordBox');box.classList.remove('hidden');
+  // docked at the bottom on phones, like the toolbar; elsewhere under the word, or above it near the bottom
+  if(coarse||!rect||innerWidth<600) Object.assign(box.style,{left:'50%',transform:'translateX(-50%)',top:'auto',bottom:'calc(env(safe-area-inset-bottom,0px) + 16px)'});
+  else{
+    const bw=box.offsetWidth,bh=box.offsetHeight;let top=rect.bottom+12;if(top+bh>innerHeight-12) top=Math.max(70,rect.top-bh-12);
+    Object.assign(box.style,{transform:'none',bottom:'auto',left:Math.max(10,Math.min(innerWidth-bw-10,rect.left+rect.width/2-bw/2))+'px',top:top+'px'});
+  }
+}
+function closeWordCard(){$('#wordBox').classList.add('hidden');CARD=null;}
+$('#wbClose').onclick=closeWordCard;
+$('#wbSave').onclick=()=>{const w=CARD&&WORDS&&WORDS.get(CARD.id);if(w&&setDef(w,$('#wbDef').value)) toast('Meaning saved');closeWordCard();};
+document.addEventListener('keydown',e=>{if(e.key==='Escape') closeWordCard();});
+$('#bHome').addEventListener('click',closeWordCard);
+// Tapping a saved word in the text opens its card. Capture: a word inside a highlight opens its card, not the toolbar.
+$('#col').addEventListener('click',e=>{
+  const u=e.target.closest('.wd');if(!u||!DOC||!getSelection().isCollapsed||e.target.closest('a')) return;
+  e.stopPropagation();hideTool();
+  const p=u.closest('[data-pid]');
+  openWordCard(u.dataset.w,{bookId:DOC.id,pid:p&&p.dataset.pid,ws:+u.dataset.ws},u.getBoundingClientRect());
+},true);
+
+// The Notebook's Words tab: every word, newest first, with search, a book filter, and Study.
+let WD={run:0};
+const wordBook=x=>(META.find(m=>m.id===x.bookId)||x).title||'';
+// Shows the cached words at once; fresh: reloads them too (other devices, a restored backup) and redraws only on a
+// change, and not while a meaning is being edited.
+const wordsSig=()=>JSON.stringify([...WORDS.values()].sort((a,b)=>a.id<b.id?-1:1));
+async function openWords(fresh){
+  const run=++WD.run,ready=!!WORDS&&wordsDb===DB,shown=ready?wordsSig():null;
+  if(ready) renderWords();
+  else{$('#wdStats').innerHTML='';$('#wdCtrl').classList.add('hidden');$('#wdList').innerHTML='<div class="empty">Gathering your words…</div>';}
+  if(ready&&!fresh) return;
+  await loadWords(fresh);
+  if(run===WD.run&&prefs.nbTab==='wd'&&WORDS&&wordsSig()!==shown&&!$('#wdList').contains(document.activeElement)) renderWords();
+}
+function renderWords(){
+  const all=WORDS?[...WORDS.values()]:[],now=Date.now();
+  $('#wdStats').innerHTML=all.length?`${nbCount(all.length,'word')} · <b>${all.filter(w=>isDue(w.srs,now)).length}</b> due`:'';
+  $('#wdCtrl').classList.toggle('hidden',!all.length);
+  $('#wdStudy').classList.toggle('hidden',typeof openStudy!=='function'); // the Study screen defines openStudy
+  const books=new Map();all.forEach(w=>(w.examples||[]).forEach(x=>{if(!books.has(x.bookId)) books.set(x.bookId,wordBook(x));}));
+  const sel=$('#wdBook'),cur=sel.value;
+  sel.innerHTML='<option value="">All books</option>'+[...books].sort((a,b)=>a[1].localeCompare(b[1])).map(([id,t])=>`<option value="${esc(id)}">${esc(t)}</option>`).join('');
+  sel.value=books.has(cur)?cur:'';
+  listWords();
+}
+const wordHTML=w=>`<article class="wcard" data-id="${esc(w.id)}"><div class="w-head"><h3 class="w-term">${esc(w.term)}</h3><span class="w-pos">${esc(w.pos||'')}</span><button class="w-del" data-a="del" aria-label="Delete “${esc(w.term)}”">Delete</button></div>`+
+  `<p class="w-def" contenteditable="plaintext-only" role="textbox" aria-label="Meaning of ${esc(w.term)}" data-ph="${esc(defPh(w))}">${esc(w.def||'')}</p><p class="w-src">${esc(srcText(w))}</p>`+
+  (w.examples||[]).map(x=>`<button class="w-ex" data-book="${esc(x.bookId)}" data-pid="${esc(x.pid)}" data-ws="${x.ws}"><span class="w-q">${exampleHTML(x)}</span><span class="w-bk">${esc(wordBook(x))}</span></button>`).join('')+'</article>';
+function listWords(){
+  const all=WORDS?[...WORDS.values()]:[];
+  if(!all.length){$('#wdList').innerHTML='<div class="empty">No words yet.<br>Select a word while reading and tap Word.</div>';return;}
+  const terms=nbFold($('#wdQ').value).split(/\s+/).filter(Boolean),book=$('#wdBook').value;
+  const list=all.filter(w=>{if(book&&!(w.examples||[]).some(x=>x.bookId===book)) return false;const h=nbFold([w.term,w.def,...(w.examples||[]).map(x=>x.text)].join(' '));return terms.every(t=>h.includes(t));})
+    .sort((a,b)=>(b.added||0)-(a.added||0));
+  $('#wdList').innerHTML=list.length?list.map(wordHTML).join(''):'<div class="empty">Nothing matches.</div>';
+  list.forEach(fillDef);
+}
+// Deleting asks nothing: the whole word goes to the Trash, and Restore puts it back.
+function deleteWord(id){
+  const w=WORDS&&WORDS.get(id);if(!w) return;
+  toTrash('word',{title:w.term,word:w});
+  WORDS.delete(id);WIDX=null;DB.del('word:'+id);toast('Moved to Trash');
+}
+// A word back from the Trash. Saved again meanwhile: its examples are merged in, and the newer copy keeps its meaning
+// and flashcard schedule unless it has none.
+async function restoreWord(w){
+  await loadWords();
+  const have=await DB.get('word:'+w.id);
+  if(have){
+    const key=x=>[x.bookId,x.pid,x.ws].join('|'),seen=new Set((have.examples||[]).map(key)),now=Date.now();
+    w={...have,def:have.def||w.def||'',pos:have.def?have.pos:(w.pos||have.pos||''),defSource:have.def?have.defSource:(w.defSource||''),
+      examples:[...(w.examples||[]).filter(x=>!seen.has(key(x))),...(have.examples||[])].sort((a,b)=>(a.at||0)-(b.at||0)),
+      added:Math.min(have.added||now,w.added||now),srs:have.srs||w.srs};
+  }
+  putWord(w);
+}
+// An example's book, opened at the word: scrolled to the middle and flashed, like a highlight opened from the Notebook.
+async function openAtWord(bookId,pid,ws,id){
+  if(!META.some(m=>m.id===bookId)){toast('That book isn’t on your shelf any more');return;}
+  await openBook(bookId);if(!DOC||DOC.id!==bookId) return;
+  requestAnimationFrame(()=>{ // after openBook's own scroll to the reading position
+    const p=[...document.querySelectorAll(`#col .hp[data-pid="${CSS.escape(pid)}"]`)].find(x=>!x.closest('.fn-card'));if(!p) return;
+    const us=[...p.querySelectorAll(`.wd[data-w="${CSS.escape(id)}"][data-ws="${ws}"]`)];
+    (us[0]||p).scrollIntoView({block:'center'});
+    us.forEach(u=>{u.classList.remove('flash');void u.offsetWidth;u.classList.add('flash');});
+  });
+}
+$('#wdQ').oninput=listWords;
+$('#wdBook').onchange=listWords;
+$('#wdStudy').onclick=()=>{if(typeof openStudy==='function') openStudy();};
+$('#wdList').addEventListener('click',e=>{
+  const c=e.target.closest('.wcard');if(!c) return;
+  if(e.target.closest('[data-a="del"]')){deleteWord(c.dataset.id);renderWords();return;}
+  const x=e.target.closest('.w-ex');if(x&&getSelection().isCollapsed) openAtWord(x.dataset.book,x.dataset.pid,+x.dataset.ws,c.dataset.id);
+});
+// the meaning, edited in place: Enter or leaving it saves
+$('#wdList').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches('.w-def')){e.preventDefault();e.target.blur();}});
+$('#wdList').addEventListener('focusout',e=>{
+  const d=e.target.closest('.w-def'),w=d&&WORDS&&WORDS.get(d.closest('.wcard').dataset.id);
+  if(w&&setDef(w,d.textContent)){d.textContent=w.def;d.dataset.ph=defPh(w);d.closest('.wcard').querySelector('.w-src').textContent='';toast('Meaning saved');}
+});
 
 /* ================= settings, backup ================= */
 function setErr(m){const e=$('#setErr');e.textContent=m;e.classList.remove('hidden');}
@@ -1020,6 +1247,7 @@ $('#restoreFile').onchange=async e=>{
 //   {id, kind:'book', deletedAt, bookId, title, meta, hl, notes}       only meta: was deleted; doc: and state: stay
 //   {id, kind:'highlights', deletedAt, bookId, title, items, quote}    items: the full highlight objects
 //   {id, kind:'note', deletedAt, bookId, title, hlId, text, quote, color}
+//   {id, kind:'word', deletedAt, title, word}                         word: the whole word (title is its term)
 // Backups (exportShelf) cover the shelf only, so trashed books aren't in them.
 const TRASH_DAYS=30,DAY=864e5;
 let TRASH=[]; // the open Trash dialog's entries, newest first
@@ -1033,6 +1261,7 @@ function toTrash(kind,o){
 function trashHighlights(items){toTrash('highlights',{bookId:DOC.id,title:DOC.title,items,quote:quoteOf(sorted(items)[0])});}
 // Puts an entry back. Returns '' or why it can't.
 async function restoreEntry(e){
+  if(e.kind==='word'){await restoreWord(e.word);DB.del('trash:'+e.id);return '';}
   const id=e.bookId,open=!!(DOC&&DOC.id===id);
   const doc=open?DOC:await DB.get('doc:'+id);
   if(!doc) return 'Can’t restore: the book was deleted for good.';
@@ -1079,6 +1308,9 @@ function trashRow(e){
   } else if(e.kind==='highlights'){
     const n=e.items.length;what=n===1?'Highlight':`${n} highlights`;stripe=`var(--${esc(e.items[0].color)}S)`;
     body=`<p class="q">${esc(e.quote)}</p>`;
+  } else if(e.kind==='word'){
+    const w=e.word||{},x=(w.examples||[])[0];what='Word';stripe='var(--sea)';
+    body=`<p class="q">${w.def?esc(w.def):x?exampleHTML(x):''}</p>`;
   } else {what='Note';stripe=`var(--${esc(e.color||'sun')}S)`;body=`<p class="q">${esc(e.quote)}</p><div class="nt">${esc(e.text)}</div>`;}
   return `<div class="hcard tr-row" style="border-left-color:${stripe}" data-id="${esc(e.id)}"><div class="sec"><b>${what}</b> · ${esc(e.title)}</div>${body}
     <div class="tr-foot"><span class="tr-when">deleted ${ago(now-e.deletedAt)} · ${left} day${left===1?'':'s'} left</span><span class="tr-acts"><button class="btn danger" data-a="forget">Delete forever</button><button class="btn ghost" data-a="restore">Restore</button></span></div></div>`;

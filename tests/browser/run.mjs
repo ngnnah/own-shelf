@@ -11,6 +11,8 @@
 //   finish.mjs      finishing a book: real reading time needed, the cover's ✓ Finished, the manual override in Details
 //   shelf.mjs       arranging the shelf by title (shelves and List view), picking a cover colour in Details
 //   kindle.mjs      Kindle notebook exports: review step, highlights and notes, merging, several files at once, the notebook cover
+//   words.mjs       vocabulary: Word in the toolbar, the word card and its looked-up meaning (dictionaries mocked), the
+//                   underline in the text, the Notebook's Words tab (search, book filter, open at the word), the Trash
 //   migrate.mjs     the artifact's "Back up shelf" (legacy/app-artifact.html) → the app's "Restore from backup"
 //   study.mjs       Study flashcards: the queue (due first, the daily new-word cap), front and back, ratings and
 //                   their saved schedule, Again, keys, Sentence → word, done and empty states, ?study=1
@@ -29,7 +31,7 @@ import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','trash.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','migrate.mjs','study.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','trash.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','words.mjs','study.mjs','migrate.mjs'];
 
 // Run one file, echo its output and count its PASS/FAIL lines.
 const runOne=f=>new Promise(res=>{

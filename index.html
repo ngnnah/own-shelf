@@ -59,13 +59,23 @@
 <!-- ================= NOTEBOOK ================= -->
 <section id="notebook" class="hidden">
   <div class="sh-top"><button class="home" id="nbBack" title="Back to your shelf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="M16.5 5.2l3.6-1 3.4 15.4-3.6 1z"/></svg>Shelf</button></div>
-  <div class="sh-hero nb-hero"><div><h1>Notebook</h1><p class="motto">Wisdom in the margins.</p><p class="sh-stats" id="nbStats"></p></div></div>
-  <div class="nb-ctrl" id="nbCtrl">
-    <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input class="f" id="nbQ" type="search" placeholder="Search highlights, notes and titles" aria-label="Search highlights"></label>
-    <div class="nb-chips" id="nbChips"></div>
-    <div class="nb-row"><select class="f" id="nbBook" aria-label="Filter by book"></select><button class="btn ghost" id="nbExp">Export…</button></div>
+  <div class="sh-hero nb-hero"><div><h1>Notebook</h1><p class="motto">Wisdom in the margins.</p><p class="sh-stats" id="nbStats"></p><p class="sh-stats hidden" id="wdStats"></p></div></div>
+  <div class="nb-tabs" id="nbTabs" role="tablist" aria-label="Notebook"><button role="tab" id="nbTabHl" data-tab="hl" aria-controls="nbPanelHl" aria-selected="true">Highlights</button><button role="tab" id="nbTabWd" data-tab="wd" aria-controls="nbPanelWd" aria-selected="false" tabindex="-1">Words</button></div>
+  <div id="nbPanelHl" role="tabpanel" aria-labelledby="nbTabHl">
+    <div class="nb-ctrl" id="nbCtrl">
+      <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input class="f" id="nbQ" type="search" placeholder="Search highlights, notes and titles" aria-label="Search highlights"></label>
+      <div class="nb-chips" id="nbChips"></div>
+      <div class="nb-row"><select class="f" id="nbBook" aria-label="Filter by book"></select><button class="btn ghost" id="nbExp">Export…</button></div>
+    </div>
+    <div id="nbList"></div>
   </div>
-  <div id="nbList"></div>
+  <div id="nbPanelWd" class="hidden" role="tabpanel" aria-labelledby="nbTabWd">
+    <div class="nb-ctrl" id="wdCtrl">
+      <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input class="f" id="wdQ" type="search" placeholder="Search words, meanings and sentences" aria-label="Search words"></label>
+      <div class="nb-row"><select class="f" id="wdBook" aria-label="Filter by book"></select><button class="btn sea hidden" id="wdStudy">Study</button></div>
+    </div>
+    <div id="wdList"></div>
+  </div>
 </section>
 
 <!-- ================= STUDY ================= -->
@@ -109,6 +119,12 @@
 <div id="tool" class="hidden" role="toolbar" aria-label="Highlight"></div>
 <div id="noteBox" class="hidden"><textarea class="f" id="noteTa" placeholder="Why does this matter to you?"></textarea>
   <div class="row"><button class="btn ghost" id="noteCancel">Cancel</button><button class="btn" id="noteSave">Save note</button></div></div>
+<div id="wordBox" class="hidden" role="dialog" aria-labelledby="wbTerm">
+  <div class="wb-head"><h2 id="wbTerm"></h2><span id="wbPos"></span></div>
+  <textarea class="f" id="wbDef" aria-label="Meaning" placeholder="Write the meaning"></textarea>
+  <p id="wbSrc"></p>
+  <p id="wbEx"></p>
+  <div class="row"><button class="btn ghost" id="wbClose">Close</button><button class="btn" id="wbSave">Save</button></div></div>
 
 <div id="scrim"></div>
 <aside class="drawer" id="toc" aria-label="Contents">
