@@ -13,4 +13,4 @@ export const FIREBASE_VERSION = "10.12.2";
 
 // Link import helper (Cloudflare Worker). Leave empty and set it in the app's
 // Settings instead; a value here is the default for every device.
-export const WORKER_URL = "";
+export const WORKER_URL = "https://own-shelf-fetch.ngnnahshop.workers.dev/";

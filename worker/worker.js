@@ -1,8 +1,8 @@
-// Upwind link-import helper — a Cloudflare Worker.
-// Fetches a web page (or PDF) for the Upwind app so it can extract the article.
+// own-shelf link-import helper — a Cloudflare Worker.
+// Fetches a web page (or PDF) for the own-shelf app so it can extract the article.
 // Only answers requests that carry a valid Firebase ID token for an allowed email,
-// from an allowed origin. Settings (Worker → Settings → Variables):
-//   FIREBASE_PROJECT_ID  upwind-reader
+// from an allowed origin. Settings (Worker → Settings → Variables and Secrets):
+//   FIREBASE_PROJECT_ID  upwind-reader                        (the Firebase project kept its old name)
 //   ALLOWED_ORIGINS      https://ngnnah.github.io            (comma-separated)
 //   ALLOWED_EMAILS       you@gmail.com                        (comma-separated)
 
@@ -100,7 +100,7 @@ export async function handle(req, env, deps = {}) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
   if (req.method !== 'GET') return fail(405, 'Only GET is supported.');
   if (!env.FIREBASE_PROJECT_ID || !origins.length || !emails.length) return fail(500, 'The helper isn’t configured yet: set FIREBASE_PROJECT_ID, ALLOWED_ORIGINS and ALLOWED_EMAILS.');
-  if (!origins.includes(origin)) return fail(403, 'This helper only answers your Upwind site.');
+  if (!origins.includes(origin)) return fail(403, 'This helper only answers your own-shelf site.');
 
   const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
   let user;
