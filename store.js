@@ -43,6 +43,7 @@ export function makeLocal({ onError = () => {} } = {}) {
 //   state/{id}                highlights, reading position, checkpoints
 //   settings/app              app settings that follow you between devices
 //   trash/{id}                deleted books, highlights and notes, kept 30 days (the app purges them)
+//   words/{id}                saved vocabulary with example sentences and a flashcard schedule (see vocab.js)
 export const CHUNK_BYTES = 700 * 1024;
 const enc = new TextEncoder();
 const size = v => enc.encode(JSON.stringify(v)).length;
@@ -65,8 +66,9 @@ export function makeCloud(fs, db, uid, { onError = () => {}, delay = 2500 } = {}
   const col = (...p) => fs.collection(db, ...base, ...p);
   const split = k => { const i = k.indexOf(':'); return [k.slice(0, i), k.slice(i + 1)]; };
   const plain = v => v == null ? v : JSON.parse(JSON.stringify(v)); // drops undefined, keeps Firestore happy
-  const LISTED = { meta: 'meta', trash: 'trash' };   // key kinds that all(prefix) can list
-  const pathFor = (kind, id) => ['meta', 'state', 'settings', 'trash'].includes(kind) ? [kind, id] : null;
+  const COLL = { meta: 'meta', state: 'state', settings: 'settings', trash: 'trash', word: 'words' };   // key kind → collection
+  const LISTED = { meta: 'meta', trash: 'trash', word: 'words' };   // key kinds that all(prefix) can list
+  const pathFor = (kind, id) => COLL[kind] ? [COLL[kind], id] : null;
 
   // Read the server copy when it answers quickly, otherwise the offline cache.
   async function fresh(r, ms = 2500) {
@@ -187,7 +189,8 @@ export async function exportShelf(db, metas) {
     const [doc, state] = await Promise.all([db.get('doc:' + meta.id), db.get('state:' + meta.id)]);
     if (doc) books.push({ meta, doc, state: state || null });
   }
-  return { app: 'upwind', version: 1, exported: new Date().toISOString(), books };
+  const words = await db.all('word:');
+  return { app: 'upwind', version: 1, exported: new Date().toISOString(), books, words };
 }
 
 // Adds books that aren't on the shelf yet. For books already there, adds the
@@ -197,7 +200,7 @@ export async function importShelf(db, data, existing, metaFor) {
   if (!data || data.app !== 'upwind' || !Array.isArray(data.books)) throw new Error('not_backup');
   if (data.version > 1) throw new Error('newer_version');
   const have = new Set(existing.map(m => m.id));
-  const res = { added: 0, merged: 0, highlights: 0, metas: [] };
+  const res = { added: 0, merged: 0, highlights: 0, metas: [], words: 0 };
   for (const b of data.books) {
     const id = b && b.doc && (b.doc.id || (b.meta && b.meta.id));
     if (!id || !Array.isArray(b.doc.blocks)) continue;
@@ -219,6 +222,15 @@ export async function importShelf(db, data, existing, metaFor) {
     await db.put('state:' + id, state);
     const meta = metaFor(doc, state); await db.put('meta:' + id, meta);
     res.metas.push(meta); res.merged++; res.highlights += extra.length;
+  }
+  // words: add missing ones; for words already saved, add examples they don't have (same book, block and place)
+  for (const w of Array.isArray(data.words) ? data.words : []) {
+    if (!w || !w.id || !w.term) continue;
+    const have = await db.get('word:' + w.id);
+    if (!have) { await db.put('word:' + w.id, w); res.words++; continue; }
+    const key = x => [x.bookId, x.pid, x.ws].join('|'), seen = new Set((have.examples || []).map(key));
+    const extra = (w.examples || []).filter(x => !seen.has(key(x)));
+    if (extra.length || (!have.def && w.def)) { await db.put('word:' + w.id, { ...have, def: have.def || w.def, examples: [...(have.examples || []), ...extra] }); res.words++; }
   }
   return res;
 }

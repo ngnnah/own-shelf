@@ -118,5 +118,32 @@ const errs=[];
   ok('local: all("trash:") lists only the trash',(await L.all('trash:')).length===1);
 }
 
+// words (vocabulary): stored under users/{uid}/words, coalesced like reading state, in backups
+{
+  const F=fakeFirestore();const C=makeCloud(F.fs,{},'u1',{onError:e=>errs.push(e),delay:10000});
+  const w={id:'w1',term:'ephemeral',def:'',examples:[{text:'Its calm was ephemeral.',s:13,e:22,bookId:'a',pid:'b0',ws:13,we:22,title:'A',at:1}],added:1,srs:{due:1,interval:0,ease:2.5,reps:0,lapses:0}};
+  for(let i=0;i<5;i++) await C.put('word:w1',{...w,srs:{...w.srs,reps:i}});
+  ok('cloud: word updates are coalesced',F.writes()===0&&(await C.get('word:w1')).srs.reps===4);
+  await C.flush();
+  ok('cloud: words live under users/{uid}/words',F.writes()===1&&F.docs.get('users/u1/words/w1').term==='ephemeral');
+  ok('cloud: all("word:") lists the words',(await C.all('word:')).length===1);
+  await C.del('word:w1');ok('cloud: del removes a word',!F.docs.has('users/u1/words/w1'));
+}
+{
+  const metaFor=(d,s)=>({id:d.id,title:d.title,hl:(s.hl||[]).length});
+  const A=makeLocal();await A.open();
+  await A.put('doc:x',{id:'x',title:'X',blocks:[{t:'p',id:'b0',text:'hi'}],sections:[]});await A.put('state:x',{hl:[]});await A.put('meta:x',{id:'x',title:'X',hl:0});
+  const ex=(pid,ws)=>({text:'s',s:0,e:1,bookId:'x',pid,ws,we:ws+1,title:'X',at:1});
+  await A.put('word:w1',{id:'w1',term:'calm',def:'still',examples:[ex('b0',0)],added:1});
+  const bk=JSON.parse(JSON.stringify(await exportShelf(A)));
+  ok('backup: includes the words',Array.isArray(bk.words)&&bk.words.length===1&&bk.words[0].term==='calm');
+  const B=makeLocal();await B.open();
+  await B.put('word:w1',{id:'w1',term:'calm',def:'',examples:[ex('b9',4)],added:2,srs:{reps:3}});
+  const r=await importShelf(B,bk,[],metaFor),w=await B.get('word:w1');
+  ok('restore: merges a known word\'s examples, keeps its schedule, fills a missing meaning',r.words===1&&w.examples.length===2&&w.srs.reps===3&&w.def==='still');
+  const r2=await importShelf(B,bk,await B.all('meta:'),metaFor);
+  ok('restore: the same words again change nothing',r2.words===0&&(await B.get('word:w1')).examples.length===2);
+}
+
 ok('no write errors',errs.length===0);
 done();
