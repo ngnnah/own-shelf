@@ -9,6 +9,7 @@
 //   trash.mjs       the Trash: removed books, highlights and notes, restore, delete forever, the 30-day purge
 //   length.mjs      each book's length on the shelf: the cover's word count, the page block, the list's Length column
 //   finish.mjs      finishing a book: real reading time needed, the cover's ✓ Finished, the manual override in Details
+//   shelf.mjs       arranging the shelf by title (shelves and List view), picking a cover colour in Details
 //   kindle.mjs      Kindle notebook exports: review step, highlights and notes, merging, several files at once, the notebook cover
 //   migrate.mjs     the artifact's "Back up shelf" (legacy/app-artifact.html) → the app's "Restore from backup"
 // Every file also fails on any page error.
@@ -26,7 +27,7 @@ import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','trash.mjs','length.mjs','finish.mjs','kindle.mjs','migrate.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','trash.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','migrate.mjs'];
 
 // Run one file, echo its output and count its PASS/FAIL lines.
 const runOne=f=>new Promise(res=>{

@@ -9,7 +9,10 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clea
 const COLORS=[['sun','Sunny'],['mint','Mint'],['coral','Coral'],['sky','Sky']];
 // cloth bindings: [cover, text]. Books store an index into this list; changing its length recolours them.
 const COVERS=[['#2F5A43','#F3EAD7'],['#8E2F2A','#F8EEDD'],['#23395B','#EFE4CC'],['#B7802A','#2E2119'],['#5C3B24','#F3EAD7'],['#45706C','#F8EEDD'],['#D9C9A8','#2E2119'],['#6B3426','#F3D9B0']];
-const coverOf=m=>COVERS[m.color!=null?m.color%COVERS.length:parseInt(hash(m.id),36)%COVERS.length];
+const COVER_NAMES=['Green','Oxblood','Navy','Ochre','Brown','Teal','Tan','Rust'];
+// The book's binding: the colour picked in Details or at adding; books from before colours were stored hash their id.
+const coverIdx=m=>m.color!=null?m.color%COVERS.length:parseInt(hash(m.id),36)%COVERS.length;
+const coverOf=m=>COVERS[coverIdx(m)];
 const cover=id=>coverOf(META.find(x=>x.id===id)||{id});
 const fmtMonth=ms=>new Date(ms).toLocaleDateString(undefined,{month:'long',year:'numeric'});
 const fmtDay=ms=>new Date(ms).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
@@ -56,7 +59,10 @@ async function goShelf(){
 $('#bHome').onclick=goShelf;
 
 /* ================= shelf ================= */
+// Arranged by title: shelved under the first letter, ignoring a leading "The", "A" or "An" and accents; the rest under "#".
+const sortTitle=m=>nbFold(m.title).replace(/^(the|an?)\s+/,'');
 function groupKey(m){
+  if(prefs.group==='title'){const c=sortTitle(m)[0]||'';return /[a-z]/.test(c)?{k:c,label:c.toUpperCase()}:{k:'~',label:'#'};}
   if(prefs.group==='added') return {k:new Date(m.added).getFullYear()*100+new Date(m.added).getMonth(),label:fmtMonth(m.added)};
   if(prefs.group==='written') return m.writtenSort?{k:+m.writtenSort.slice(0,4),label:m.writtenSort.slice(0,4)}:{k:-1,label:'Undated'};
   return m.author?{k:m.author.toLowerCase(),label:m.author}:{k:'￿',label:'Unknown author'};
@@ -95,7 +101,7 @@ function renderShelf(){
   if(!list.length){body.innerHTML=`<div class="empty">Nothing on the shelf matches “${esc($('#q').value)}”.</div>`;return;}
   if(prefs.view==='list'){
     const cols=[['title','Title'],['author','Author'],['written','Written'],['words','Length'],['added','Added'],['progress','Progress'],['hl','Highlights']];
-    const val=(m,c)=>c==='written'?(m.writtenSort||''):c==='title'||c==='author'?(m[c]||'￿').toLowerCase():c==='words'?(m.words||0):m[c];
+    const val=(m,c)=>c==='written'?(m.writtenSort||''):c==='title'?sortTitle(m):c==='author'?(m.author||'￿').toLowerCase():c==='words'?(m.words||0):m[c];
     const rows=[...list].sort((a,b)=>{const A=val(a,prefs.sort),B=val(b,prefs.sort);return (A<B?-1:A>B?1:0)*prefs.dir;});
     body.innerHTML=`<table class="tbl"><thead><tr>${cols.map(([c,l])=>`<th class="c-${c}"><button data-sort="${c}" aria-sort="${prefs.sort===c?(prefs.dir>0?'ascending':'descending'):'none'}">${l}${prefs.sort===c?(prefs.dir>0?' ↑':' ↓'):''}</button></th>`).join('')}</tr></thead><tbody>${
       rows.map(m=>`<tr data-open="${m.id}" tabindex="0"><td><span class="tt">${isKindleId(m.id)?'<i class="nb"></i>':`<i style="background:${cover(m.id)[0]}"></i>`}${esc(m.title)}</span></td><td class="mut">${esc(m.author||'—')}</td><td class="mut">${esc(m.written||'—')}</td><td class="mut c-words">${fmtWords(m.words)||'—'}</td><td class="mut c-added">${fmtDay(m.added)}</td><td>${m.finished?'Finished':`<span class="pbar"><i style="width:${Math.round(m.progress*100)}%"></i></span>${Math.round(m.progress*100)}%`}</td><td class="mut c-hl">${m.hl}</td></tr>`).join('')}</tbody></table>`;
@@ -103,9 +109,9 @@ function renderShelf(){
   }
   const groups=new Map();
   list.forEach(m=>{const g=groupKey(m);if(!groups.has(g.label))groups.set(g.label,{k:g.k,items:[]});groups.get(g.label).items.push(m);});
-  const ord=[...groups.entries()].sort((a,b)=>{const A=a[1].k,B=b[1].k;if(prefs.group==='author') return A<B?-1:A>B?1:0; return B-A;});
+  const ord=[...groups.entries()].sort((a,b)=>{const A=a[1].k,B=b[1].k;if(prefs.group==='author'||prefs.group==='title') return A<B?-1:A>B?1:0; return B-A;});
   const inner=m=>prefs.group==='added'?-m.added:prefs.group==='written'?-(+(m.writtenSort||'0').replace(/-/g,'')):-(+(m.writtenSort||'0').replace(/-/g,''));
-  body.innerHTML=ord.map(([label,g])=>`<section class="shelf-row"><h3 class="shelf-label">${esc(label)}<small>${g.items.length}</small></h3><div class="books">${g.items.sort((a,b)=>inner(a)-inner(b)).map(bookHTML).join('')}</div><div class="plank"></div></section>`).join('');
+  body.innerHTML=ord.map(([label,g])=>`<section class="shelf-row"><h3 class="shelf-label">${esc(label)}<small>${g.items.length}</small></h3><div class="books">${g.items.sort(prefs.group==='title'?(a,b)=>sortTitle(a).localeCompare(sortTitle(b)):(a,b)=>inner(a)-inner(b)).map(bookHTML).join('')}</div><div class="plank"></div></section>`).join('');
 }
 $('#shelf').addEventListener('click',e=>{
   const o=e.target.closest('[data-open]'); if(o){openBook(o.dataset.open);return;}
@@ -114,7 +120,7 @@ $('#shelf').addEventListener('click',e=>{
   const s=e.target.closest('[data-sort]'); if(s){const c=s.dataset.sort;if(prefs.sort===c) prefs.dir*=-1; else {prefs.sort=c;prefs.dir=(c==='title'||c==='author')?1:-1;}savePrefs();renderShelf();}
 });
 $('#shelf').addEventListener('keydown',e=>{if(e.key==='Enter'){const r=e.target.closest('tr[data-open]');if(r) openBook(r.dataset.open);}});
-$('#segGroup').onclick=e=>{const b=e.target.closest('button');if(!b)return;prefs.group=b.dataset.g;if(prefs.view==='list'){prefs.sort=prefs.group;prefs.dir=prefs.group==='author'?1:-1;}savePrefs();applyPrefs();renderShelf();};
+$('#segGroup').onclick=e=>{const b=e.target.closest('button');if(!b)return;prefs.group=b.dataset.g;if(prefs.view==='list'){prefs.sort=prefs.group;prefs.dir=prefs.group==='author'||prefs.group==='title'?1:-1;}savePrefs();applyPrefs();renderShelf();};
 $('#segView').onclick=e=>{const b=e.target.closest('button');if(!b)return;prefs.view=b.dataset.v;savePrefs();applyPrefs();renderShelf();};
 $('#q').oninput=renderShelf;
 $('#addBtn').onclick=()=>openImport();
@@ -301,8 +307,13 @@ addEventListener('drop',e=>{e.preventDefault();dragDepth=0;$('#dropAll').classLi
 let detId=null;
 async function openDetails(id){
   detId=id;const m=META.find(x=>x.id===id);if(!m)return;
-  $('#dTitle').value=m.title;$('#dAuthor').value=m.author;$('#dWritten').value=m.written;$('#dSource').value=m.source;renderDone(m);openModal('#detM');
+  $('#dTitle').value=m.title;$('#dAuthor').value=m.author;$('#dWritten').value=m.written;$('#dSource').value=m.source;renderDone(m);
+  // a Kindle notebook keeps its ruled-paper cover, so it has no binding to pick
+  $('#dCoverRow').classList.toggle('hidden',isKindleId(id));
+  $('#dCover').innerHTML=COVERS.map(([bc],i)=>`<button type="button" class="cv-sw" data-c="${i}" aria-pressed="${i===coverIdx(m)}" aria-label="${COVER_NAMES[i]}" title="${COVER_NAMES[i]}" style="--c:${bc}"></button>`).join('');
+  openModal('#detM');
 }
+$('#dCover').onclick=e=>{const b=e.target.closest('[data-c]');if(b) $('#dCover').querySelectorAll('[data-c]').forEach(x=>x.setAttribute('aria-pressed',x===b));};
 function renderDone(m){
   $('#dState').textContent=m.finished?'✓ Finished':`Reading · ${Math.round(m.progress*100)}%`;
   $('#dFinish').textContent=m.finished?'Mark as reading':'Mark as finished';
@@ -322,6 +333,7 @@ $('#dSave').onclick=async()=>{
   const d=DOC&&DOC.id===detId?DOC:await DB.get('doc:'+detId);if(!d)return;
   d.title=$('#dTitle').value.trim()||d.title;d.author=$('#dAuthor').value.trim();d.written=$('#dWritten').value.trim();d.writtenSort=parseDate(d.written);
   const src=$('#dSource').value.trim();d.source=/^https?:\/\//i.test(src)?src:'';
+  const pick=$('#dCover [aria-pressed="true"]');if(pick&&!isKindleId(d.id)) d.color=+pick.dataset.c;
   await DB.put('doc:'+d.id,d);
   const st=DOC&&DOC.id===d.id?ST:(await DB.get('state:'+d.id))||{hl:[]};
   const m=metaFor(d,st);META=META.filter(x=>x.id!==m.id).concat(m);await DB.put('meta:'+m.id,m);
