@@ -449,3 +449,51 @@ body.focus .fn-card .hp{opacity:1}
 .tr-when{flex:1 1 12rem;font:500 .78rem var(--ui);color:var(--muted)}
 .tr-acts{display:flex;gap:.45rem;margin-left:auto}
 .tr-acts .btn{padding:.36rem .85rem;font-size:.92rem}
+
+/* ================= STUDY ================= */
+/* Flashcards. The page is a column: header, then the card centred in the space left, then the buttons, which stick
+   to the bottom (inside the safe area) when a long card scrolls, so they stay under the thumb. */
+#study{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top,0px) + 1.2rem) clamp(1rem,4vw,3rem) 0;max-width:1240px;margin:0 auto}
+.sy-top{display:flex;align-items:center;gap:.7rem .9rem;flex-wrap:wrap}
+.sy-h{font:500 1.7rem/1 var(--display);margin:0}
+.sy-prog{font:500 .85rem var(--ui);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.sy-mode{margin-left:auto}
+@media (max-width:600px){.sy-mode{order:3;flex-basis:100%;margin:0}.sy-mode button{flex:1}}
+.sy-main{flex:1;display:flex;flex-direction:column;width:100%;max-width:36rem;margin:0 auto}
+#syCard{margin:auto 0;padding:1.4rem 0 1rem}
+.sy-card{background:var(--sheet);border:1.5px solid var(--rule);border-radius:26px;padding:2rem clamp(1.2rem,5vw,2.4rem) 2.1rem;text-align:center;box-shadow:0 18px 40px -28px rgba(40,24,10,.45);overflow-wrap:break-word}
+.sy-term{font:500 clamp(2.6rem,12vw,4rem)/1.05 var(--display);letter-spacing:-.01em;margin:0;overflow-wrap:anywhere}
+.sy-pos{font:italic 400 1.15rem var(--display);color:var(--muted);margin:.3rem 0 0}
+.sy-sent{font:1.16rem/1.55 var(--body);margin:1.3rem 0 0;text-wrap:pretty}
+.sy-sent b{font-weight:600}
+.sy-gap{font-weight:600;color:var(--sea);letter-spacing:.06em}
+.sy-ask{font:600 .74rem var(--ui);letter-spacing:.08em;text-transform:uppercase;color:var(--sea);margin:0}
+.sy-ask+.sy-sent{margin-top:.8rem;font-size:1.3rem}
+.sy-hint{font:italic 400 1.15rem/1.45 var(--display);color:var(--muted);margin:1.1rem 0 0}
+.sy-hint span{display:block;font:600 .7rem var(--ui);font-style:normal;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.15rem}
+/* front and back meet at a fleuron rule, as untitled sections do in the reader */
+.sy-rule{display:flex;align-items:center;gap:.8rem;margin:1.4rem 0 1.1rem;font:1.5rem/1 var(--display);color:var(--sea)}
+.sy-rule::before,.sy-rule::after{content:"";flex:1;height:1px;background:var(--wave)}
+.sy-def{font:500 1.35rem/1.4 var(--display);margin:0;text-wrap:pretty}
+.sy-def.none{font-style:italic;font-weight:400;color:var(--muted)}
+.sy-more{list-style:none;margin:1.3rem 0 0;padding:0;display:grid;gap:.85rem;text-align:left}
+.sy-more li{border-left:3px solid var(--wave);padding-left:.9rem}
+.sy-more .sy-sent{font-size:1.02rem;margin:0}
+.sy-from{font:500 .78rem/1.4 var(--ui);color:var(--muted);margin:.2rem 0 0}
+.sy-acts{position:sticky;bottom:0;z-index:2;padding:.8rem 0 calc(env(safe-area-inset-bottom,0px) + 1rem);background:var(--paper)}
+.sy-acts::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:1rem;background:linear-gradient(transparent,var(--paper));pointer-events:none}
+.btn.sy-big{width:100%;justify-content:center;min-height:3.5rem;font-size:1.2rem}
+.sy-rate{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem}
+.sy-r{display:grid;place-items:center;align-content:center;gap:.1rem;min-height:4.2rem;border:0;border-radius:20px;padding:.5rem .3rem;background:var(--sheet);color:var(--ink);box-shadow:inset 0 0 0 2px var(--rule)}
+.sy-r b{font:600 1.2rem/1.1 var(--display)}
+.sy-r small{font:500 .78rem var(--ui);opacity:.82}
+.sy-r.again{color:var(--buoy);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--buoy) 45%,transparent)}
+.sy-r.good{background:var(--sea);color:var(--sheet);box-shadow:none}
+.sy-r:hover{filter:brightness(1.04)}
+.sy-end{text-align:center;padding:1.6rem clamp(1rem,4vw,2rem) 2rem;border:2px dashed var(--wave);border-radius:28px;background:var(--sheet)}
+.sy-orn{display:block;font:2.4rem/1 var(--display);color:var(--sea)}
+.sy-end h2{font:500 clamp(2.2rem,9vw,3rem)/1.05 var(--display);margin:.5rem 0 .7rem;text-wrap:balance}
+.sy-end p{color:var(--muted);font-size:1.15rem;line-height:1.5;margin:0 auto;max-width:34ch;text-wrap:pretty}
+.sy-end .sy-next{color:var(--ink);font:600 1.2rem var(--display);margin-top:.5rem}
+/* wider screens: the card and its buttons sit together in the middle */
+@media (min-width:701px){.sy-main{justify-content:center}#syCard{margin:0;padding:2rem 0 .4rem}.sy-acts{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 2rem)}}

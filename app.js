@@ -1,6 +1,7 @@
 // own-shelf app (formerly Upwind). Ported from legacy/app-script.js; all data goes through the store.js adapters.
 import {makeLocal,makeCloud,exportShelf,importShelf} from './store.js';
 import {firebaseConfig,FIREBASE_VERSION,WORKER_URL} from './config.js';
+import {isDue,schedule,nextLabel,cloze} from './vocab.js';
 /* ================= utils ================= */
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -47,6 +48,7 @@ function show(view){
   $('#signin').classList.toggle('hidden',view!=='signin');
   $('#shelf').classList.toggle('hidden',view!=='shelf');
   $('#notebook').classList.toggle('hidden',view!=='notebook');
+  $('#study').classList.toggle('hidden',view!=='study');
   ['#bar','#rail','#reader'].forEach(s=>$(s).classList.toggle('hidden',view!=='reader'));
   hideTool();closeDrawers();
 }
@@ -1102,6 +1104,99 @@ $('#trashEmpty').onclick=async()=>{
   TRASH.forEach(e=>forget(e));TRASH=[];renderTrash();toast('Trash emptied');
 };
 
+/* ================= study ================= */
+// Flashcards for the saved words (word:<id>, see vocab.js). Opening builds the session's queue: every due word,
+// most overdue first, then new words (no srs yet), oldest first, at most STUDY_NEW a day; a new word counts toward
+// the day once rated (ls 'studyNew'). "Again" brings the card back STUDY_AGAIN cards later. Two kinds of card
+// (prefs.studyMode): 'word' shows the word and asks for its meaning; 'cloze' shows a sentence with the word blanked
+// out and the meaning as a hint, and asks for the word. srs.seen counts reviews; each one starts the examples one
+// further along, so the front sentence changes.
+const STUDY_NEW=20,STUDY_AGAIN=5,RATINGS=['again','good','easy'];
+let SY={words:[],queue:[],i:0,shown:false,done:new Set()},syRun=0;
+const syDay=()=>{const d=new Date();return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;};
+const syNewToday=()=>{const c=ls.get('studyNew',null);return c&&c.day===syDay()?c.n:0;};
+const syMidnight=(t,days=0)=>{const d=new Date(t);d.setHours(24*days,0,0,0);return d.getTime();}; // local, so DST-safe
+// when the next card is due: "in 5 min", "later today", "tomorrow", "in 3 days"
+function syWhen(t,now){
+  if(t<=now) return 'now';
+  if(t-now<36e5) return `in ${Math.max(1,Math.round((t-now)/6e4))} min`;
+  const days=Math.round((syMidnight(t)-syMidnight(now))/DAY);
+  return days<1?'later today':days===1?'tomorrow':days<45?`in ${days} days`:`in ${Math.round(days/30)} months`;
+}
+// the examples in rotation order: the front shows the first, the back up to two more
+function syExamples(w){const xs=(w.examples||[]).filter(x=>x&&x.text),k=xs.length?((w.srs&&w.srs.seen)||0)%xs.length:0;return xs.slice(k).concat(xs.slice(0,k));}
+const syHasWord=x=>Number.isInteger(x.s)&&Number.isInteger(x.e)&&x.s>=0&&x.s<x.e&&x.e<=x.text.length;
+// the sentence with the word in bold, or blanked out by cloze()
+function sySentence(x,blank){
+  if(!syHasWord(x)) return esc(x.text);
+  if(!blank) return esc(x.text.slice(0,x.s))+'<b>'+esc(x.text.slice(x.s,x.e))+'</b>'+esc(x.text.slice(x.e));
+  const c=cloze(x),gap=c.length-x.text.length+x.e-x.s;
+  return esc(c.slice(0,x.s))+`<span class="sy-gap" aria-label="blank">${esc(c.slice(x.s,x.s+gap))}</span>`+esc(c.slice(x.s+gap));
+}
+async function openStudy(){
+  const run=++syRun;SY={words:[],queue:[],i:0,shown:false,done:new Set()};
+  show('study');window.scrollTo(0,0);syHead(false);
+  $('#syCard').innerHTML='<div class="empty">Gathering your words…</div>';$('#syActs').innerHTML='';
+  let words=[];try{words=await DB.all('word:');}catch(e){console.warn('Study',e);}
+  if(run!==syRun) return;
+  const now=Date.now();
+  const due=words.filter(w=>w.srs&&isDue(w.srs,now)).sort((a,b)=>(a.srs.due||0)-(b.srs.due||0));
+  const fresh=words.filter(w=>!w.srs).sort((a,b)=>(a.added||0)-(b.added||0)).slice(0,Math.max(0,STUDY_NEW-syNewToday()));
+  SY.words=words;SY.queue=[...due,...fresh];syRender();
+}
+function syHead(on){
+  $('#syProg').textContent=on?`${SY.i+1} of ${SY.queue.length}`:'';
+  $('#syMode').classList.toggle('hidden',!on);
+  const m=prefs.studyMode==='cloze'?'cloze':'word';
+  document.querySelectorAll('#syMode button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===m));
+}
+// no words at all, or the session is over
+function syEnd(title,body){
+  syHead(false);
+  $('#syCard').innerHTML=`<div class="sy-end"><span class="sy-orn" aria-hidden="true">❦</span><h2>${title}</h2>${body}</div>`;
+  $('#syActs').innerHTML='<button class="btn sea sy-big" data-sy="back">Back to shelf</button>';
+}
+function syRender(){
+  const w=SY.queue[SY.i],now=Date.now();
+  if(!SY.words.length) return syEnd('No words yet','<p>Select a word while reading and tap <b>Word</b>. It’s saved here with its sentence, ready to study.</p>');
+  if(!w){
+    // new words left over wait for tomorrow's allowance
+    const next=SY.words.reduce((m,x)=>Math.min(m,x.srs?x.srs.due||0:syMidnight(now,1)),Infinity),n=SY.done.size;
+    return syEnd('All caught up',`<p>${n?`You reviewed ${n} word${n===1?'':'s'}.`:'Nothing is due right now.'}</p><p class="sy-next">Next review ${syWhen(next,now)}.</p>`);
+  }
+  syHead(true);
+  // a cloze needs a sentence that holds the word; without one the card shows the word
+  const xs=syExamples(w),x=xs[0],cl=prefs.studyMode==='cloze'&&!!x&&syHasWord(x),open=SY.shown;
+  const term=`<h2 class="sy-term">${esc(w.term)}</h2>${w.pos?`<p class="sy-pos">${esc(w.pos)}</p>`:''}`;
+  const sent=x?`<p class="sy-sent">${sySentence(x,cl&&!open)}</p>`:'';
+  const more=xs.slice(1,3).map(y=>`<li><p class="sy-sent">${sySentence(y)}</p>${y.title?`<p class="sy-from">${esc(y.title)}</p>`:''}</li>`).join('');
+  const front=cl?`<p class="sy-ask">Which word fits?</p>${sent}${w.def?`<p class="sy-hint"><span>Meaning</span>${esc(w.def)}</p>`:''}`:term+sent;
+  const back=(cl?term:w.def?`<p class="sy-def">${esc(w.def)}</p>`:'<p class="sy-def none">No meaning saved yet</p>')+(more?`<ul class="sy-more">${more}</ul>`:'');
+  $('#syCard').innerHTML=`<article class="sy-card">${front}${open?`<div class="sy-back"><div class="sy-rule" aria-hidden="true">❦</div>${back}</div>`:''}</article>`;
+  $('#syActs').innerHTML=open?`<div class="sy-rate">${RATINGS.map((r,i)=>`<button class="sy-r ${r}" data-r="${r}" aria-keyshortcuts="${i+1}"><b>${r[0].toUpperCase()+r.slice(1)}</b><small>${nextLabel(w.srs,r,now)}</small></button>`).join('')}</div>`
+    :`<button class="btn sy-big" data-sy="show" aria-keyshortcuts="Space Enter">${cl?'Show word':'Show meaning'}</button>`;
+}
+function syShow(){if(SY.queue[SY.i]&&!SY.shown){SY.shown=true;syRender();}}
+function syRate(r){
+  const w=SY.queue[SY.i];if(!w||!SY.shown) return;
+  if(!w.srs) ls.set('studyNew',{day:syDay(),n:syNewToday()+1});
+  w.srs=Object.assign(schedule(w.srs,r,Date.now()),{seen:((w.srs&&w.srs.seen)||0)+1});
+  DB.put('word:'+w.id,w);SY.done.add(w.id);
+  if(r==='again') SY.queue.splice(Math.min(SY.queue.length,SY.i+1+STUDY_AGAIN),0,w);
+  SY.i++;SY.shown=false;syRender();window.scrollTo(0,0);
+}
+$('#syBack').onclick=goShelf;
+// a pointer click lets go of the focus, so Space goes back to the card instead of this button
+$('#syMode').onclick=e=>{const b=e.target.closest('[data-m]');if(!b)return;if(e.detail)b.blur();prefs.studyMode=b.dataset.m;savePrefs();SY.shown=false;syRender();};
+$('#syActs').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.r)syRate(b.dataset.r);else if(b.dataset.sy==='show')syShow();else if(b.dataset.sy==='back')goShelf();};
+// Space or Enter shows the back (a focused button keeps its own Space and Enter); 1, 2, 3 rate
+document.addEventListener('keydown',e=>{
+  if($('#study').classList.contains('hidden')||!SY.queue[SY.i]||e.ctrlKey||e.metaKey||e.altKey||e.repeat) return;
+  if(e.target.closest('input,textarea,select,[contenteditable]')) return;
+  if((e.key===' '||e.key==='Enter')&&!SY.shown&&!e.target.closest('button,a')){e.preventDefault();syShow();}
+  else if(/^[1-3]$/.test(e.key)&&SY.shown){e.preventDefault();syRate(RATINGS[e.key-1]);}
+});
+
 /* ================= accounts ================= */
 const FB=`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-`;
 let fb=null,unwatch=()=>{},incoming=null;
@@ -1168,16 +1263,17 @@ $('#siLocal').onclick=()=>{ls.set('mode','local');startLocal();};
 $('#signIn').onclick=()=>{closeModal('#setM');signIn();};
 $('#signOut').onclick=signOut;
 
-/* ================= deep links: ?add=, ?url=, ?text= (iOS Shortcut, Android share) ================= */
+/* ================= deep links: ?add=, ?url=, ?text= (iOS Shortcut, Android share), ?study=1 ================= */
 function readDeepLink(){
   const raw=new URLSearchParams(location.search);const v=raw.get('add')||raw.get('url')||raw.get('text')||'';
-  if(!v.trim()) return;
+  if(!v.trim()){if(raw.has('study'))incoming={study:true};return;}
   const url=firstUrl(v);incoming=url?{url}:{text:v};
 }
 async function runIncoming(){
   const x=incoming;incoming=null;if(!x) return;
-  const q=new URLSearchParams(location.search);['add','url','text','title'].forEach(k=>q.delete(k));
+  const q=new URLSearchParams(location.search);['add','url','text','title','study'].forEach(k=>q.delete(k));
   history.replaceState(null,'',location.pathname+(q.toString()?'?'+q:'')+location.hash);
+  if(x.study){openStudy();return;}
   openImport();
   if(x.url){$('#link').value=x.url;if(await importLink(x.url)) $('#impGo').click();}
   else await insertClip('',x.text,[]);
