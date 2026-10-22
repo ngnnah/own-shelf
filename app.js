@@ -1807,7 +1807,7 @@ function authError(e){
 async function signIn(){
   if(!fb){toast('Sign-in isn’t available right now. Check your connection and reload.');return;}
   siErr('');
-  const p=new fb.A.GoogleAuthProvider();
+  const p=new fb.A.GoogleAuthProvider();p.setCustomParameters({prompt:'select_account'}); // always let Google ask which account
   if(homeScreen()) return authHere?redirectSignIn(p):authError({code:'own/home-screen'});
   try{await fb.A.signInWithPopup(fb.auth,p);}
   catch(e){

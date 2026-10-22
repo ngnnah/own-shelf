@@ -21,7 +21,7 @@ const STUB={
 const calls=window.__authCalls=[];
 const fail=e=>Object.assign(new Error(e.message||e.code),e);
 export const getAuth=()=>({currentUser:null});
-export class GoogleAuthProvider{}
+export class GoogleAuthProvider{setCustomParameters(o){window.__authParams=o;}}
 export async function signInWithPopup(){calls.push('popup');const s=S();if(s.popup)throw fail(s.popup);return new Promise(()=>{});}
 export async function signInWithRedirect(){calls.push('redirect');return new Promise(()=>{});}
 export async function getRedirectResult(){calls.push('result');const s=S();if(s.delay)await new Promise(r=>setTimeout(r,s.delay));if(s.result)throw fail(s.result);return null;}
@@ -69,6 +69,7 @@ await t.run(async()=>{
   await stub({popup:{code:'auth/popup-closed-by-user'}});
   await t.page.click('#siGoogle');await until(()=>window.__authCalls.includes('popup'));await t.page.evaluate(()=>new Promise(r=>setTimeout(r,100)));
   ok('tab: Google button opens a popup',(await calls())==='result,popup');
+  ok('tab: Google is asked to show its account chooser',(await t.page.evaluate(()=>window.__authParams?.prompt))==='select_account');
   ok('tab: closing the popup shows no message',!(await vis('#siErr')));
   await stub({popup:{code:'auth/popup-blocked'}});
   await t.page.click('#siGoogle');await waitErr('#siErr','pop-ups');
