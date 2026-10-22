@@ -309,7 +309,7 @@ async function addDoc(d,{kindle,quiet}={}){
   d.id=d.id||hash(JSON.stringify(d.blocks.map(b=>b.text||b.src)).slice(0,200000))+hash(d.title);
   if(META.some(m=>m.id===d.id)){
     const r=kindle?await mergeInto(d,hl,quiet):null;
-    if(!quiet){toast(r?`Merged: ${plural(r.added,'new highlight')}${r.dropped?` · ${r.dropped} no longer in the notebook`:''}${r.recoloured?` · ${r.recoloured} moved to ${meaning('amber')}`:''}`:kindle?'No new highlights — opening it':'Already on your shelf — opening it');openBook(d.id);}
+    if(!quiet){toast(r?`Merged: ${plural(r.added,'new highlight')}${r.dropped?` · ${r.dropped} no longer in the notebook`:''}${Object.entries(r.recoloured).map(([c,n])=>` · ${n} moved to ${meaning(c)}`).join('')}`:kindle?'No new highlights — opening it':'Already on your shelf — opening it');openBook(d.id);}
     return r?'merged':'same';
   }
   d.added=Date.now();
@@ -326,7 +326,7 @@ async function mergeInto(d,hl,quiet){
   const id=d.id,open=!!(DOC&&DOC.id===id);
   if(open){ST.pos=scrollY;await saveState(true);}
   const old=open?DOC:await DB.get('doc:'+id),st=(open?ST:await DB.get('state:'+id))||{hl:[],pos:0,maxP:0,done:[]};
-  const r=old?mergeKindle(old,st.hl||[],d,hl):{hl,added:hl.length,dropped:0,recoloured:0};
+  const r=old?mergeKindle(old,st.hl||[],d,hl):{hl,added:hl.length,dropped:0,recoloured:{}};
   if(r.same) return null;
   if(old) ['added','color','title','author','written','writtenSort','source'].forEach(k=>{d[k]=old[k];}); else d.added=Date.now();
   st.hl=r.hl;

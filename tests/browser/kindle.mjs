@@ -33,7 +33,7 @@ await t.run(async()=>{
   ok('review step: title, flipped author, highlight count',det.includes('The Lighthouse Ledger (Harbour Tales Book 2)')&&det.includes('Ada Rivers')&&det.includes('7 Kindle highlights')&&det.includes('2 sections'));
   await page.click('#impGo');await t.reader();
   ok('reader opens with every passage highlighted',(await text('#hlCount'))==='7'&&(await page.$$eval('mark.hl',m=>new Set(m.map(x=>x.dataset.h)).size))===7);
-  ok('Kindle colors mapped',(await page.$$('mark.hl.c-sun')).length>0&&(await page.$$('mark.hl.c-sky')).length>0&&(await page.$$('mark.hl.c-coral')).length>0&&(await page.$$('mark.hl.c-mint')).length>0);
+  ok('Kindle colors mapped (aqua to Sky, orange to Amber)',(await page.$$('mark.hl.c-sun')).length>0&&(await page.$$('mark.hl.c-sky')).length>=3&&(await page.$$('mark.hl.c-coral')).length>0&&(await page.$$('mark.hl.c-amber')).length>0&&!(await page.$$('mark.hl.c-mint')).length);
   ok('Kindle notes on their highlights',(await page.$$eval('mark.hl.noted',m=>new Set(m.map(x=>x.dataset.h)).size))===2);
   ok('parts and chapters are headings',(await page.$$eval('#col .hp',hs=>hs.filter(h=>/^H\d$/.test(h.tagName)).map(h=>h.textContent.trim()).join('|')))==='Part One|The Keeper|Storms|Part Two|Storms');
   await t.shot('reader');

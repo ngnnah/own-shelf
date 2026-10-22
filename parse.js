@@ -338,7 +338,8 @@ function computeSections(doc){
 // read as text (no DOMParser, so Node tests run it): each tag with one of these classes starts an item that runs to the
 // next one. Older exports use <h3> headings and close noteText with </h3>; that works too.
 const KINDLE_TAG=/<([a-z][a-z0-9]*)\b[^>]*\bclass\s*=\s*["']?(bookTitle|authors|sectionHeading|noteHeading|noteText)\b[^>]*>/gi;
-const KINDLE_COLORS={yellow:'sun',orange:'amber',pink:'coral',red:'coral',blue:'sky',purple:'sky',green:'mint',aqua:'mint'};
+// Kindle's aqua is the blue of its older apps, so it joins blue as Sky; green is Mint.
+const KINDLE_COLORS={yellow:'sun',orange:'amber',pink:'coral',red:'coral',blue:'sky',purple:'sky',aqua:'sky',green:'mint'};
 const ENTITIES={amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' '};
 function isKindleNotebook(html){return /\bclass\s*=\s*["']?noteHeading\b/i.test(html)&&/\bclass\s*=\s*["']?noteText\b/i.test(html);}
 function htmlText(s){
@@ -396,26 +397,30 @@ function kindleHighlights(doc,at){
 // A newer export of a Kindle book on the shelf. Old blocks map to new ones by type and text, in order, so the old
 // highlights (own-shelf colours, notes, partial highlights) move to the new doc; a Kindle highlight is added only for a
 // passage that wasn't there before. Highlights on passages gone from the new export are dropped.
-// Kindle's orange imported as coral before it had a colour of its own (amber): a whole-passage coral highlight on a
-// passage the new export marks amber becomes amber. Any other colour is the owner's choice and stays.
-// → {hl, added, dropped, recoloured, same}; same: the export holds exactly the old passages and nothing was recoloured.
+// Older imports gave two Kindle colours another colour: orange came in as coral (before amber), aqua as mint (before it
+// joined blue as sky). A whole-passage highlight still in the old colour, on a passage the new export marks with the new
+// one, moves over. Any other colour is the owner's choice and stays. Limitation: a blue passage's highlight the owner
+// turned mint looks the same as an old aqua one, so it moves to sky too.
+// → {hl, added, dropped, recoloured: {colour: count}, same}; same: the export holds exactly the old passages and nothing
+// was recoloured.
+const KINDLE_WAS={amber:'coral',sky:'mint'}; // a Kindle colour's own-shelf colour now → what older imports gave it
 function mergeKindle(oldDoc,oldHl,newDoc,newHl){
   const key=b=>b.t+'\u0001'+b.text,free=new Map(),len={};
   newDoc.blocks.forEach(b=>{if(b.text===undefined) return;len[b.id]=b.text.length;const k=key(b);if(!free.has(k)) free.set(k,[]);free.get(k).push(b.id);});
   const map={};let olds=0;
   oldDoc.blocks.forEach(b=>{if(b.text===undefined) return;olds++;const q=free.get(key(b));if(q&&q.length) map[b.id]=q.shift();});
   const kc={};newHl.forEach(h=>{kc[h.segs[0].pid]=h.color;});
-  const had=new Set(Object.values(map));let dropped=0,recoloured=0;const hl=[];
+  const had=new Set(Object.values(map));let dropped=0;const recoloured={},hl=[];
   oldHl.forEach(h=>{
     const segs=h.segs.map(s=>map[s.pid]&&Object.assign({},s,{pid:map[s.pid]}));
     if(!segs.length||!segs.every(Boolean)){dropped++;return;}
-    const s=segs[0],orange=h.color==='coral'&&kc[s.pid]==='amber'&&segs.length===1&&s.s===0&&s.e===len[s.pid];
-    if(orange) recoloured++;
-    hl.push(Object.assign({},h,{segs},orange?{color:'amber'}:{}));
+    const s=segs[0],to=kc[s.pid],moved=!!to&&KINDLE_WAS[to]===h.color&&segs.length===1&&s.s===0&&s.e===len[s.pid];
+    if(moved) recoloured[to]=(recoloured[to]||0)+1;
+    hl.push(Object.assign({},h,{segs},moved?{color:to}:{}));
   });
   const add=newHl.filter(h=>!had.has(h.segs[0].pid));
   const news=newDoc.blocks.filter(b=>b.text!==undefined).length;
-  return {hl:hl.concat(add),added:add.length,dropped,recoloured,same:!recoloured&&had.size===olds&&olds===news};
+  return {hl:hl.concat(add),added:add.length,dropped,recoloured,same:!Object.keys(recoloured).length&&had.size===olds&&olds===news};
 }
 
 /* ---------- links ---------- */
