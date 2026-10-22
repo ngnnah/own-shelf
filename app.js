@@ -685,11 +685,29 @@ document.addEventListener('keydown',e=>{
   if(e.target.matches('textarea,input,[contenteditable]'))return;
   if(/^[1-9]$/.test(e.key)&&COLORS[+e.key-1]&&pendingSegs&&!tool.classList.contains('hidden')){addHighlight(pendingSegs,COLORS[+e.key-1][0]);getSelection().removeAllRanges();hideTool();}
 });
-let noteTarget=null;
+// The note box and the word card stay inside the visible area, which an on-screen keyboard shrinks (visualViewport;
+// on an iPhone the page keeps its full height under the keyboard): docked at the bottom when `at` is null, else with
+// its top left corner at `at`, moved inside if need be. Their max-height keeps them inside as they grow (styles.css).
+// → where it went: null when docked, else {x,y}.
+function placeCard(box,at){
+  const vv=window.visualViewport,vt=vv?vv.offsetTop:0,vl=vv?vv.offsetLeft:0,vh=vv?vv.height:innerHeight,vw=vv?vv.width:innerWidth,s=box.style;
+  if(!at){
+    const sab='env(safe-area-inset-bottom,0px)';
+    Object.assign(s,{left:'50%',transform:'translateX(-50%)',top:'auto',bottom:`calc(${sab} + 16px)`});
+    const under=box.getBoundingClientRect().bottom-(vt+vh-16); // under the keyboard: lift it above
+    if(under>0) s.bottom=`calc(${sab} + ${16+under}px)`;
+    s.maxHeight=`calc(${box.getBoundingClientRect().bottom-vt-12}px - env(safe-area-inset-top,0px))`;
+    return null;
+  }
+  Object.assign(s,{transform:'none',bottom:'auto',maxHeight:vh-24+'px'});
+  const x=Math.max(vl+10,Math.min(vl+vw-box.offsetWidth-10,at.x)),y=Math.max(vt+12,Math.min(vt+vh-box.offsetHeight-12,at.y));
+  Object.assign(s,{left:x+'px',top:y+'px',maxHeight:vt+vh-y-12+'px'});
+  return {x,y};
+}
+let noteTarget=null,noteAt=null;
 function openNote(h,rect){
-  noteTarget=h;const nb=$('#noteBox');nb.classList.remove('hidden');$('#noteTa').value=h.note||'';const w=nb.offsetWidth;
-  if(coarse||!rect){nb.style.left='50%';nb.style.transform='translateX(-50%)';nb.style.top='auto';nb.style.bottom='calc(env(safe-area-inset-bottom,0px) + 16px)';}
-  else{nb.style.transform='none';nb.style.bottom='auto';nb.style.left=Math.max(10,Math.min(innerWidth-w-10,rect.left))+'px';nb.style.top=Math.min(innerHeight-220,Math.max(70,rect.top))+'px';}
+  noteTarget=h;const nb=$('#noteBox');nb.classList.remove('hidden');$('#noteTa').value=h.note||'';
+  noteAt=placeCard(nb,coarse||!rect?null:{x:rect.left,y:Math.min(innerHeight-220,Math.max(70,rect.top))});
   setTimeout(()=>$('#noteTa').focus(),30);
 }
 $('#noteCancel').onclick=()=>$('#noteBox').classList.add('hidden');
@@ -1154,22 +1172,42 @@ function showDef(w){
 const exampleHTML=x=>esc(x.text.slice(0,x.s))+'<b>'+esc(x.text.slice(x.s,x.e))+'</b>'+esc(x.text.slice(x.e));
 
 // The word card: term, part of speech, the meaning to edit, and the sentence (the one at `at`, else the newest).
-let CARD=null; // {id} while open
+let CARD=null; // {id, at: where placeCard put it} while open
 function openWordCard(id,at,rect){
   const w=WORDS&&WORDS.get(id);if(!w) return;
   const exs=w.examples||[],ex=(at&&exs.find(x=>x.bookId===at.bookId&&x.pid===at.pid&&x.ws===at.ws))||exs[exs.length-1];
   CARD={id};
   $('#wbTerm').textContent=w.term;$('#wbDef').value=w.def||'';$('#wbEx').innerHTML=ex?exampleHTML(ex):'';
   showDef(w);fillDef(w);
-  const box=$('#wordBox');box.classList.remove('hidden');
+  const box=$('#wordBox');box.classList.remove('hidden');box.style.maxHeight='';
   // docked at the bottom on phones, like the toolbar; elsewhere under the word, or above it near the bottom
-  if(coarse||!rect||innerWidth<600) Object.assign(box.style,{left:'50%',transform:'translateX(-50%)',top:'auto',bottom:'calc(env(safe-area-inset-bottom,0px) + 16px)'});
-  else{
+  let to=null;
+  if(!(coarse||!rect||innerWidth<600)){
     const bw=box.offsetWidth,bh=box.offsetHeight;let top=rect.bottom+12;if(top+bh>innerHeight-12) top=Math.max(70,rect.top-bh-12);
-    Object.assign(box.style,{transform:'none',bottom:'auto',left:Math.max(10,Math.min(innerWidth-bw-10,rect.left+rect.width/2-bw/2))+'px',top:top+'px'});
+    to={x:rect.left+rect.width/2-bw/2,y:top};
   }
+  CARD.at=placeCard(box,to);
 }
 function closeWordCard(){$('#wordBox').classList.add('hidden');CARD=null;}
+// Dragging the card by its head moves it anywhere inside the visible area, until it closes.
+let wbDrag=null;
+const wbHead=$('#wordBox .wb-head'),endWbDrag=()=>{wbDrag=null;$('#wordBox').classList.remove('drag');};
+wbHead.addEventListener('pointerdown',e=>{
+  if(!CARD||e.button) return;
+  const r=$('#wordBox').getBoundingClientRect();
+  wbDrag={id:e.pointerId,dx:e.clientX-r.left,dy:e.clientY-r.top};
+  wbHead.setPointerCapture(e.pointerId);$('#wordBox').classList.add('drag');e.preventDefault(); // the field keeps focus
+});
+wbHead.addEventListener('pointermove',e=>{if(wbDrag&&CARD&&e.pointerId===wbDrag.id) CARD.at=placeCard($('#wordBox'),{x:e.clientX-wbDrag.dx,y:e.clientY-wbDrag.dy});});
+wbHead.addEventListener('pointerup',endWbDrag);wbHead.addEventListener('pointercancel',endWbDrag);
+// Both cards follow the visible area: the keyboard opening or closing, iOS panning to the field, a resize.
+function keepCardsInView(){
+  const nb=$('#noteBox');
+  if(!nb.classList.contains('hidden')) noteAt=placeCard(nb,noteAt);
+  if(CARD) CARD.at=placeCard($('#wordBox'),CARD.at);
+}
+window.visualViewport?.addEventListener('resize',keepCardsInView);window.visualViewport?.addEventListener('scroll',keepCardsInView);
+addEventListener('resize',keepCardsInView);
 $('#wbClose').onclick=closeWordCard;
 $('#wbSave').onclick=()=>{const w=CARD&&WORDS&&WORDS.get(CARD.id);if(w&&setDef(w,$('#wbDef').value)) toast('Meaning saved');closeWordCard();};
 document.addEventListener('keydown',e=>{if(e.key==='Escape') closeWordCard();});
