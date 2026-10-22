@@ -7,7 +7,21 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function hash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return (h>>>0).toString(36);}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),2100);}
-const COLORS=[['sun','Sunny'],['mint','Mint'],['coral','Coral'],['sky','Sky']];
+// Highlight colours in the toolbar's order (keys 1–5). The UI names a colour by its meaning, which the owner can rename
+// in Settings (SETTINGS.meanings holds the renamed ones); chips and groups go in meaning order.
+const COLORS=[['sun','Sunny'],['mint','Mint'],['coral','Coral'],['sky','Sky'],['amber','Amber']];
+const MEANINGS={sky:'Important',coral:'Facts & words',amber:'Quotes',sun:'Lesser',mint:'Other'}; // the defaults, in meaning order
+const BY_MEANING=Object.keys(MEANINGS);
+const COLORNAME=c=>(COLORS.find(x=>x[0]===c)||[c,c])[1];
+const meaning=c=>((SETTINGS.meanings||{})[c]||'').trim()||MEANINGS[c]||COLORNAME(c);
+// [[colour, items]] in meaning order (any other colour last), each group keeping the order it was given.
+function byColor(items){
+  const g=new Map(BY_MEANING.map(c=>[c,[]]));
+  items.forEach(x=>{if(!g.has(x.color)) g.set(x.color,[]);g.get(x.color).push(x);});
+  return [...g].filter(([,l])=>l.length);
+}
+// A colour's heading when highlights are grouped by colour: swatch, meaning, count.
+const colorHead=(c,n)=>`<h3 class="cgh"><i style="background:var(--${esc(c)}S)"></i>${esc(meaning(c))}<small>${n}</small></h3>`;
 // cloth bindings: [cover, text]. Books store an index into this list; changing its length recolours them.
 const COVERS=[['#2F5A43','#F3EAD7'],['#8E2F2A','#F8EEDD'],['#23395B','#EFE4CC'],['#B7802A','#2E2119'],['#5C3B24','#F3EAD7'],['#45706C','#F8EEDD'],['#D9C9A8','#2E2119'],['#6B3426','#F3D9B0']];
 const COVER_NAMES=['Green','Oxblood','Navy','Ochre','Brown','Teal','Tan','Rust'];
@@ -34,6 +48,7 @@ function applyPrefs(){
   document.querySelectorAll('#segFmt button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.fmt===prefs.fmt));
   document.querySelectorAll('#segGroup button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.g===prefs.group));
   document.querySelectorAll('#segView button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===prefs.view));
+  document.querySelectorAll('#nbGroup button,#drGroup button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.hg===(prefs.hlGroup==='color'?'color':'off')));
 }
 applyPrefs();
 function metaFor(doc,st){
@@ -272,7 +287,7 @@ async function addDoc(d,{kindle,quiet}={}){
   d.id=d.id||hash(JSON.stringify(d.blocks.map(b=>b.text||b.src)).slice(0,200000))+hash(d.title);
   if(META.some(m=>m.id===d.id)){
     const r=kindle?await mergeInto(d,hl,quiet):null;
-    if(!quiet){toast(r?`Merged: ${plural(r.added,'new highlight')}${r.dropped?` · ${r.dropped} no longer in the notebook`:''}`:kindle?'No new highlights — opening it':'Already on your shelf — opening it');openBook(d.id);}
+    if(!quiet){toast(r?`Merged: ${plural(r.added,'new highlight')}${r.dropped?` · ${r.dropped} no longer in the notebook`:''}${r.recoloured?` · ${r.recoloured} moved to ${meaning('amber')}`:''}`:kindle?'No new highlights — opening it':'Already on your shelf — opening it');openBook(d.id);}
     return r?'merged':'same';
   }
   d.added=Date.now();
@@ -284,18 +299,18 @@ async function addDoc(d,{kindle,quiet}={}){
   return 'added';
 }
 // A newer export of a Kindle book on the shelf: the book is rebuilt from it and keeps its highlights (see mergeKindle)
-// and what Details can edit. → {added, dropped}, or null when the export holds nothing new. An open book is reloaded.
+// and what Details can edit. → {added, dropped, recoloured}, or null when the export holds nothing new. An open book is reloaded.
 async function mergeInto(d,hl,quiet){
   const id=d.id,open=!!(DOC&&DOC.id===id);
   if(open){ST.pos=scrollY;await saveState(true);}
   const old=open?DOC:await DB.get('doc:'+id),st=(open?ST:await DB.get('state:'+id))||{hl:[],pos:0,maxP:0,done:[]};
-  const r=old?mergeKindle(old,st.hl||[],d,hl):{hl,added:hl.length,dropped:0};
+  const r=old?mergeKindle(old,st.hl||[],d,hl):{hl,added:hl.length,dropped:0,recoloured:0};
   if(r.same) return null;
   if(old) ['added','color','title','author','written','writtenSort','source'].forEach(k=>{d[k]=old[k];}); else d.added=Date.now();
   st.hl=r.hl;
   await DB.put('doc:'+id,d);await DB.put('state:'+id,st);const m=metaFor(d,st);META=META.filter(x=>x.id!==id).concat(m);await DB.put('meta:'+id,m);
   if(open&&quiet) await openBook(id);
-  return {added:r.added,dropped:r.dropped};
+  return {added:r.added,dropped:r.dropped,recoloured:r.recoloured};
 }
 // drop anywhere
 let dragDepth=0;
@@ -453,7 +468,7 @@ function buildReader(){
   let h=`<header class="hero"><h1${DOC.title.length>34?' class="long"':''}>${lines.map(l=>`<span class="ln">${esc(l)}</span>`).join('')}</h1>
     ${DOC.author||DOC.source?`<p class="byline">${DOC.author?'by '+esc(DOC.author):''}${DOC.source?`<a href="${esc(DOC.source)}" target="_blank" rel="noopener noreferrer">Original ↗</a>`:''}</p>`:''}
     <div class="log">${DOC.written?`<span>Written <b>${esc(DOC.written)}</b></span>`:''}<span><b>${DOC.words.toLocaleString()}</b> words</span><span><b>${mins}</b> min</span><span><b>${N}</b> section${N>1?'s':''}</span>${DOC.notes.length?`<span><b>${DOC.notes.length}</b> notes</span>`:''}</div>
-    <div class="howto">Select text to highlight in ${COLORS.map(c=>`<span class="sw" style="background:var(--${c[0]}S)" title="${c[1]}"></span>`).join('')} · keys 1–4 work too</div>
+    <div class="howto">Select text to highlight in ${COLORS.map(c=>`<span class="sw" style="background:var(--${c[0]}S)" title="${esc(meaning(c[0]))}"></span>`).join('')} · keys 1–${COLORS.length} work too</div>
     ${N>1?`<details class="toc-inline"${N<=12?' open':''}><summary>Contents · ${N} sections</summary><ol class="tocl">${tocItems()}</ol></details>`:''}</header>`;
   const pulls=pickPulls();let idx=0,wordsAfter=DOC.words;
   S.forEach((s,si)=>{
@@ -610,7 +625,7 @@ function updateCount(){
 }
 function showTool(rect,h){
   editing=h||null;
-  tool.innerHTML=COLORS.map((c,i)=>`<button class="sw${h&&h.color===c[0]?' on':''}" style="background:var(--${c[0]}S)" data-c="${c[0]}" aria-label="${c[1]} (${i+1})"></button>`).join('')+
+  tool.innerHTML=COLORS.map((c,i)=>{const m=`${esc(meaning(c[0]))} (${i+1})`;return `<button class="sw${h&&h.color===c[0]?' on':''}" style="background:var(--${c[0]}S)" data-c="${c[0]}" aria-label="${m}" title="${m}"></button>`;}).join('')+
     `<span class="sep"></span><button class="tb" data-a="note">${h&&h.note?'Edit note':'Note'}</button>`+(h?`<button class="tb" data-a="del">Remove</button>`:`<button class="tb" data-a="word">Word</button><button class="tb" data-a="copy">Copy</button>`);
   tool.classList.remove('hidden');
   if(coarse){tool.classList.add('docked');return;}
@@ -645,7 +660,7 @@ addEventListener('scroll',()=>{if(tool.classList.contains('hidden')||coarse)retu
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){hideTool();closeDrawers();$('#noteBox').classList.add('hidden');$('#lightbox').classList.add('hidden');document.querySelectorAll('.modal').forEach(m=>m.classList.add('hidden'));return;}
   if(e.target.matches('textarea,input,[contenteditable]'))return;
-  if(/^[1-4]$/.test(e.key)&&pendingSegs&&!tool.classList.contains('hidden')){addHighlight(pendingSegs,COLORS[+e.key-1][0]);getSelection().removeAllRanges();hideTool();}
+  if(/^[1-9]$/.test(e.key)&&COLORS[+e.key-1]&&pendingSegs&&!tool.classList.contains('hidden')){addHighlight(pendingSegs,COLORS[+e.key-1][0]);getSelection().removeAllRanges();hideTool();}
 });
 let noteTarget=null;
 function openNote(h,rect){
@@ -673,11 +688,13 @@ const secName=h=>{const i=secOf[h.segs[0].pid];return i===-1?'Notes':i!=null&&DO
 function renderDrawer(){
   const counts={};HL.forEach(h=>counts[h.color]=(counts[h.color]||0)+1);const nn=HL.filter(h=>h.note).length;
   const keep=h=>filter==='all'||(filter==='noted'?h.note:h.color===filter);if(!HL.some(keep))filter='all';
-  $('#drFilters').innerHTML=`<button class="chip" aria-pressed="${filter==='all'}" data-f="all">All ${HL.length}</button>`+(nn?`<button class="chip" aria-pressed="${filter==='noted'}" data-f="noted">With note ${nn}</button>`:'')+COLORS.filter(c=>counts[c[0]]).map(c=>`<button class="chip" aria-pressed="${filter===c[0]}" data-f="${c[0]}"><i style="background:var(--${c[0]}S)"></i>${c[1]} ${counts[c[0]]}</button>`).join('');
+  $('#drFilters').innerHTML=`<button class="chip" aria-pressed="${filter==='all'}" data-f="all">All ${HL.length}</button>`+(nn?`<button class="chip" aria-pressed="${filter==='noted'}" data-f="noted">With note ${nn}</button>`:'')+BY_MEANING.filter(c=>counts[c]).map(c=>`<button class="chip" aria-pressed="${filter===c}" data-f="${c}"><i style="background:var(--${c}S)"></i>${esc(meaning(c))} ${counts[c]}</button>`).join('');
   $('#drFilters').querySelectorAll('.chip').forEach(b=>b.onclick=()=>{filter=b.dataset.f;renderDrawer();});
+  $('#drGroupRow').classList.toggle('hidden',!HL.length);
   const list=sorted().filter(keep);
-  $('#drList').innerHTML=list.length?list.map(h=>`<div class="hcard" style="border-left-color:var(--${h.color}S)" data-id="${h.id}"><div class="sec">${esc(secName(h))}</div><p class="q" tabindex="0">${esc(segText(h)).replace(/\n\n/g,' <span style="color:var(--muted)">¶</span> ')}</p>${h.note?`<div class="nt">${esc(h.note)}</div>`:''}<div class="acts"><button data-a="note">${h.note?'Edit note':'Add note'}</button><button data-a="del">Remove</button></div></div>`).join('')
-    :`<div class="empty">No highlights yet.<br>Select any passage and pick a color.</div>`;
+  const card=h=>`<div class="hcard" style="border-left-color:var(--${h.color}S)" data-id="${h.id}"><div class="sec">${esc(secName(h))}</div><p class="q" tabindex="0">${esc(segText(h)).replace(/\n\n/g,' <span style="color:var(--muted)">¶</span> ')}</p>${h.note?`<div class="nt">${esc(h.note)}</div>`:''}<div class="acts"><button data-a="note">${h.note?'Edit note':'Add note'}</button><button data-a="del">Remove</button></div></div>`;
+  $('#drList').innerHTML=!list.length?`<div class="empty">No highlights yet.<br>Select any passage and pick a color.</div>`
+    :prefs.hlGroup==='color'?byColor(list).map(([c,l])=>colorHead(c,l.length)+l.map(card).join('')).join(''):list.map(card).join('');
   $('#drList').querySelectorAll('.hcard').forEach(card=>{
     const h=HL.find(x=>x.id===card.dataset.id);
     card.querySelector('.q').onclick=()=>jumpTo(h);card.querySelector('.q').onkeydown=e=>{if(e.key==='Enter')jumpTo(h);};
@@ -687,6 +704,9 @@ function renderDrawer(){
 }
 function jumpTo(h){closeDrawers();const m=document.querySelector(`mark[data-h="${h.id}"]`);if(!m)return;m.scrollIntoView({block:'center'});document.querySelectorAll(`mark[data-h="${h.id}"]`).forEach(x=>{x.classList.remove('flash');void x.offsetWidth;x.classList.add('flash');});}
 $('#segFmt').onclick=e=>{const b=e.target.closest('button');if(!b)return;prefs.fmt=b.dataset.fmt;savePrefs();applyPrefs();};
+// Group: the drawer (book order | colour) and the Notebook (newest | colour) share one remembered choice
+function groupBy(e,render){const b=e.target.closest('[data-hg]');if(!b)return;prefs.hlGroup=b.dataset.hg;savePrefs();applyPrefs();render();}
+$('#drGroup').onclick=e=>groupBy(e,renderDrawer);
 $('#clearAll').onclick=async()=>{
   if(!HL.length)return;
   if(!await confirmTyped('Clear all highlights?',`This removes all ${lossText(HL.length,HL.filter(h=>h.note).length)} in “${DOC.title}”. ${TRASH_NOTE}`,'Clear all'))return;
@@ -694,12 +714,12 @@ $('#clearAll').onclick=async()=>{
   const pids=HL.flatMap(h=>h.segs.map(s=>s.pid));HL=[];commit();rerender(pids);toast('Moved to Trash');
 };
 function exportText(){
-  const list=sorted();const cname=c=>(COLORS.find(x=>x[0]===c)||[c,c])[1];
+  const list=sorted();
   if(prefs.fmt==='md'){
     let o=`# Highlights: ${DOC.title}\n`+[DOC.author&&`by ${DOC.author}`,DOC.written,DOC.source].filter(Boolean).map(x=>`_${x}_`).join(' · ')+'\n\n';
     let lastSec=null;
     list.forEach(h=>{const s=secName(h);if(s&&s!==lastSec&&DOC.sections.length>1){o+=`## ${s}\n\n`;lastSec=s;}
-      o+=segText(h).split('\n\n').map(p=>'> '+p).join('\n>\n')+'\n';if(h.note)o+=`\n**Note:** ${h.note}\n`;o+=`\n<sub>${cname(h.color)}</sub>\n\n`;});
+      o+=segText(h).split('\n\n').map(p=>'> '+p).join('\n>\n')+'\n';if(h.note)o+=`\n**Note:** ${h.note}\n`;o+=`\n<sub>${meaning(h.color)}</sub>\n\n`;});
     return o.trim()+'\n';
   }
   let o=`Highlights: ${DOC.title}${DOC.author?' — '+DOC.author:''}\n\n`;
@@ -715,9 +735,8 @@ function copyAll(){if(!HL.length){toast('No highlights to copy yet');return;}cop
 $('#copyAll').onclick=copyAll;
 
 /* ================= export ================= */
-let EX={scope:'book',fmt:prefs.exFmt||'md',notesOnly:false,items:[],text:''};
-const COLORNAME=c=>(COLORS.find(x=>x[0]===c)||[c,c])[1];
-const COLORHEX={sun:'#F4C21B',mint:'#2FBF8A',coral:'#F2668A',sky:'#4E8FF0'};
+let EX={scope:'book',fmt:prefs.exFmt||'md',notesOnly:false,byColor:!!prefs.exByColor,items:[],text:''};
+const COLORHEX={sun:'#F4C21B',mint:'#2FBF8A',coral:'#F2668A',sky:'#4E8FF0',amber:'#F28C28'};
 function entriesFor(doc,hl){
   const map={},sec={},ord={};let i=0;
   doc.blocks.forEach(b=>{if(b.text!==undefined){map[b.id]=b.text;sec[b.id]=b.sec;ord[b.id]=i++;}});
@@ -737,6 +756,14 @@ async function gatherExport(){
   return books.map(b=>({doc:b.doc,entries:entriesFor(b.doc,b.hl).filter(e=>!EX.notesOnly||e.note)})).filter(b=>b.entries.length);
 }
 function metaLine(d){return [d.author&&'by '+d.author,d.written,d.source].filter(Boolean);}
+// A book's entries under their headings → [{head, color, entries}]: runs of one section (no heading when it has none),
+// or, grouped by colour, one group per colour in meaning order, headed by its meaning.
+function exportGroups(entries){
+  if(EX.byColor) return byColor(entries).map(([c,l])=>({head:meaning(c),color:c,entries:l}));
+  const gs=[];
+  entries.forEach(e=>{const g=gs[gs.length-1];if(g&&(!e.section||e.section===g.head)) g.entries.push(e); else gs.push({head:e.section,entries:[e]});});
+  return gs;
+}
 function renderExport(books,fmt){
   const multi=EX.scope==='shelf';
   const today=new Date().toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
@@ -745,9 +772,8 @@ function renderExport(books,fmt){
     books.forEach(b=>{
       const H=multi?'##':'#',S=multi?'###':'##';
       o+=`${H} ${b.doc.title}\n`;const ml=metaLine(b.doc);if(ml.length)o+=ml.map(x=>`_${x}_`).join(' · ')+'\n';o+='\n';
-      let last=null;
-      b.entries.forEach(e=>{if(e.section&&e.section!==last){o+=`${S} ${e.section}\n\n`;last=e.section;}
-        o+=e.text.map(p=>'> '+p).join('\n>\n')+'\n';if(e.note)o+=`\n**Note:** ${e.note}\n`;o+='\n';});
+      exportGroups(b.entries).forEach(g=>{if(g.head)o+=`${S} ${g.head}\n\n`;
+        g.entries.forEach(e=>{o+=e.text.map(p=>'> '+p).join('\n>\n')+'\n';if(e.note)o+=`\n**Note:** ${e.note}\n`;o+='\n';});});
     });
     return o.trim()+'\n';
   }
@@ -755,9 +781,9 @@ function renderExport(books,fmt){
     let o=multi?`MY READING NOTES\nExported ${today}\n\n`:'';
     books.forEach(b=>{
       o+=b.doc.title.toUpperCase()+'\n';const ml=metaLine(b.doc);if(ml.length)o+=ml.join(' · ')+'\n';o+='\n';
-      let last=null,n=0;
-      b.entries.forEach(e=>{if(e.section&&e.section!==last){o+=`— ${e.section}\n\n`;last=e.section;}
-        o+=`${++n}. “${e.text.join(' … ')}”\n`;if(e.note)o+=`   Note: ${e.note}\n`;o+='\n';});
+      let n=0;
+      exportGroups(b.entries).forEach(g=>{if(g.head)o+=`— ${g.head}\n\n`;
+        g.entries.forEach(e=>{o+=`${++n}. “${e.text.join(' … ')}”\n`;if(e.note)o+=`   Note: ${e.note}\n`;o+='\n';});});
       o+='\n';
     });
     return o.trim()+'\n';
@@ -767,14 +793,15 @@ function renderExport(books,fmt){
   books.forEach(b=>{
     body+=`<article><h${multi?2:1}>${esc(b.doc.title)}</h${multi?2:1}>`;const ml=metaLine(b.doc);
     if(ml.length) body+=`<p class="meta">${ml.map(x=>/^https?:/.test(x)?`<a href="${esc(x)}">${esc(x)}</a>`:esc(x)).join(' · ')}</p>`;
-    let last=null;
-    b.entries.forEach(e=>{if(e.section&&e.section!==last){body+=`<h${multi?3:2}>${esc(e.section)}</h${multi?3:2}>`;last=e.section;}
-      body+=`<blockquote style="border-color:${COLORHEX[e.color]||'#999'}">${e.text.map(p=>`<p>${esc(p)}</p>`).join('')}</blockquote>${e.note?`<p class="note"><b>Note</b> ${esc(e.note)}</p>`:''}`;});
+    exportGroups(b.entries).forEach(g=>{
+      if(g.head) body+=`<h${multi?3:2}>${g.color?`<i class="sw" style="background:${COLORHEX[g.color]||'#999'}"></i>`:''}${esc(g.head)}</h${multi?3:2}>`;
+      g.entries.forEach(e=>{body+=`<blockquote style="border-color:${COLORHEX[e.color]||'#999'}">${e.text.map(p=>`<p>${esc(p)}</p>`).join('')}</blockquote>${e.note?`<p class="note"><b>Note</b> ${esc(e.note)}</p>`:''}`;});
+    });
     body+='</article>';
   });
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>
-<style>body{font:18px/1.6 Georgia,serif;color:#2E2119;background:#FBF6EA;max-width:40rem;margin:0 auto;padding:2.5rem 1.2rem}h1,h2,h3{font-family:system-ui,sans-serif;line-height:1.15}h1{font-size:2.2rem}h2{margin-top:2.4rem}h3{color:#2F5A43;font-size:1.05rem;margin-top:1.8rem}.meta{color:#6B5A48;font:15px system-ui,sans-serif}blockquote{margin:1.1rem 0;padding:.2rem 0 .2rem 1rem;border-left:5px solid}blockquote p{margin:.3rem 0}.note{font:15px/1.5 system-ui,sans-serif;background:#F3EAD7;border-radius:10px;padding:.5rem .8rem;margin:-.4rem 0 1.4rem}article+article{border-top:2px solid #DCCBA8;margin-top:3rem}a{color:#2F5A43}.stamp{color:#6B5A48;font:14px system-ui,sans-serif}</style></head>
+<style>body{font:18px/1.6 Georgia,serif;color:#2E2119;background:#FBF6EA;max-width:40rem;margin:0 auto;padding:2.5rem 1.2rem}h1,h2,h3{font-family:system-ui,sans-serif;line-height:1.15}h1{font-size:2.2rem}h2{margin-top:2.4rem}h3{color:#2F5A43;font-size:1.05rem;margin-top:1.8rem}.meta{color:#6B5A48;font:15px system-ui,sans-serif}blockquote{margin:1.1rem 0;padding:.2rem 0 .2rem 1rem;border-left:5px solid}blockquote p{margin:.3rem 0}.note{font:15px/1.5 system-ui,sans-serif;background:#F3EAD7;border-radius:10px;padding:.5rem .8rem;margin:-.4rem 0 1.4rem}article+article{border-top:2px solid #DCCBA8;margin-top:3rem}a{color:#2F5A43}.stamp{color:#6B5A48;font:14px system-ui,sans-serif}.sw{display:inline-block;width:.7em;height:.7em;border-radius:50%;margin-right:.45em}</style></head>
 <body>${multi?`<h1>My reading notes</h1><p class="stamp">Exported ${esc(today)}</p>`:''}${body}</body></html>
 `;
 }
@@ -790,13 +817,14 @@ async function refreshExport(){
   $('#expPrev').classList.remove('hidden');$('#expPrev').textContent=EX.text.length>6000?EX.text.slice(0,6000)+'\n…':EX.text;
 }
 async function openExport(scope){
-  EX.scope=DOC?scope:'shelf';$('#expScopeWrap').classList.toggle('hidden',!DOC);
+  EX.scope=DOC?scope:'shelf';$('#expScopeWrap').classList.toggle('hidden',!DOC);$('#expByColor').checked=EX.byColor;
   closeDrawers();openModal('#expM');
   await refreshExport();
 }
 $('#expScope').onclick=e=>{const b=e.target.closest('button');if(!b)return;EX.scope=b.dataset.s;refreshExport();};
 $('#expFmt').onclick=e=>{const b=e.target.closest('button');if(!b)return;EX.fmt=b.dataset.f;prefs.exFmt=EX.fmt;savePrefs();refreshExport();};
 $('#expNotesOnly').onchange=e=>{EX.notesOnly=e.target.checked;refreshExport();};
+$('#expByColor').onchange=e=>{EX.byColor=prefs.exByColor=e.target.checked;savePrefs();refreshExport();};
 $('#expCopy').onclick=()=>{if(!EX.text){toast('Nothing to copy yet');return;}copyText(EX.text,'Copied to clipboard');};
 function download(name,text,type){
   const u=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');
@@ -967,16 +995,18 @@ function renderNotebook(){
   const base=NB.items.filter(e=>(!book||e.book===book)&&terms.every(t=>e.hay.includes(t)));
   const counts={note:base.filter(e=>e.note).length};base.forEach(e=>counts[e.color]=(counts[e.color]||0)+1);
   const chip=(f,label,sw)=>counts[f]||NB.f===f?`<button class="chip" aria-pressed="${NB.f===f}" data-f="${f}">${sw?`<i style="background:var(--${f}S)"></i>`:''}${label} ${counts[f]||0}</button>`:'';
-  $('#nbChips').innerHTML=`<button class="chip" aria-pressed="${NB.f==='all'}" data-f="all">All ${base.length}</button>`+chip('note','With note')+COLORS.map(c=>chip(c[0],c[1],true)).join('');
+  $('#nbChips').innerHTML=`<button class="chip" aria-pressed="${NB.f==='all'}" data-f="all">All ${base.length}</button>`+chip('note','With note')+BY_MEANING.map(c=>chip(c,esc(meaning(c)),true)).join('');
   const list=base.filter(e=>NB.f==='all'||(NB.f==='note'?e.note:e.color===NB.f));
-  $('#nbList').innerHTML=list.length?list.map(e=>`<div class="hcard" style="border-left-color:var(--${e.color}S)" tabindex="0" data-book="${e.book}" data-hl="${e.id}"><div class="sec"><b>${esc(e.title)}</b>${e.section?` · ${esc(e.section)}`:''}</div><p class="q">${e.text.map(esc).join(' <span style="color:var(--muted)">¶</span> ')}</p>${e.note?`<div class="nt">${esc(e.note)}</div>`:''}</div>`).join('')
-    :'<div class="empty">Nothing matches.</div>';
+  const card=e=>`<div class="hcard" style="border-left-color:var(--${e.color}S)" tabindex="0" data-book="${e.book}" data-hl="${e.id}"><div class="sec"><b>${esc(e.title)}</b>${e.section?` · ${esc(e.section)}`:''}</div><p class="q">${e.text.map(esc).join(' <span style="color:var(--muted)">¶</span> ')}</p>${e.note?`<div class="nt">${esc(e.note)}</div>`:''}</div>`;
+  $('#nbList').innerHTML=!list.length?'<div class="empty">Nothing matches.</div>'
+    :prefs.hlGroup==='color'?byColor(list).map(([c,l])=>colorHead(c,l.length)+l.map(card).join('')).join(''):list.map(card).join('');
 }
 const nbOpen=c=>{if(c&&getSelection().isCollapsed) openBook(c.dataset.book,{hl:c.dataset.hl});};
 $('#nbBack').onclick=goShelf;
 $('#nbQ').oninput=renderNotebook;
 $('#nbBook').onchange=renderNotebook;
 $('#nbChips').onclick=e=>{const b=e.target.closest('[data-f]');if(!b)return;NB.f=b.dataset.f;renderNotebook();};
+$('#nbGroup').onclick=e=>groupBy(e,renderNotebook);
 $('#nbExp').onclick=()=>openExport('shelf');
 $('#nbList').onclick=e=>nbOpen(e.target.closest('[data-hl]'));
 $('#nbList').onkeydown=e=>{if(e.key==='Enter') nbOpen(e.target.closest('[data-hl]'));};
@@ -1412,6 +1442,7 @@ function openSettings(){
   $('#acctLocal').classList.toggle('hidden',cloud);
   $('#signOut').classList.toggle('hidden',!cloud);$('#signIn').classList.toggle('hidden',cloud||!fb);
   $('#sWorker').value=SETTINGS.workerUrl||'';$('#sWorker').placeholder=WORKER_URL||'https://own-shelf-fetch.example.workers.dev';$('#sWorker').disabled=!cloud;
+  $('#sMeanings').innerHTML=BY_MEANING.map(c=>`<label class="cm"><i style="background:var(--${c}S)" title="${COLORNAME(c)}"></i><input class="f" data-c="${c}" value="${esc(meaning(c))}" placeholder="${esc(MEANINGS[c])}" maxlength="40" autocomplete="off" aria-label="What ${COLORNAME(c)} highlights mean"></label>`).join('');
   $('#trashN').textContent='Trash';DB.all('trash:').then(l=>{$('#trashN').textContent=trashLabel(l.length);},()=>{});
   $('#setErr').classList.add('hidden');openModal('#setM');
 }
@@ -1419,7 +1450,10 @@ $('#setBtn').onclick=openSettings;
 $('#sSave').onclick=async()=>{
   const v=$('#sWorker').value.trim();
   if(v&&!/^(https:\/\/[^\s/]+|http:\/\/localhost[:/])/i.test(v)){setErr('The helper URL should start with https://');return;}
-  if(DB&&v!==(SETTINGS.workerUrl||'')){SETTINGS={...SETTINGS,workerUrl:v};await DB.put('settings:app',SETTINGS);toast('Settings saved');}
+  // colour meanings: only the renamed ones are kept; a blank field goes back to the default
+  const mn={};document.querySelectorAll('#sMeanings [data-c]').forEach(i=>{const c=i.dataset.c,m=i.value.trim().replace(/\s+/g,' ');if(m&&m!==MEANINGS[c]) mn[c]=m;});
+  const old=SETTINGS.meanings||{},renamed=BY_MEANING.some(c=>(mn[c]||'')!==(old[c]||''));
+  if(DB&&(v!==(SETTINGS.workerUrl||'')||renamed)){SETTINGS={...SETTINGS,workerUrl:v,meanings:mn};await DB.put('settings:app',SETTINGS);toast('Settings saved');}
   closeModal('#setM');
 };
 $('#backupBtn').onclick=async e=>{

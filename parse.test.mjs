@@ -34,7 +34,10 @@ const kn=kindleNotebook(kfix);
 ok('kindle: title and flipped author',kn.title==='The Lighthouse Ledger (Harbour Tales Book 2)'&&kn.author==='Ada Rivers');
 const kshape=kn.blocks.map(b=>b.t==='h'?`h${b.level}:${b.text}`:`p:${b.kh.color}`).join('|');
 ok('kindle: parts, chapters (again after a new part), highlights; the bookmark skipped',
-  kshape==='h2:Part One|h3:The Keeper|p:sun|p:sky|h3:Storms|p:coral|p:sun|p:coral|h2:Part Two|h3:Storms|p:mint|p:sky');
+  kshape==='h2:Part One|h3:The Keeper|p:sun|p:sky|h3:Storms|p:coral|p:sun|p:amber|h2:Part Two|h3:Storms|p:mint|p:sky');
+ok('kindle colours: orange is amber; pink and red stay coral',(()=>{
+  const k=kindleNotebook(['orange','pink','red'].map(c=>`<div class="noteHeading">Highlight(<span class="annotation_${c}">${c}</span>) - Location 1</div><div class="noteText">A ${c} line.</div>`).join(''));
+  return k.blocks.map(b=>b.kh.color).join()==='amber,coral,coral';})());
 const kp=kn.blocks.filter(b=>b.kh);
 ok('kindle: a note inside a highlight attaches to it',kp[0].text.startsWith('By the lamp')&&kp[0].kh.note==='Opening line I want to remember.'&&!kp[1].kh.note);
 ok('kindle: a note on no highlight becomes its own passage',kp[3].text==='A thought of my own, not on any highlight.'&&kp[3].kh.note===kp[3].text);
@@ -74,5 +77,18 @@ const twin=t=>finalize([{t:'p',text:t,marks:[],kh:{color:'sun',note:''}},{t:'p',
 const t1=twin('Yes.'),t1h=kindleHighlights(t1,1),t2=twin('Yes.'),t2h=kindleHighlights(t2,2);t1h[1].note='second';
 const tm=mergeKindle(t1,t1h,t2,t2h);
 ok('mergeKindle: passages with the same text map one to one',tm.same&&tm.hl.length===2&&new Set(tm.hl.map(h=>h.segs[0].pid)).size===2&&tm.hl.find(h=>h.note==='second').segs[0].pid==='b1');
+
+// re-importing a notebook first imported when Kindle orange became coral
+const orangeB=kdoc.blocks.find(b=>b.text.startsWith('Ships')),pinkB=kdoc.blocks.find(b=>b.text==='squall,');
+const was=JSON.parse(JSON.stringify(khl)).map(h=>h.segs[0].pid===orangeB.id?Object.assign(h,{color:'coral'}):h);
+was.push({id:'hpart',color:'coral',note:'',segs:[{pid:orangeB.id,s:0,e:5}],at:9});   // a partial coral highlight made in own-shelf
+const ro=mergeKindle(kdoc,was,kdoc,khl),roBy=Object.fromEntries(ro.hl.map(h=>[h.id,h]));
+const onOrange=ro.hl.find(h=>h.id!=='hpart'&&h.segs[0].pid===orangeB.id);
+ok('mergeKindle: a coral highlight on an orange passage becomes amber',onOrange.color==='amber'&&ro.recoloured===1);
+ok('mergeKindle: pink stays coral, a partial coral highlight stays coral',ro.hl.find(h=>h.segs[0].pid===pinkB.id).color==='coral'&&roBy.hpart.color==='coral');
+ok('mergeKindle: a recolour alone is not "the same export"',!ro.same&&ro.added===0&&ro.dropped===0&&ro.hl.length===was.length);
+const mineSky=JSON.parse(JSON.stringify(khl)).map(h=>h.segs[0].pid===orangeB.id?Object.assign(h,{color:'sky'}):h);
+const rs=mergeKindle(kdoc,mineSky,kdoc,khl);
+ok('mergeKindle: an orange passage the owner recoloured keeps its colour',rs.hl.find(h=>h.segs[0].pid===orangeB.id).color==='sky'&&rs.recoloured===0&&rs.same);
 
 done();

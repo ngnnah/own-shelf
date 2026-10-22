@@ -65,6 +65,7 @@
     <div class="nb-ctrl" id="nbCtrl">
       <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input class="f" id="nbQ" type="search" placeholder="Search highlights, notes and titles" aria-label="Search highlights"></label>
       <div class="nb-chips" id="nbChips"></div>
+      <div class="nb-group"><span>Group</span><div class="seg" id="nbGroup" role="group" aria-label="Group highlights"><button data-hg="off">Newest</button><button data-hg="color">Colour</button></div></div>
       <div class="nb-row"><select class="f" id="nbBook" aria-label="Filter by book"></select><button class="btn ghost" id="nbExp">Export…</button></div>
     </div>
     <div id="nbList"></div>
@@ -135,6 +136,7 @@
 </aside>
 <aside class="drawer" id="drawer" aria-label="Highlights">
   <div class="dr-head"><h2>Your highlights</h2><button class="ib" data-close aria-label="Close">✕</button></div>
+  <div class="dr-group" id="drGroupRow"><span>Group</span><div class="seg" id="drGroup" role="group" aria-label="Group highlights"><button data-hg="off">Book order</button><button data-hg="color">Colour</button></div></div>
   <div class="dr-filters" id="drFilters"></div>
   <div class="dr-list" id="drList"></div>
   <div class="dr-foot">
@@ -208,6 +210,7 @@
     <div class="opt" id="expScopeWrap"><span>What</span><div class="seg" id="expScope"><button data-s="book">This book</button><button data-s="shelf">Whole shelf</button></div></div>
     <div class="opt"><span>Format</span><div class="seg" id="expFmt"><button data-f="md">Markdown</button><button data-f="html">HTML</button><button data-f="txt">Plain text</button></div></div>
     <label class="chk"><input type="checkbox" id="expNotesOnly"> Only highlights I wrote a note on</label>
+    <label class="chk"><input type="checkbox" id="expByColor"> Group by colour</label>
     <p class="expsum" id="expSum"></p>
     <pre class="prev" id="expPrev"></pre>
     <p class="err hidden" id="expErr"></p>
@@ -226,6 +229,10 @@
     </div>
     <label class="fl set-gap">Link import helper URL<input class="f" id="sWorker" type="url" inputmode="url" autocomplete="off" placeholder="https://own-shelf-fetch.example.workers.dev"></label>
     <p class="set-hint" id="sWorkerHint">The Cloudflare Worker that fetches web pages for “import a link”. Needs Google sign-in.</p>
+    <div class="opt"><span id="sMeanH">Colour meanings</span>
+      <div class="cm-list" id="sMeanings" role="group" aria-labelledby="sMeanH"></div>
+      <p class="set-hint">What each highlight colour stands for. The toolbar, chips, groups and exports show these names.</p>
+    </div>
     <div class="opt"><span>Backup</span>
       <div class="set-row"><button class="btn ghost" id="backupBtn">Back up shelf</button><button class="btn ghost" id="restoreBtn">Restore from backup</button></div>
       <input type="file" id="restoreFile" accept=".json,application/json" hidden>
