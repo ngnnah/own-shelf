@@ -6,6 +6,11 @@
 // secrets. Your data is protected by the Firestore security rules (firestore.rules).
 export const firebaseConfig = {
   apiKey: "AIzaSyBcmSfvxEjA_VD2WMUS6nNhA_1m1B8rx7Q",
+  // Where Google sign-in's helper pages live: https://<authDomain>/__/auth/handler. Firebase's default is a
+  // different site from the app, so redirect sign-in can't finish in Safari and the iPhone home-screen app
+  // can't sign in at all. Once the helper files are served from this repo's __/auth/ and
+  // https://ngnnah.github.io/own-shelf/__/auth/handler is a redirect URI of the OAuth web client, use:
+  //   authDomain: "ngnnah.github.io/own-shelf",
   authDomain: "upwind-reader.firebaseapp.com",
   projectId: "upwind-reader",
   storageBucket: "upwind-reader.firebasestorage.app",

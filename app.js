@@ -1723,7 +1723,14 @@ document.addEventListener('keydown',e=>{
 /* ================= accounts ================= */
 const FIREBASE_VERSION='10.12.2';
 const FB=`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-`;
-let fb=null,unwatch=()=>{},incoming=null;
+let fb=null,unwatch=()=>{},incoming=null,siNote='';
+// Google sign-in's helper pages live at https://<authDomain>/__/auth/ (config.js). Only when they're served
+// from this site does a redirect sign-in come back signed in: Safari 16.1+, Firefox 109+ and Chrome 115+
+// partition the storage of a third-party helper, such as Firebase's default upwind-reader.firebaseapp.com.
+const authHere=firebaseConfig.authDomain.split('/')[0]===location.host;
+// An iPhone or iPad home-screen app. Firebase can't use a popup there: it opens the helper with a plain
+// link, so there's no window to report back to, and iOS loads it outside the app's own storage.
+const homeScreen=()=>(/iPhone|iPad|iPod/.test(navigator.userAgent)||/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1)&&(navigator.standalone===true||matchMedia('(display-mode: standalone)').matches);
 const onShelf=()=>!$('#shelf').classList.contains('hidden');
 // Errors a new copy of own-shelf hits while its Firebase project is being set up (README: Make your own shelf).
 // Each names the project from config.js, so a fork that still has someone else's config can tell.
@@ -1765,29 +1772,54 @@ async function start(store){
 const startLocal=()=>start(makeLocal({onError:()=>toast('Storage is full — some changes may not be saved')}));
 function startCloud(user){
   if(DB&&DB.kind==='cloud'&&DB.uid===user.uid) return;
-  ls.set('mode',null);
+  ls.set('mode',null);siNote='';
   start(makeCloud(fb.F,fb.db,user.uid,{onError:syncError}));
 }
+const siErr=m=>{$('#siErr').textContent=m||'';$('#siErr').classList.toggle('hidden',!m);};
 function showSignin(msg){
   unwatch();unwatch=()=>{};DB=null;META=[];DOC=null;ST=null;HL=[];SETTINGS={};
   document.querySelectorAll('.modal').forEach(m=>m.classList.add('hidden'));
   show('signin');document.title='own-shelf';
   $('#siGoogle').classList.toggle('hidden',!fb);
-  $('#siErr').textContent=msg||'';$('#siErr').classList.toggle('hidden',!msg);
+  siErr(msg||siNote);siNote='';
 }
+function authMessage(e){
+  const c=e&&e.code||'';
+  const safari=`Open ${location.host}${location.pathname.replace(/index\.html$/,'')} in Safari and sign in there, or use own-shelf on this device only.`;
+  const setup=setupError(e);if(setup) return setup;
+  if(c==='auth/network-request-failed') return 'No connection. Try again when you’re online.';
+  if(c==='own/home-screen') return 'Google sign-in doesn’t work in the home-screen app yet. '+safari;
+  // any other failure there, such as a return without an account: Firebase's helper shows errors like
+  // "missing initial state" on its own page, so the app only sees the user come back signed out
+  if(homeScreen()) return 'Google sign-in didn’t finish in the home-screen app'+(c.startsWith('auth/')?` (${c})`:'')+'. '+safari;
+  if(c==='auth/popup-blocked') return 'The sign-in window was blocked. Allow pop-ups for this site, then try again.';
+  if(c==='own/no-result') return 'Google sign-in didn’t finish. Try again.';
+  return 'Sign-in didn’t work'+(c?` (${c})`:'')+'.';
+}
+// On the sign-in screen, now or once boot opens it; otherwise in Settings, where the other sign-in button is.
 function authError(e){
-  console.error(e);
-  const m=setupError(e)||(e&&e.code==='auth/network-request-failed'?'No connection. Try again when you’re online.':'Sign-in didn’t work'+(e&&e.code?` (${e.code})`:'')+'.');
-  if($('#signin').classList.contains('hidden')) toast(m); else {$('#siErr').textContent=m;$('#siErr').classList.remove('hidden');}
+  console.warn('Sign-in:',e);
+  const m=authMessage(e);
+  if(!$('#signin').classList.contains('hidden')) siErr(m);
+  else if(DB){openSettings();setErr(m);}
+  else siNote=m;
 }
 async function signIn(){
   if(!fb){toast('Sign-in isn’t available right now. Check your connection and reload.');return;}
+  siErr('');
   const p=new fb.A.GoogleAuthProvider();
+  if(homeScreen()) return authHere?redirectSignIn(p):authError({code:'own/home-screen'});
   try{await fb.A.signInWithPopup(fb.auth,p);}
   catch(e){
-    if(e.code==='auth/popup-blocked'){try{await fb.A.signInWithRedirect(fb.auth,p);}catch(e2){authError(e2);}return;}
+    if(e.code==='auth/popup-blocked'&&authHere) return redirectSignIn(p); // elsewhere a redirect comes back signed out
     if(e.code!=='auth/popup-closed-by-user'&&e.code!=='auth/cancelled-popup-request') authError(e);
   }
+}
+// Leaves the page. The time it left lets boot report a return without an account, once, instead of
+// showing a plain sign-in screen that invites the same redirect again.
+async function redirectSignIn(p){
+  ls.set('redirectAt',Date.now());
+  try{await fb.A.signInWithRedirect(fb.auth,p);}catch(e){ls.set('redirectAt',null);authError(e);}
 }
 async function signOut(){
   if(DOC){ST.pos=scrollY;await saveState(true);}
@@ -1830,7 +1862,8 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
   let fbErr=null;
   try{fb=await loadFirebase();}catch(e){console.warn('Firebase did not load',e);fb=null;fbErr=e;}
   if(!fb){if(!local) showSignin(setupError(fbErr)||'Sign-in isn’t available right now (offline?). You can still use own-shelf on this device only.');return;}
-  fb.A.getRedirectResult(fb.auth).catch(authError);
+  const left=ls.get('redirectAt',0);ls.set('redirectAt',null); // a redirect sign-in this app started
+  fb.A.getRedirectResult(fb.auth).then(r=>{if(!r&&Date.now()-left<6e5&&!fb.auth.currentUser) authError({code:'own/no-result'});},authError);
   fb.A.onAuthStateChanged(fb.auth,user=>{
     if(user) startCloud(user);
     else if(ls.get('mode',null)==='local'){if(!DB||DB.kind!=='local') startLocal();}
