@@ -156,13 +156,15 @@ await t.run(async()=>{
   ok('Good after Again: 1 day, the lapse kept',w.srs.interval===1&&w.srs.lapses===1&&w.srs.seen===2);
 
   /* ---------- done ---------- */
+  // new words left over wait for midnight: "tomorrow", or "in N min" when midnight is under an hour away
+  const nextNew=(()=>{const m=new Date();m.setHours(24,0,0,0);return m-Date.now()<36e5?/Next review in \d+ min\./:/Next review tomorrow\./;})();
   const done=await text('#syCard');
-  ok('done: All caught up, how many reviewed, next review tomorrow',done.includes('All caught up')&&done.includes('You reviewed 4 words.')&&done.includes('Next review tomorrow.'));
+  ok('done: All caught up, how many reviewed, next review tomorrow',done.includes('All caught up')&&done.includes('You reviewed 4 words.')&&nextNew.test(done));
   ok('done: no progress or toggle',(await text('#syProg'))===''&&!(await vis('#syMode')));
   ok('done: no sideways scroll, button on screen',!(await shoot('done')).length);
   ok('the day’s count includes the 2 new words rated',await page.evaluate(()=>JSON.parse(localStorage.getItem('upwind:studyNew')).n)===20);
   await openStudy();
-  ok('with the day’s new words used up and nothing due: done at once',(await text('#syCard')).includes('Nothing is due right now.')&&(await text('#syCard')).includes('Next review tomorrow.'));
+  ok('with the day’s new words used up and nothing due: done at once',(await text('#syCard')).includes('Nothing is due right now.')&&nextNew.test(await text('#syCard')));
 
   /* ---------- Sentence → word ---------- */
   const X={id:'wx',term:'sonorous',def:'Deep and full in sound.',pos:'adjective',defSource:'Datamuse',added:now-9*DAY,

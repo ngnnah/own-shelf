@@ -298,7 +298,7 @@ await t.run(async()=>{
   await openWords();await chip('Facts');await until(()=>document.querySelectorAll('#wdList .fcard').length===5);
   const inkId=made[2][1].id;
   await page.click(`#wdList .fcard[data-id="${inkId}"] [data-a="del"]`);
-  ok('Delete moves a fact card to the Trash',await toast('Moved to Trash')&&(await facts()).length===4&&!(await poll('word:'+inkId,w=>!w)));
+  ok('Delete moves a fact card to the Trash',await toast('Moved to Trash · Undo')&&(await facts()).length===4&&!(await poll('word:'+inkId,w=>!w)));
   ok('its highlight doesn’t go back to To sort',(await chips())[3]==='To sort (1)');
   await toShelf();await page.click('#setBtn');await page.waitForSelector('#setM:not(.hidden)');
   await page.click('#trashBtn');await page.waitForSelector('#trashM:not(.hidden)');await until(()=>!document.querySelector('#trashList').textContent.includes('Opening'));
