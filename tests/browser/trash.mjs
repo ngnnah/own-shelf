@@ -8,7 +8,8 @@ import {fileURLToPath} from 'node:url';
 const t=await start('trash',8127);
 const {page,ok,must,vis,text,until}=t;
 const shots=join(dirname(fileURLToPath(import.meta.url)),'out','trash');mkdirSync(shots,{recursive:true});
-const shot=async label=>{await until(()=>!document.querySelector('#toast').classList.contains('on'));await sleep(300);await page.screenshot({path:join(shots,label+'.png')});};
+// after the toast has gone (an Undo toast stays 6 s)
+const shot=async label=>{await page.waitForFunction(()=>!document.querySelector('#toast').classList.contains('on'),{timeout:8000}).catch(()=>{});await sleep(300);await page.screenshot({path:join(shots,label+'.png')});};
 
 // The local adapter's IndexedDB, read and written directly
 const keys=()=>page.evaluate(()=>new Promise((res,rej)=>{const r=indexedDB.open('upwind',1);r.onerror=()=>rej(r.error);
@@ -65,7 +66,7 @@ await t.run(async()=>{
   const pText=(await page.$eval('#col p.hp mark.hl',e=>e.textContent)).replace(/\s+/g,' ').trim();
   await page.click('#col p.hp mark.hl');await until(()=>!document.querySelector('#tool').classList.contains('hidden'));
   await page.click('#tool [data-a="del"]');await until(()=>document.querySelector('#hlCount').textContent==='1');
-  ok('the toolbar Remove moves the highlight to the Trash',(await count())==='1'&&(await toast())==='Moved to Trash'&&!(await page.$('#col p.hp mark.hl')));
+  ok('the toolbar Remove moves the highlight to the Trash',(await count())==='1'&&(await toast())==='Moved to Trash · Undo'&&!(await page.$('#col p.hp mark.hl')));
   let label=await openTrash(),r=await rows();
   ok('Settings shows "Trash · 1 item"',label==='Trash · 1 item');
   ok('the Trash lists the highlight with its book, quote and time left',r.length===1&&r[0].what==='Highlight'&&r[0].sec.includes('The Quiet Engine')&&r[0].text.includes(pText.slice(0,40))&&r[0].text.includes('deleted just now · 30 days left'));
@@ -81,7 +82,7 @@ await t.run(async()=>{
   await page.click('#clearAll');await page.waitForSelector('#confirmM:not(.hidden)');
   ok('Clear all still asks for "yes" and says where they go',(await text('#cfBody')).includes('2 highlights')&&(await text('#cfBody')).includes('restore them for 30 days'));
   await page.type('#cfInput','yes');await page.click('#cfGo');await hidden('#confirmM');
-  ok('Clear all moves them to the Trash',(await count())==='0'&&(await toast())==='Moved to Trash');
+  ok('Clear all moves them to the Trash',(await count())==='0'&&(await toast())==='Moved to Trash · Undo');
   await t.closeDrawer();
   label=await openTrash();r=await rows();
   ok('one Trash entry holds both highlights',label==='Trash · 1 item'&&r.length===1&&r[0].what==='2 highlights');
@@ -94,7 +95,7 @@ await t.run(async()=>{
   await setNote(card,'Why this matters');
   must('note saved',(await text(card+' .nt'))==='Why this matters');
   await setNote(card,'');
-  ok('clearing a note moves it to the Trash',(await toast())==='Moved to Trash'&&!(await page.$('#drList .nt')));
+  ok('clearing a note moves it to the Trash',(await toast())==='Moved to Trash · Undo'&&!(await page.$('#drList .nt')));
   await t.closeDrawer();
   label=await openTrash();r=await rows();
   ok('the Trash shows the note and the passage it was on',label==='Trash · 1 item'&&r[0].what==='Note'&&r[0].text.includes('Why this matters')&&r[0].text.includes(pText.slice(0,40)));
@@ -114,7 +115,7 @@ await t.run(async()=>{
   ok('removing a book with highlights asks for "yes" and says where it goes',(await text('#cfBody')).includes('2 highlights and 1 note')&&(await text('#cfBody')).includes('restore them for 30 days'));
   await page.type('#cfInput','yes');await page.click('#cfGo');await hidden('#detM');
   let k=await keysUntil(k=>!n(k,'meta:'));
-  ok('the book leaves the shelf',(await toast())==='Moved to Trash'&&(await page.$$('.book')).length===0);
+  ok('the book leaves the shelf',(await toast())==='Moved to Trash · Undo'&&(await page.$$('.book')).length===0);
   ok('only its shelf entry is deleted',!n(k,'meta:')&&n(k,'doc:')===1&&n(k,'state:')===1);
   label=await openTrash();r=await rows();
   ok('the Trash lists the book with its author and counts',label==='Trash · 1 item'&&r[0].what==='Book'&&r[0].sec.includes('The Quiet Engine')&&r[0].text.includes('Ada Rivers · 2 highlights and 1 note'));
@@ -126,7 +127,7 @@ await t.run(async()=>{
   // several kinds at once, for the screenshots: a highlight, a note, a book
   await t.openDrawer('#bHl','#drawer');
   await page.click('#drList .hcard:nth-child(2) [data-a="del"]');await until(()=>document.querySelector('#hlCount').textContent==='1');
-  ok('a drawer card’s Remove moves it to the Trash',(await toast())==='Moved to Trash'&&(await page.$$('#drList .hcard')).length===1);
+  ok('a drawer card’s Remove moves it to the Trash',(await toast())==='Moved to Trash · Undo'&&(await page.$$('#drList .hcard')).length===1);
   await setNote(card,'');
   await t.closeDrawer();
   await addMarkdown(t,'field-notes.md','# Field Notes\n\nBy June Park\n\n'+'Every tool leaves a mark on the hand that holds it. '.repeat(6)+'\n\n'+'The second paragraph is filler for the body of the text. '.repeat(20)+'\n','Field Notes');

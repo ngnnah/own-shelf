@@ -6,7 +6,29 @@ import {wordId,normTerm,termKey,sentenceAround,isDue,schedule,nextLabel,cloze,da
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function hash(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return (h>>>0).toString(36);}
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),2100);}
+// A message at the bottom for about 2 s. With an action ({label, run}) a button follows it ("Moved to Trash · Undo"),
+// and it stays 6 s, longer while hovered or focused. The next toast replaces it; Escape dismisses it. The button is
+// never focused for you; it's the last stop in the tab order, and when it goes, focus returns to where it came from.
+function toast(m,act){
+  const t=$('#toast');toastBlur();
+  t.classList.toggle('act',!!act);
+  if(act){t.innerHTML=`${esc(m)}<span class="dot" aria-hidden="true"> · </span><button type="button">${esc(act.label)}</button>`;t.lastChild.onclick=()=>{toastOff();act.run();};}
+  else t.textContent=m;
+  t.classList.add('on');toastWait(act?6000:2100);
+}
+const toastHeld=()=>{const t=$('#toast');return t.classList.contains('act')&&(t.matches(':hover')||t.contains(document.activeElement));};
+function toastWait(ms){clearTimeout(toast.t);toast.end=Date.now()+ms;if(!toastHeld())toast.t=setTimeout(toastOff,ms);}
+function toastOff(){clearTimeout(toast.t);toastBlur();$('#toast').classList.remove('on');}
+// focus inside the toast goes back where it came from before the toast changes or goes
+function toastBlur(){const t=$('#toast');if(!t.contains(document.activeElement))return;const b=toast.back;toast.back=null;if(b&&b.isConnected&&b!==document.body)b.focus({preventScroll:true});else document.activeElement.blur();}
+{
+  const t=$('#toast'),hold=()=>clearTimeout(toast.t);
+  const resume=()=>{if(t.classList.contains('on')&&!toastHeld())toastWait(Math.max(toast.end-Date.now(),2000));};
+  t.addEventListener('mouseenter',hold);t.addEventListener('mouseleave',resume);
+  t.addEventListener('focusin',e=>{if(!t.contains(e.relatedTarget))toast.back=e.relatedTarget;hold();});
+  t.addEventListener('focusout',()=>setTimeout(resume));
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&t.classList.contains('on'))toastOff();});
+}
 const COLORS=[['sun','Sunny'],['mint','Mint'],['coral','Coral'],['sky','Sky']];
 // cloth bindings: [cover, text]. Books store an index into this list; changing its length recolours them.
 const COVERS=[['#2F5A43','#F3EAD7'],['#8E2F2A','#F8EEDD'],['#23395B','#EFE4CC'],['#B7802A','#2E2119'],['#5C3B24','#F3EAD7'],['#45706C','#F8EEDD'],['#D9C9A8','#2E2119'],['#6B3426','#F3D9B0']];
@@ -372,9 +394,9 @@ $('#dRemove').onclick=async e=>{
     if(!await confirmTyped('Remove this book?',`This removes “${m.title}” and its ${lossText(hl.length||m.hl,hl.filter(h=>h.note).length)}. ${TRASH_NOTE}`,'Remove book'))return;
   } else if(!armed(e.currentTarget,'Tap again to remove'))return;
   if(open){clearTimeout(stT);ST.pos=scrollY;ST.hl=HL;DB.put('state:'+id,ST);DOC=null;} // saved without its shelf entry
-  toTrash('book',{bookId:id,title:m.title,meta:m,hl:hl.length||m.hl,notes:hl.filter(h=>h.note).length});
+  const tr=toTrash('book',{bookId:id,title:m.title,meta:m,hl:hl.length||m.hl,notes:hl.filter(h=>h.note).length});
   await DB.del('meta:'+id);META=META.filter(x=>x.id!==id);
-  closeModal('#detM');toast('Moved to Trash');if(open) goShelf(); else renderShelf();
+  closeModal('#detM');movedToTrash(tr);if(open) goShelf(); else renderShelf();
 };
 $('#barTitle').onclick=()=>DOC&&openDetails(DOC.id);
 
@@ -623,7 +645,7 @@ tool.addEventListener('click',e=>{
     if(editing){editing.color=b.dataset.c;commit();rerender(editing.segs.map(s=>s.pid));}
     else if(pendingSegs){addHighlight(pendingSegs,b.dataset.c);getSelection().removeAllRanges();}
     hideTool();return;}
-  if(b.dataset.a==='del'&&editing){const pids=editing.segs.map(s=>s.pid);trashHighlights([editing]);HL=HL.filter(x=>x!==editing);commit();rerender(pids);hideTool();toast('Moved to Trash');return;}
+  if(b.dataset.a==='del'&&editing){const pids=editing.segs.map(s=>s.pid),tr=trashHighlights([editing]);HL=HL.filter(x=>x!==editing);commit();rerender(pids);hideTool();movedToTrash(tr);return;}
   if(b.dataset.a==='word'&&pendingSegs){saveWordFromSel(pendingSegs);return;}
   if(b.dataset.a==='copy'&&pendingSegs){copyText(pendingSegs.map(s=>blockIndex[s.pid].text.slice(s.s,s.e)).join('\n\n'),'Copied');return;}
   if(b.dataset.a==='note'){let h=editing;if(!h&&pendingSegs){h=addHighlight(pendingSegs,'sun');getSelection().removeAllRanges();}if(h)openNote(h,tool.getBoundingClientRect());hideTool();}
@@ -656,9 +678,8 @@ $('#noteSave').onclick=()=>{
   const h=noteTarget;
   if(h){
     const old=h.note||'';h.note=$('#noteTa').value.trim();
-    const trashed=!!(old&&!h.note&&DOC); // a cleared note goes to the Trash
-    if(trashed) toTrash('note',{bookId:DOC.id,title:DOC.title,hlId:h.id,text:old,quote:quoteOf(h),color:h.color});
-    commit();rerender(h.segs.map(s=>s.pid));toast(h.note?'Note saved':trashed?'Moved to Trash':'Note cleared');
+    const tr=old&&!h.note&&DOC?toTrash('note',{bookId:DOC.id,title:DOC.title,hlId:h.id,text:old,quote:quoteOf(h),color:h.color}):null; // a cleared note goes to the Trash
+    commit();rerender(h.segs.map(s=>s.pid));if(tr)movedToTrash(tr);else toast(h.note?'Note saved':'Note cleared');
   }
   $('#noteBox').classList.add('hidden');
 };
@@ -679,7 +700,7 @@ function renderDrawer(){
     const h=HL.find(x=>x.id===card.dataset.id);
     card.querySelector('.q').onclick=()=>jumpTo(h);card.querySelector('.q').onkeydown=e=>{if(e.key==='Enter')jumpTo(h);};
     card.querySelector('[data-a="note"]').onclick=()=>openNote(h,card.getBoundingClientRect());
-    card.querySelector('[data-a="del"]').onclick=()=>{const pids=h.segs.map(s=>s.pid);trashHighlights([h]);HL=HL.filter(x=>x!==h);commit();rerender(pids);toast('Moved to Trash');};
+    card.querySelector('[data-a="del"]').onclick=()=>{const pids=h.segs.map(s=>s.pid),tr=trashHighlights([h]);HL=HL.filter(x=>x!==h);commit();rerender(pids);movedToTrash(tr);};
   });
 }
 function jumpTo(h){closeDrawers();const m=document.querySelector(`mark[data-h="${h.id}"]`);if(!m)return;m.scrollIntoView({block:'center'});document.querySelectorAll(`mark[data-h="${h.id}"]`).forEach(x=>{x.classList.remove('flash');void x.offsetWidth;x.classList.add('flash');});}
@@ -687,8 +708,8 @@ $('#segFmt').onclick=e=>{const b=e.target.closest('button');if(!b)return;prefs.f
 $('#clearAll').onclick=async()=>{
   if(!HL.length)return;
   if(!await confirmTyped('Clear all highlights?',`This removes all ${lossText(HL.length,HL.filter(h=>h.note).length)} in “${DOC.title}”. ${TRASH_NOTE}`,'Clear all'))return;
-  trashHighlights(HL);
-  const pids=HL.flatMap(h=>h.segs.map(s=>s.pid));HL=[];commit();rerender(pids);toast('Moved to Trash');
+  const tr=trashHighlights(HL);
+  const pids=HL.flatMap(h=>h.segs.map(s=>s.pid));HL=[];commit();rerender(pids);movedToTrash(tr);
 };
 function exportText(){
   const list=sorted();const cname=c=>(COLORS.find(x=>x[0]===c)||[c,c])[1];
@@ -1157,8 +1178,8 @@ function listWords(){
 // Deleting asks nothing: the whole word goes to the Trash, and Restore puts it back.
 function deleteWord(id){
   const w=WORDS&&WORDS.get(id);if(!w) return;
-  toTrash('word',{title:w.term,word:w});
-  WORDS.delete(id);WIDX=null;DB.del('word:'+id);toast('Moved to Trash');
+  const tr=toTrash('word',{title:w.term,word:w});
+  WORDS.delete(id);WIDX=null;DB.del('word:'+id);movedToTrash(tr);
 }
 // A word back from the Trash. Saved again meanwhile: its examples are merged in, and the newer copy keeps its meaning
 // and flashcard schedule unless it has none.
@@ -1258,7 +1279,17 @@ function toTrash(kind,o){
   DB.put('trash:'+e.id,e);return e;
 }
 // highlights removed from the open book; the quote is the first one in reading order
-function trashHighlights(items){toTrash('highlights',{bookId:DOC.id,title:DOC.title,items,quote:quoteOf(sorted(items)[0])});}
+function trashHighlights(items){return toTrash('highlights',{bookId:DOC.id,title:DOC.title,items,quote:quoteOf(sorted(items)[0])});}
+// After a delete: "Moved to Trash · Undo". Undo restores just that entry, as the Trash's Restore does. Another toast
+// (the next delete, say) takes the button away; the entry stays in the Trash.
+function movedToTrash(e){toast('Moved to Trash',{label:'Undo',run:async()=>{const why=await restoreEntry(e);if(why){toast(why);return;}afterRestore(e);toast('Restored');}});}
+// Shows what came back where it's on screen; restoreEntry itself redraws the open book.
+function afterRestore(e){
+  const nb=!$('#notebook').classList.contains('hidden'),words=prefs.nbTab==='wd';
+  if(onShelf()) renderShelf();
+  else if(nb&&words&&e.kind==='word') renderWords();
+  else if(nb&&!words&&e.kind!=='word') openNotebook(); // the Highlights tab reads the books again
+}
 // Puts an entry back. Returns '' or why it can't.
 async function restoreEntry(e){
   if(e.kind==='word'){await restoreWord(e.word);DB.del('trash:'+e.id);return '';}
@@ -1327,7 +1358,7 @@ $('#trashBtn').onclick=openTrash;
 $('#trashList').onclick=async ev=>{
   const b=ev.target.closest('[data-a]'),row=b&&b.closest('[data-id]'),e=row&&TRASH.find(x=>x.id===row.dataset.id);if(!e)return;
   if(b.dataset.a==='forget'){if(!armed(b,'Tap again to delete'))return;forget(e);toast('Deleted for good');}
-  else{b.disabled=true;const why=await restoreEntry(e);if(why){b.disabled=false;toast(why);return;}toast('Restored');if(onShelf())renderShelf();}
+  else{b.disabled=true;const why=await restoreEntry(e);if(why){b.disabled=false;toast(why);return;}toast('Restored');afterRestore(e);}
   TRASH=TRASH.filter(x=>x!==e);renderTrash();
 };
 $('#trashEmpty').onclick=async()=>{

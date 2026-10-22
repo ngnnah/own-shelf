@@ -7,6 +7,8 @@
 //   notefilter.mjs  the "With note" chip in the highlights drawer
 //   deletes.mjs     deletes that lose highlights or notes ask for "yes"
 //   trash.mjs       the Trash: removed books, highlights and notes, restore, delete forever, the 30-day purge
+//   undo.mjs        "Moved to Trash · Undo" after every delete: Undo per kind, the toast's lifetime, hover and focus,
+//                   a second delete, Escape, none after Delete forever or Empty Trash
 //   length.mjs      each book's length on the shelf: the cover's word count, the page block, the list's Length column
 //   finish.mjs      finishing a book: real reading time needed, the cover's ✓ Finished, the manual override in Details
 //   shelf.mjs       arranging the shelf by title (shelves and List view), picking a cover colour in Details
@@ -32,7 +34,7 @@ import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','trash.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','words.mjs','study.mjs','migrate.mjs','linkimport.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','words.mjs','study.mjs','migrate.mjs','linkimport.mjs'];
 
 // Run one file, echo its output and count its PASS/FAIL lines.
 const runOne=f=>new Promise(res=>{

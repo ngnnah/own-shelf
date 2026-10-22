@@ -36,7 +36,7 @@ await t.run(async()=>{
   await page.type('#cfInput','  Yes ');
   ok('"yes" in any case, with spaces, enables the button',!(await go()));
   await page.keyboard.press('Enter');await until(()=>document.querySelector('#confirmM').classList.contains('hidden'));
-  ok('Enter after "yes" clears every highlight',(await count())==='0'&&(await page.$$('mark.hl')).length===0&&(await text('#toast'))==='Moved to Trash');
+  ok('Enter after "yes" clears every highlight',(await count())==='0'&&(await page.$$('mark.hl')).length===0&&(await text('#toast'))==='Moved to Trash · Undo');
   await t.closeDrawer();
 
   // Remove from shelf: typed confirmation only when highlights would be lost
@@ -50,5 +50,5 @@ await t.run(async()=>{
   await page.click('#dRemove');await page.waitForSelector('#confirmM:not(.hidden)');
   await page.type('#cfInput','yes');await page.click('#cfGo');
   await until(()=>document.querySelector('#detM').classList.contains('hidden'));
-  ok('typing "yes" removes the book',(await text('#toast'))==='Moved to Trash'&&(await page.$$('.book')).length===0);
+  ok('typing "yes" removes the book',(await text('#toast'))==='Moved to Trash · Undo'&&(await page.$$('.book')).length===0);
 });
