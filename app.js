@@ -1,6 +1,6 @@
 // own-shelf app (formerly Upwind). Ported from legacy/app-script.js; all data goes through the store.js adapters.
 import {makeLocal,makeCloud,exportShelf,importShelf} from './store.js';
-import {firebaseConfig,FIREBASE_VERSION,WORKER_URL} from './config.js';
+import {firebaseConfig,WORKER_URL} from './config.js';
 import {wordId,normTerm,termKey,sentenceAround,isDue,schedule,nextLabel,cloze,datamuseUrl,parseDatamuse,wiktionaryUrl,parseWiktionary,baseForms,isFact,factId,factCloze,wordsIn,snapWords} from './vocab.js';
 /* ================= utils ================= */
 const $=s=>document.querySelector(s);
@@ -1655,10 +1655,24 @@ document.addEventListener('keydown',e=>{
 });
 
 /* ================= accounts ================= */
+const FIREBASE_VERSION='10.12.2';
 const FB=`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-`;
 let fb=null,unwatch=()=>{},incoming=null;
 const onShelf=()=>!$('#shelf').classList.contains('hidden');
-function syncError(e){console.error(e);toast(e&&e.code==='permission-denied'?'Sync was refused. Check the Firestore rules.':'Couldn’t sync a change'+(e&&e.code?` (${e.code})`:''));}
+// Errors a new copy of own-shelf hits while its Firebase project is being set up (README: Make your own shelf).
+// Each names the project from config.js, so a fork that still has someone else's config can tell.
+function setupError(e){
+  const c=e&&e.code||'',p=`the Firebase project “${firebaseConfig.projectId}”`,host=location.hostname;
+  if(c==='auth/unauthorized-domain') return `${host} isn’t an authorized domain of ${p}. Add it under Authentication → Settings → Authorized domains.`;
+  if(c.startsWith('auth/requests-from-referer-')) return `The API key of ${p} doesn’t accept requests from ${host}. Add this site to the key’s website restrictions (Google Cloud console → Credentials).`;
+  if(c.startsWith('auth/requests-to-this-api-')) return `The API key of ${p} blocks sign-in. Allow Identity Toolkit API and Token Service API in the key’s API restrictions.`;
+  if(c==='auth/operation-not-allowed') return `Google sign-in is off in ${p}. Turn it on under Authentication → Sign-in method.`;
+  if(c==='auth/configuration-not-found') return `Authentication isn’t set up in ${p}. Open Authentication and click Get started.`;
+  if(c==='auth/invalid-api-key'||c.startsWith('auth/api-key-not-valid')) return `The apiKey in config.js isn’t a valid key for ${p}.`;
+  if(/database \S+ does not exist|Cloud Firestore API has not been used/.test(e&&e.message||'')) return `${p} has no Firestore database yet. Create one under Firestore Database.`;
+  return '';
+}
+function syncError(e){console.error(e);toast(setupError(e)||(e&&e.code==='permission-denied'?'Sync was refused. Check the Firestore rules.':'Couldn’t sync a change'+(e&&e.code?` (${e.code})`:'')));}
 async function loadFirebase(){
   const [app,A,F]=await Promise.all(['app','auth','firestore'].map(m=>import(FB+m+'.js')));
   const fa=app.initializeApp(firebaseConfig);
@@ -1697,7 +1711,7 @@ function showSignin(msg){
 }
 function authError(e){
   console.error(e);
-  const m=e&&e.code==='auth/unauthorized-domain'?'This site isn’t on the Firebase authorized domains list yet.':e&&e.code==='auth/network-request-failed'?'No connection. Try again when you’re online.':'Sign-in didn’t work'+(e&&e.code?` (${e.code})`:'')+'.';
+  const m=setupError(e)||(e&&e.code==='auth/network-request-failed'?'No connection. Try again when you’re online.':'Sign-in didn’t work'+(e&&e.code?` (${e.code})`:'')+'.');
   if($('#signin').classList.contains('hidden')) toast(m); else {$('#siErr').textContent=m;$('#siErr').classList.remove('hidden');}
 }
 async function signIn(){
@@ -1747,8 +1761,9 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
   if('serviceWorker' in navigator&&isSecureContext) navigator.serviceWorker.register('sw.js').catch(()=>{});
   const local=ls.get('mode',null)==='local';
   if(local) startLocal();
-  try{fb=await loadFirebase();}catch(e){console.warn('Firebase did not load',e);fb=null;}
-  if(!fb){if(!local) showSignin('Sign-in isn’t available right now (offline?). You can still use own-shelf on this device only.');return;}
+  let fbErr=null;
+  try{fb=await loadFirebase();}catch(e){console.warn('Firebase did not load',e);fb=null;fbErr=e;}
+  if(!fb){if(!local) showSignin(setupError(fbErr)||'Sign-in isn’t available right now (offline?). You can still use own-shelf on this device only.');return;}
   fb.A.getRedirectResult(fb.auth).catch(authError);
   fb.A.onAuthStateChanged(fb.auth,user=>{
     if(user) startCloud(user);

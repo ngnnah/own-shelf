@@ -1,6 +1,7 @@
 {
   "name": "own-shelf",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "test": "node worker/worker.test.mjs && node store.test.mjs && node parse.test.mjs && node vocab.test.mjs",
