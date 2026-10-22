@@ -1,4 +1,4 @@
-// To sort: coral highlights (Kindle red, pink and orange, and Coral made here) become words or fact cards. Tapping
+// To sort: coral highlights (Kindle red and pink, and Coral made here) become words or fact cards. Tapping
 // words, a selected phrase as the blank, Fact, Skip and Show skipped, Make the rest facts, the sorting surviving a
 // Kindle re-import, the Facts chip, the Trash, and fact cards in Study. Dictionaries are mocked.
 // Usage: node tests/browser/sort.mjs [repo dir]
@@ -42,10 +42,11 @@ const notebook=(extra='')=>`<html><head><meta charset="UTF-8"></head><body><div 
 <div class="sectionHeading">Part One</div>
 ${hl('red','Tides > Page 3 · Location 40',LONG)}
 ${hl('yellow','Tides > Page 4 · Location 60','A yellow line, so not one to sort.')}
+${hl('orange','Tides > Page 4 · Location 70','An orange line is a quote, so not one to sort either.')}
 ${hl('pink','Tides > Page 5 · Location 80',SQUALL)}
 ${hl('red','Tides > Page 6 · Location 100',BARO)}<div class="noteHeading">Note - Tides > Page 6 · Location 100</div><div class="noteText">Grandpa’s rule.</div>
 <div class="sectionHeading">Part Two</div>
-${hl('orange','Charts > Page 9 · Location 150',MERC)}
+${hl('red','Charts > Page 9 · Location 150',MERC)}
 ${hl('red','Charts > Page 10 · Location 170',KEEPER)}
 ${hl('red','Charts > Page 11 · Location 190',INK)}${extra}
 </div></body></html>`;
@@ -157,9 +158,9 @@ await t.run(async()=>{
 
   /* ---------- 1. a Kindle notebook, and a Coral highlight made here ---------- */
   await pick(file('The Salt Almanac - Notebook.html',notebook()));
-  must('the notebook is imported',(await text('#hlCount'))==='7');
+  must('the notebook is imported',(await text('#hlCount'))==='8');
   const kid=await page.evaluate(()=>JSON.parse(localStorage.getItem('upwind:last')));
-  ok('Kindle red, pink and orange import as Coral',(await page.$$eval('mark.hl.c-coral',m=>new Set(m.map(x=>x.dataset.h)).size))===6);
+  ok('Kindle red and pink import as Coral, orange as Quotes (amber)',(await page.$$eval('mark.hl.c-coral',m=>new Set(m.map(x=>x.dataset.h)).size))===6&&(await page.$$eval('mark.hl.c-amber',m=>new Set(m.map(x=>x.dataset.h)).size))===1);
   await addMarkdown(t,'harbour.md',BOOK,'Harbour Notes');
   const hid=await page.evaluate(()=>JSON.parse(localStorage.getItem('upwind:last')));
   await page.evaluate(p=>{const el=[...document.querySelectorAll('#col .hp')].find(e=>e.textContent.includes(p));el.scrollIntoView({block:'center'});const r=document.createRange();r.selectNodeContents(el);getSelection().removeAllRanges();getSelection().addRange(r);},WALL);
@@ -263,7 +264,7 @@ await t.run(async()=>{
   await pick(file('The Salt Almanac - Notebook (newer).html',notebook(hl('red','Charts > Page 12 · Location 210',NEW))));
   ok('a newer export merges one new highlight',await toast('Merged: 1 new highlight'));
   const st1=(await idb('state:'+kid)).hl;
-  ok('the merge keeps every highlight’s sorting',same(st1.filter(h=>h.study).map(h=>[h.id,h.study.as]),st0)&&st1.length===8);
+  ok('the merge keeps every highlight’s sorting',same(st1.filter(h=>h.study).map(h=>[h.id,h.study.as]),st0)&&st1.length===9);
   await openWords();await chip('To sort');await until(()=>document.querySelectorAll('#wdList .scard').length===1);
   ok('only the new passage waits in To sort',(await chips())[3]==='To sort (1)'&&same(await listed(),[NEW]));
 
