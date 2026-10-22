@@ -1,7 +1,7 @@
 // Offline shell for own-shelf. Book data is offline through Firestore's own cache, not this.
 //   same-origin files:  network first (4 s), cache fallback
 //   CDN scripts, fonts: stale-while-revalidate
-//   everything else (Firestore, Google sign-in, the link Worker): not touched
+//   everything else (Firestore, Google sign-in and its helper pages under __/, the link Worker): not touched
 const CACHE = 'own-shelf-v1';
 const SHELL = ['./', 'index.html', 'styles.css', 'parse.js', 'store.js', 'vocab.js', 'config.js', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/mark.svg', 'icons/mark-small.svg'];
 const CDN = /^https:\/\/(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|www\.gstatic\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\//;
@@ -16,8 +16,9 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   const r = e.request;
-  if (r.method !== 'GET') return;
-  if (new URL(r.url).origin === location.origin) e.respondWith(networkFirst(r));
+  const u = new URL(r.url);
+  if (r.method !== 'GET' || u.pathname.includes('/__/')) return;
+  if (u.origin === location.origin) e.respondWith(networkFirst(r));
   else if (CDN.test(r.url)) e.respondWith(staleWhileRevalidate(r));
 });
 
