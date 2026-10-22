@@ -338,7 +338,7 @@ function computeSections(doc){
 // read as text (no DOMParser, so Node tests run it): each tag with one of these classes starts an item that runs to the
 // next one. Older exports use <h3> headings and close noteText with </h3>; that works too.
 const KINDLE_TAG=/<([a-z][a-z0-9]*)\b[^>]*\bclass\s*=\s*["']?(bookTitle|authors|sectionHeading|noteHeading|noteText)\b[^>]*>/gi;
-const KINDLE_COLORS={yellow:'sun',orange:'coral',pink:'coral',red:'coral',blue:'sky',purple:'sky',green:'mint',aqua:'mint'};
+const KINDLE_COLORS={yellow:'sun',orange:'amber',pink:'coral',red:'coral',blue:'sky',purple:'sky',green:'mint',aqua:'mint'};
 const ENTITIES={amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' '};
 function isKindleNotebook(html){return /\bclass\s*=\s*["']?noteHeading\b/i.test(html)&&/\bclass\s*=\s*["']?noteText\b/i.test(html);}
 function htmlText(s){
@@ -396,17 +396,26 @@ function kindleHighlights(doc,at){
 // A newer export of a Kindle book on the shelf. Old blocks map to new ones by type and text, in order, so the old
 // highlights (own-shelf colours, notes, partial highlights) move to the new doc; a Kindle highlight is added only for a
 // passage that wasn't there before. Highlights on passages gone from the new export are dropped.
-// → {hl, added, dropped, same}; same: the export holds exactly the old passages.
+// Kindle's orange imported as coral before it had a colour of its own (amber): a whole-passage coral highlight on a
+// passage the new export marks amber becomes amber. Any other colour is the owner's choice and stays.
+// → {hl, added, dropped, recoloured, same}; same: the export holds exactly the old passages and nothing was recoloured.
 function mergeKindle(oldDoc,oldHl,newDoc,newHl){
-  const key=b=>b.t+'\u0001'+b.text,free=new Map();
-  newDoc.blocks.forEach(b=>{if(b.text===undefined) return;const k=key(b);if(!free.has(k)) free.set(k,[]);free.get(k).push(b.id);});
+  const key=b=>b.t+'\u0001'+b.text,free=new Map(),len={};
+  newDoc.blocks.forEach(b=>{if(b.text===undefined) return;len[b.id]=b.text.length;const k=key(b);if(!free.has(k)) free.set(k,[]);free.get(k).push(b.id);});
   const map={};let olds=0;
   oldDoc.blocks.forEach(b=>{if(b.text===undefined) return;olds++;const q=free.get(key(b));if(q&&q.length) map[b.id]=q.shift();});
-  const had=new Set(Object.values(map));let dropped=0;const hl=[];
-  oldHl.forEach(h=>{const segs=h.segs.map(s=>map[s.pid]&&Object.assign({},s,{pid:map[s.pid]}));if(segs.length&&segs.every(Boolean)) hl.push(Object.assign({},h,{segs}));else dropped++;});
+  const kc={};newHl.forEach(h=>{kc[h.segs[0].pid]=h.color;});
+  const had=new Set(Object.values(map));let dropped=0,recoloured=0;const hl=[];
+  oldHl.forEach(h=>{
+    const segs=h.segs.map(s=>map[s.pid]&&Object.assign({},s,{pid:map[s.pid]}));
+    if(!segs.length||!segs.every(Boolean)){dropped++;return;}
+    const s=segs[0],orange=h.color==='coral'&&kc[s.pid]==='amber'&&segs.length===1&&s.s===0&&s.e===len[s.pid];
+    if(orange) recoloured++;
+    hl.push(Object.assign({},h,{segs},orange?{color:'amber'}:{}));
+  });
   const add=newHl.filter(h=>!had.has(h.segs[0].pid));
   const news=newDoc.blocks.filter(b=>b.text!==undefined).length;
-  return {hl:hl.concat(add),added:add.length,dropped,same:had.size===olds&&olds===news};
+  return {hl:hl.concat(add),added:add.length,dropped,recoloured,same:!recoloured&&had.size===olds&&olds===news};
 }
 
 /* ---------- links ---------- */

@@ -37,7 +37,7 @@ await t.run(async()=>{
   ok('notebook stats',(await text('#nbStats'))==='3 highlights · 1 note · 2 books');
   ok('newest highlight first',same(await titles(),['Footnote Test','The Quiet Engine','The Quiet Engine']));
   ok('card shows section, quote and note',(await page.$eval('#nbList .hcard:last-child',e=>e.querySelector('.nt')?.textContent))==='Worth rereading. Ghi chú: đọc lại.'&&(await text('#nbList .hcard:first-child .sec')).includes('Notes'));
-  ok('chips: All, With note, one per color present',same(await chips(),['All 3','With note 1','Sunny 1','Mint 2']));
+  ok('chips: All, With note, one per color present',same(await chips(),['All 3','With note 1','Lesser 1','Other 2']));
   ok('no horizontal scroll at phone width',await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth));
   await page.emulateMediaFeatures([{name:'prefers-color-scheme',value:'light'}]);await t.shot('light',{fullPage:true});
   await page.emulateMediaFeatures([{name:'prefers-color-scheme',value:'dark'}]);await t.shot('dark',{fullPage:true});
@@ -66,7 +66,7 @@ await t.run(async()=>{
   await page.select('#nbBook',await bookId('Footnote Test'));
   ok('book filter',await cards()===1&&(await titles())[0]==='Footnote Test');
   await page.select('#nbBook',await bookId('The Quiet Engine'));await chip('note');await search('rereading');
-  ok('filters combine (book + chip + search)',await cards()===1&&same(await chips(),['All 1','With note 1','Mint 1']));
+  ok('filters combine (book + chip + search)',await cards()===1&&same(await chips(),['All 1','With note 1','Other 1']));
   await t.shot('filtered',{fullPage:true});
   await search('source');
   ok('combined filters with no match',(await text('#nbList'))==='Nothing matches.');

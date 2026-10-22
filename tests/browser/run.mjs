@@ -17,6 +17,8 @@
 //   study.mjs       Study flashcards: the queue (due first, the daily new-word cap), front and back, ratings and
 //                   their saved schedule, Again, keys, Sentence → word, done and empty states, ?study=1
 //   linkimport.mjs  link import's article extraction: a summary in the article's <header> survives Readability
+//   colours.mjs     colour meanings: five swatches and keys 1–5, renaming a meaning in Settings, grouping by colour
+//                   in the Notebook, the drawer and the export, Kindle orange importing as amber (screenshots in out/colours/)
 // Every file also fails on any page error.
 //
 // Run: `npm install` once, then `npm run test:browser`. One file: `node tests/browser/search.mjs`.
@@ -32,7 +34,7 @@ import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','trash.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','words.mjs','study.mjs','migrate.mjs','linkimport.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','trash.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','words.mjs','study.mjs','migrate.mjs','linkimport.mjs','colours.mjs'];
 
 // Run one file, echo its output and count its PASS/FAIL lines.
 const runOne=f=>new Promise(res=>{

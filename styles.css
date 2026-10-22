@@ -5,8 +5,8 @@
      --rule hairlines and borders (light brass)  --wave dashed outlines and tints (brass)  --plank shelf boards (walnut)
      --display headings, wordmark, buttons  --body reading text  --ui small labels, chips, table headers, hints */
   --paper:#F3EAD7; --sheet:#FBF6EA; --ink:#2E2119; --muted:#6B5A48; --sea:#2F5A43; --buoy:#8E2F2A; --rule:#DCCBA8; --wave:#C9B48A; --plank:#5C3B24;
-  --sun:rgba(255,212,59,.6); --mint:rgba(70,214,160,.5); --coral:rgba(255,120,150,.45); --sky:rgba(110,170,255,.45);
-  --sunS:#F4C21B; --mintS:#2FBF8A; --coralS:#F2668A; --skyS:#4E8FF0;
+  --sun:rgba(255,212,59,.6); --mint:rgba(70,214,160,.5); --coral:rgba(255,120,150,.45); --sky:rgba(110,170,255,.45); --amber:rgba(255,146,43,.45);
+  --sunS:#F4C21B; --mintS:#2FBF8A; --coralS:#F2668A; --skyS:#4E8FF0; --amberS:#F28C28;
   --display:"EB Garamond",Georgia,serif;
   --body:"Newsreader",Georgia,"Iowan Old Style","Times New Roman",serif;
   --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
@@ -14,10 +14,10 @@
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --paper:#1E1A16; --sheet:#29221C; --ink:#EFE4CC; --muted:#B5A68C; --sea:#9CC8A8; --buoy:#E2826F; --rule:#3D332A; --wave:#6E5B3C; --plank:#4A3020;
-  --sun:rgba(255,212,59,.38); --mint:rgba(70,214,160,.33); --coral:rgba(255,120,150,.33); --sky:rgba(110,170,255,.35); color-scheme:dark;}}
+  --sun:rgba(255,212,59,.38); --mint:rgba(70,214,160,.33); --coral:rgba(255,120,150,.33); --sky:rgba(110,170,255,.35); --amber:rgba(255,146,43,.36); color-scheme:dark;}}
 :root[data-theme="dark"]{
   --paper:#1E1A16; --sheet:#29221C; --ink:#EFE4CC; --muted:#B5A68C; --sea:#9CC8A8; --buoy:#E2826F; --rule:#3D332A; --wave:#6E5B3C; --plank:#4A3020;
-  --sun:rgba(255,212,59,.38); --mint:rgba(70,214,160,.33); --coral:rgba(255,120,150,.33); --sky:rgba(110,170,255,.35); color-scheme:dark;}
+  --sun:rgba(255,212,59,.38); --mint:rgba(70,214,160,.33); --coral:rgba(255,120,150,.33); --sky:rgba(110,170,255,.35); --amber:rgba(255,146,43,.36); color-scheme:dark;}
 *,*::before,*::after{box-sizing:inherit}
 html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 90px)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
@@ -263,7 +263,7 @@ hr.hr::after{content:"⁂";font:1.7rem/1 var(--display)}
 body.focus .hp,body.focus .pull,body.focus figure.fig,body.focus .list .li::before{opacity:.28}
 body.focus .hp.lit{opacity:1}
 mark.hl{color:inherit;border-radius:3px;padding:.06em 0;box-decoration-break:clone;-webkit-box-decoration-break:clone;cursor:pointer}
-mark.c-sun{background:var(--sun)} mark.c-mint{background:var(--mint)} mark.c-coral{background:var(--coral)} mark.c-sky{background:var(--sky)}
+mark.c-sun{background:var(--sun)} mark.c-mint{background:var(--mint)} mark.c-coral{background:var(--coral)} mark.c-sky{background:var(--sky)} mark.c-amber{background:var(--amber)}
 mark.hl.noted{box-shadow:inset 0 -2px 0 var(--ink)}
 mark.hl.flash{animation:flash 1.2s ease}
 @keyframes flash{30%{filter:brightness(1.25) saturate(1.6)}}
@@ -310,6 +310,8 @@ body.focus .fn-card .hp{opacity:1}
 #tool .sep{width:1px;height:22px;background:color-mix(in srgb,var(--sheet) 30%,transparent);margin:0 .15rem}
 #tool .tb{border:0;background:transparent;color:var(--sheet);font-weight:650;font-size:.88rem;padding:.35rem .6rem;border-radius:999px}
 #tool .tb:hover{background:color-mix(in srgb,var(--sheet) 15%,transparent)}
+/* five swatches and three buttons: a little tighter on phones under 380 px, so a 360 px screen fits them */
+@media (max-width:380px){#tool{gap:.2rem;padding:.35rem .4rem}#tool .sw{width:26px;height:26px}#tool .tb{padding:.35rem .45rem}}
 #tool.docked{left:50%!important;transform:translateX(-50%)!important;top:auto!important;bottom:calc(env(safe-area-inset-bottom,0px) + 18px)}
 #noteBox{position:fixed;z-index:61;width:min(340px,calc(100vw - 24px));background:var(--sheet);border-radius:18px;padding:.9rem;box-shadow:0 14px 40px rgba(40,24,12,.3);border:1px solid var(--rule)}
 #noteBox textarea{min-height:90px;font:1rem/1.45 var(--body);resize:vertical}
@@ -325,6 +327,10 @@ body.focus .fn-card .hp{opacity:1}
 .dr-head h2{font:800 1.5rem var(--display);margin:0;flex:1;letter-spacing:-.02em}
 .dr-sub{padding:0 1.2rem .8rem;font:500 .88rem var(--ui,system-ui);color:var(--muted)}
 .dr-filters{display:flex;gap:.4rem;padding:0 1.2rem .8rem;flex-wrap:wrap}
+/* Group: Book order | Colour, over the chips; the colour headings are styled with the Notebook's */
+.dr-group{display:flex;align-items:center;gap:.5rem;padding:0 1.2rem .7rem;font:500 .85rem var(--ui);color:var(--muted)}
+.dr-list .cgh{font-size:1.15rem;margin:1rem 0 .55rem}
+.dr-list .cgh:first-child{margin-top:.1rem}
 .chip{font:600 .8rem var(--ui,system-ui);border:0;border-radius:999px;padding:.35rem .75rem;background:var(--paper);display:inline-flex;align-items:center;gap:.35rem;color:var(--ink)}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--sheet)}
 .chip i{width:10px;height:10px;border-radius:50%;display:inline-block}
@@ -429,6 +435,18 @@ body.focus .fn-card .hp{opacity:1}
 #nbList .hcard .sec b{color:var(--ink);font-weight:600}
 #nbList .hcard .q{font-size:1.08rem;line-height:1.55;overflow-wrap:anywhere}
 #nbList .hcard .nt{background:var(--paper);font:italic .98rem/1.45 var(--body);overflow-wrap:anywhere}
+/* colour meanings. Group: Newest | Colour, laid out like the shelf's "Arrange by" */
+.nb-group{display:flex;align-items:center;gap:.5rem;font:500 .85rem var(--ui);color:var(--muted)}
+/* a colour's heading when highlights are grouped by colour (Notebook and drawer): swatch, meaning, count */
+.cgh{display:flex;align-items:center;gap:.5rem;font:600 1.4rem/1.2 var(--display);margin:1.8rem 0 .8rem;overflow-wrap:anywhere}
+.cgh:first-child{margin-top:.2rem}
+.cgh i{width:12px;height:12px;border-radius:50%;flex:none}
+.cgh small{font:500 .8rem var(--ui);color:var(--muted)}
+/* Settings → Colour meanings: a swatch and a name per colour */
+.cm-list{display:grid;gap:.45rem}
+.cm{display:flex;align-items:center;gap:.65rem}
+.cm i{width:22px;height:22px;border-radius:50%;flex:none}
+.cm input.f{padding:.45rem .75rem}
 
 /* ================= VOCABULARY ================= */
 /* a saved word in the text: a dotted underline in the accent, only at the places it was saved from */
