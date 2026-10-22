@@ -5,14 +5,19 @@
 //     text is the sentence the word was found in, s/e the word's place in it;
 //     bookId/pid/ws/we its place in the book (to jump back), title the book's title then.
 //   srs = { due, interval, ease, reps, lapses }: the flashcard schedule (see schedule()).
+// A fact card, made from a coral highlight, is stored the same way so Study, the Trash, backups and sync treat both alike:
+//   { id, kind: 'fact', text, blank: {s, e} | null, note, bookId, hlId, pid, ws, we, title, section, added, srs }
+//     text is the highlight's text (its blocks joined with a space), blank the phrase the card hides, as offsets into
+//     text (null: a re-read card); hlId the highlight, pid/ws/we its first block's place; title and section the book's then.
 
 const DAY = 86400000;
+const djb2 = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
 
 // "  “Ephemeral,” " → "Ephemeral": trims spaces and punctuation around the selection.
 export function normTerm(s) { return String(s || '').replace(/\s+/g, ' ').trim().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''); }
 export const termKey = s => normTerm(s).toLowerCase();
 // Same word, same id, whichever book it came from (djb2, like the app's hash()).
-export function wordId(term) { let h = 5381; const k = termKey(term); for (let i = 0; i < k.length; i++) h = ((h << 5) + h + k.charCodeAt(i)) | 0; return 'w' + (h >>> 0).toString(36); }
+export const wordId = term => 'w' + djb2(termKey(term));
 
 // The sentence around text[s..e), and the word's place in it. A very long sentence is cut to about
 // `room` characters on each side of the word, at word boundaries, with "…".
@@ -31,6 +36,27 @@ export function sentenceAround(text, s, e, room = 140) {
 }
 // The sentence with the word blanked out, for a "which word?" card.
 export const cloze = ex => ex.text.slice(0, ex.s) + '_____' + ex.text.slice(ex.e);
+
+/* ---------- fact cards ---------- */
+export const isFact = w => !!w && w.kind === 'fact';
+// One card per highlight, whenever it's made: 'f' + a hash of the book and highlight ids (word ids start with 'w').
+export const factId = (bookId, hlId) => 'f' + djb2(bookId + '|' + hlId);
+// The fact's blank when it is a phrase inside its text, else null (a re-read card).
+export function factBlank(f) {
+  const b = f && f.blank, n = String((f && f.text) || '').length;
+  return b && Number.isInteger(b.s) && Number.isInteger(b.e) && b.s >= 0 && b.s < b.e && b.e <= n ? { s: b.s, e: b.e } : null;
+}
+// The fact's cloze: the text before its blank, the blanked phrase and the text after; null for a re-read card.
+export function factCloze(f) { const b = factBlank(f), t = String(f.text || ''); return b ? { before: t.slice(0, b.s), phrase: t.slice(b.s, b.e), after: t.slice(b.e) } : null; }
+// The words of a text, for tapping: runs of letters and digits, with ' ’ or - inside a word ("don't", "well-known").
+const WORD = /[\p{L}\p{M}\p{N}]+(?:['’-][\p{L}\p{M}\p{N}]+)*/gu;
+export const wordsIn = text => [...String(text || '').matchAll(WORD)].map(m => ({ s: m.index, e: m.index + m[0].length }));
+// A selection text[s..e) stretched to whole words, without the spaces and punctuation around it. null: no word in it.
+export function snapWords(text, s, e) {
+  if (!(e > s)) return null;
+  const ws = wordsIn(text).filter(w => w.e > s && w.s < e);
+  return ws.length ? { s: ws[0].s, e: ws[ws.length - 1].e } : null;
+}
 
 /* ---------- flashcards: a small SM-2-style schedule ---------- */
 export const newSrs = now => ({ due: now, interval: 0, ease: 2.5, reps: 0, lapses: 0 });
