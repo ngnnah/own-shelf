@@ -2,8 +2,8 @@
 // Fetches a web page (or PDF) for the own-shelf app so it can extract the article.
 // Only answers requests that carry a valid Firebase ID token for an allowed email,
 // from an allowed origin. Settings (Worker → Settings → Variables and Secrets):
-//   FIREBASE_PROJECT_ID  upwind-reader                        (the Firebase project kept its old name)
-//   ALLOWED_ORIGINS      https://ngnnah.github.io            (comma-separated)
+//   FIREBASE_PROJECT_ID  your-project-id                      (projectId in config.js)
+//   ALLOWED_ORIGINS      https://you.github.io                (comma-separated)
 //   ALLOWED_EMAILS       you@gmail.com                        (comma-separated)
 
 const JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
