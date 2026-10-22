@@ -14,7 +14,7 @@ A personal reading app: a bookshelf of PDFs, pasted articles and web pages, read
 | Site files (`index.html`, `app.js`, `styles.css`, `parse.js`, `store.js`) | Done. Ported from the artifact; behaviour and copy preserved |
 | Sign-in (Google, or "this device only"), settings, backup/restore | Done. Local mode tested in a browser; Google sign-in not yet run against the real project |
 | Firestore adapter | Unit-tested against a fake Firestore that rejects what the real one rejects. Not yet run against real Firestore |
-| Link import (Worker + Readability), Paste button, `?add=`/`?url=`/`?text=` deep links | App side done; deep link tested in local mode. Worker written and unit-tested, not deployed |
+| Link import (Worker + Readability), Paste button, `?add=`/`?url=`/`?text=` deep links | Done. Worker deployed (`own-shelf-fetch`), set in `config.js`; link import tested on the live site |
 | PWA (manifest, Android share target, service worker, icons) | Done. Offline reload tested in Chrome |
 | Artifact → app migration | Done and tested end to end (artifact backup → app restore → highlights show) |
 | Kindle-style essentials | Done and browser-tested: Notebook (every highlight across books, with search and filters; replaces the shelf's "Export notes" button), search inside a book, "With note" filter in the highlights drawer. Bookmarks skipped |
@@ -29,7 +29,7 @@ A personal reading app: a bookshelf of PDFs, pasted articles and web pages, read
 | own-shelf rebrand | Done: icons (`npm run icons` from `design/`), theme, shelf, sign-in, reader motifs. Checked in light and dark at phone and desktop sizes |
 | GitHub Pages | Live since 2026-10-18; every push to `main` deploys. Checked in headless Chrome: boots, Firebase SDK loads, local mode works, service worker active |
 
-Tests: `npm test` (70 unit checks: Worker, storage with a fake Firestore including the trash, parser including Kindle exports and merging) and `npm run test:browser` (221 headless-Chrome checks: the local-only flow, Notebook, search, the note filter, typed-"yes" deletes, the Trash, length on the shelf, finishing, arranging by title and cover colours, Kindle notebooks, artifact → app migration). Run `npm install` once first; the browser suite needs Chrome (`CHROME_PATH` off macOS), python3 and a network connection. `TEST_PORT_OFFSET` shifts its ports so two checkouts can run it at once. Both pass as of 2026-10-20.
+Tests: `npm test` (97 unit checks: Worker, storage with a fake Firestore including the trash, parser including Kindle exports and merging, vocabulary) and `npm run test:browser` (323 headless-Chrome checks: the local-only flow, Notebook, search, the note filter, typed-"yes" deletes, the Trash, length on the shelf, finishing, arranging by title and cover colours, Kindle notebooks, words and Study, artifact → app migration, link import's article extraction). Run `npm install` once first; the browser suite needs Chrome (`CHROME_PATH` off macOS), python3 and a network connection. `TEST_PORT_OFFSET` shifts its ports so two checkouts can run it at once. Both pass as of 2026-10-20.
 
 ## File map
 
@@ -60,16 +60,16 @@ legacy/              The artifact as one file (app-artifact.html, kept identical
 - **Firestore layout** under `users/{uid}/`: `meta/{id}` (shelf entry), `books/{id}` (book header + `nChunks`), `books/{id}/chunks/{i}` (`{ i, blocks }`, each under 700 KB), `state/{id}` (`{ hl, pos, maxP, done, finished, opened }`), `settings/app` (`{ workerUrl }`), `trash/{id}` (removed books, highlights and notes; purged after 30 days).
 - **Offline:** Firestore uses `persistentLocalCache` with the multi-tab manager. The cloud adapter never awaits `setDoc`. Reads try the server for ~2.5 s, then the cache; book content is read cache-first. The service worker serves the app files: network first (4 s) for same-origin files, stale-while-revalidate for CDN scripts and fonts, and it never touches Firestore, Google sign-in or the Worker.
 - **Write budget:** 20k writes/day on the free plan. `meta:` and `state:` writes are coalesced (latest wins) and flushed every 2.5 s, on `pagehide`, on `visibilitychange` → hidden, and before sign-out.
-- **Link import:** `GET {workerUrl}/?url=<link>` with `Authorization: Bearer <Firebase ID token>`. PDF responses go through `pdfBlocks()`; text/plain and Markdown through `mdToBlocks()`; HTML is decoded with its charset, parsed with `DOMParser`, given `<base href=finalUrl>`, run through Readability, then `htmlToBlocks()` and `finalize()` with Readability's title, byline and published date.
+- **Link import:** `GET {workerUrl}/?url=<link>` with `Authorization: Bearer <Firebase ID token>`. PDF responses go through `pdfBlocks()`; text/plain and Markdown through `mdToBlocks()`; HTML is decoded with its charset, parsed with `DOMParser`, given `<base href=finalUrl>`, has its `<article>` headers unwrapped (`liftArticleHeaders()`; otherwise Readability drops a summary or standfirst there), run through Readability, then `htmlToBlocks()` and `finalize()` with Readability's title, byline and published date.
 - **Backup format:** `{ app: 'upwind', version: 1, exported, books: [{ meta, doc, state }] }`. Restore adds missing books and merges highlights by `h.id` into books already on the shelf; shelf entries are rebuilt with `metaFor()`.
 
 ## Next steps (in order)
 
-1. **One-time setup** (below): Firebase, Cloudflare.
+1. **One-time setup: done** (2026-10-20; below): Firebase with the email-locked rules, the Cloudflare Worker.
 2. **Test cloud mode locally:** `npm run serve`, open `http://localhost:8080` (localhost is an authorized domain by default). Check: Google sign-in; add a PDF, a rich paste and a Markdown file; two browsers signed in to the same account see each other's changes; an offline reload while signed in still opens books; link import after putting the Worker URL in Settings; the Paste button; `?add=<url>`.
 3. **Migrate:** in the artifact, tap **Back up shelf** and save the `.json`. In the new app: Settings → **Restore from backup**. Don't commit the file (it's gitignored).
 4. **Rebrand: done** (2026-10-19). To change the icon: open `design/arm-lab.html` in a browser, load `design/icon.json` (see the comment at the top of the file), tune, save the settings back into `design/icon.json`, then `npm run icons` regenerates every file in `icons/`.
-5. **iPhone Safari pass.** The main flow to get right: in another iOS app (e.g. MIT Technology Review) select all and copy an article → own-shelf → Add to shelf → paste → read and annotate. Paste is the main path for paywalled sources, because link import fetches without the reader's login. On a real iPhone also check: selection and highlighting (iOS's own callout vs our bottom-docked toolbar), the Paste button's permission bubble, home-screen install, and the Shortcut below.
+5. **iPhone Safari pass: done** (Nhat, 2026-10-20). The main flow: in another iOS app (e.g. MIT Technology Review) select all and copy an article → own-shelf → Add to shelf → paste → read and annotate. Paste is the main path for paywalled sources, because link import fetches without the reader's login. On a real iPhone also check: selection and highlighting (iOS's own callout vs our bottom-docked toolbar), the Paste button's permission bubble, home-screen install, and the Shortcut below.
 6. **Shipped:** Pages is on (with `.nojekyll`); pushing `main` deploys.
 
 ## One-time setup (Nhat)
@@ -84,12 +84,13 @@ legacy/              The artifact as one file (app-artifact.html, kept identical
      - **Website restrictions:** `https://ngnnah.github.io/*`, `http://localhost:8080/*` and `https://upwind-reader.firebaseapp.com/*`; sign-in breaks without the last one.
 
      GitHub secret scanning flags this key (alert #1). It's a Firebase web key, public by design, so close the alert as "Won't fix"; don't rotate it.
-2. **Cloudflare** (free plan): Workers & Pages → Create → Worker. Paste `worker/worker.js` and deploy. Settings → Variables and Secrets:
+2. **Cloudflare** (free plan; done 2026-10-20 as `own-shelf-fetch`): Workers & Pages → Create application → Start with Hello World! → Deploy, then Edit code: paste `worker/worker.js` and deploy. Settings → Variables and Secrets:
    - `FIREBASE_PROJECT_ID` = `upwind-reader`
    - `ALLOWED_ORIGINS` = `https://ngnnah.github.io,http://localhost:8080`
-   - `ALLOWED_EMAILS` = your Google email
+   - `ALLOWED_EMAILS` = every Google email that may import links, comma-separated
 
-   Put the `*.workers.dev` URL in the app's Settings, or in `WORKER_URL` in `config.js`.
+   `WORKER_URL` in `config.js` points at it, so every account gets link import; a URL in the app's Settings overrides it.
+   **Family accounts:** each person signs in with their own Google account and gets their own shelf. Add their email to `ALLOWED_EMAILS` and to the email-locked Firestore rule. Everyone shares the free Firebase quota.
 3. **iPhone Shortcut** "Send to own-shelf" (Show in Share Sheet; accepts URLs and Safari web pages): **URL Encode** the Shortcut Input → **Open URLs** `https://ngnnah.github.io/own-shelf/?add=` followed by the encoded URL.
 
 ## Decisions and why

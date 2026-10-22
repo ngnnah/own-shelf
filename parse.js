@@ -413,6 +413,9 @@ function mergeKindle(oldDoc,oldHl,newDoc,newHl){
 // First http(s) link in shared text, without trailing punctuation or brackets.
 function firstUrl(s){const m=String(s||'').match(/https?:\/\/[^\s<>"'“”‘’]+/i);return m?m[0].replace(/[.,;:!?)\]}>]+$/,''):'';}
 const isLoneUrl=s=>/^\s*https?:\/\/\S+\s*$/i.test(String(s||''));
+// Readability keeps the best-scoring block and its strong siblings. An <article>'s <header> (title, standfirst,
+// summary box) scores too low as a whole and is dropped; unwrapped, its paragraphs are judged one by one.
+function liftArticleHeaders(doc){doc.querySelectorAll('article header').forEach(h=>h.replaceWith(...h.childNodes));return doc;}
 // Fetched bytes → text, honouring the charset in the Content-Type header or a <meta> tag.
 function decodeBody(buf,type){
   let cs=(/charset=["']?([\w-]+)/i.exec(type||'')||[])[1];

@@ -884,7 +884,7 @@ function readable(html,url){
   if(!window.Readability) throw new Error('readability missing');
   const doc=new DOMParser().parseFromString(html,'text/html');
   const base=doc.createElement('base');base.href=url;doc.head.prepend(base); // relative links and images resolve against the page
-  const a=new Readability(doc).parse();
+  const a=new Readability(liftArticleHeaders(doc)).parse();
   if(!a||!a.content) throw new Error('no article');
   const by=(a.byline||'').replace(/^\s*by\s+/i,'').trim(),title=(a.title||'').trim();
   return {blocks:htmlToBlocks(a.content),title,hint:title,author:by.length<80?by:'',written:published(a.publishedTime),source:url};

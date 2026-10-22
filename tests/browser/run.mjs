@@ -16,6 +16,7 @@
 //   migrate.mjs     the artifact's "Back up shelf" (legacy/app-artifact.html) → the app's "Restore from backup"
 //   study.mjs       Study flashcards: the queue (due first, the daily new-word cap), front and back, ratings and
 //                   their saved schedule, Again, keys, Sentence → word, done and empty states, ?study=1
+//   linkimport.mjs  link import's article extraction: a summary in the article's <header> survives Readability
 // Every file also fails on any page error.
 //
 // Run: `npm install` once, then `npm run test:browser`. One file: `node tests/browser/search.mjs`.
@@ -23,15 +24,15 @@
 // Needs Google Chrome (set CHROME_PATH if it isn't at the macOS default), python3 (each file serves the repo
 // with `python3 -m http.server` on its own port, so files can also run in parallel) and a network
 // connection: fonts, the Firebase SDK and pdf.js load from CDNs.
-// Fixtures are synthetic: legacy/test-fixture-rich-paste.html, tests/fixtures/kindle-notebook.html and Markdown
-// written to a temp dir at run time.
+// Fixtures are synthetic: legacy/test-fixture-rich-paste.html, tests/fixtures/kindle-notebook.html,
+// tests/fixtures/article-header-summary.html and Markdown written to a temp dir at run time.
 // Screenshots go to tests/browser/out/ (gitignored).
 import {spawn} from 'node:child_process';
 import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','trash.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','words.mjs','study.mjs','migrate.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','trash.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','words.mjs','study.mjs','migrate.mjs','linkimport.mjs'];
 
 // Run one file, echo its output and count its PASS/FAIL lines.
 const runOne=f=>new Promise(res=>{
