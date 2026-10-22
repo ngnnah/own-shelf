@@ -242,7 +242,7 @@ await t.run(async()=>{
   // 9. delete → Trash → Restore
   await openWordsTab();
   await page.click(cardOf('quixotic')+' [data-a="del"]');
-  ok('Delete asks nothing and moves the word to the Trash',(await toast())==='Moved to Trash'&&(await terms()).length===6&&!(await terms()).includes('quixotic')&&(await text('#wdStats'))==='6 words · 6 due');
+  ok('Delete asks nothing and moves the word to the Trash',(await toast())==='Moved to Trash · Undo'&&(await terms()).length===6&&!(await terms()).includes('quixotic')&&(await text('#wdStats'))==='6 words · 6 due');
   ok('the word is gone from storage',!(await stored('quixotic',w=>!w)));
   await openTrash();
   const row=await page.$eval('#trashList .tr-row',e=>({sec:e.querySelector('.sec').textContent,q:e.querySelector('.q').textContent}));
