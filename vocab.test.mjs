@@ -1,4 +1,4 @@
-import {normTerm,termKey,wordId,sentenceAround,cloze,newSrs,isDue,schedule,nextLabel,parseDatamuse,parseWiktionary,baseForms} from './vocab.js';
+import {normTerm,termKey,wordId,sentenceAround,cloze,newSrs,isDue,schedule,nextLabel,parseDatamuse,parseWiktionary,baseForms,isFact,factId,factBlank,factCloze,wordsIn,snapWords} from './vocab.js';
 import {ok,done} from './test-util.mjs';
 
 ok('normTerm trims spaces and punctuation',normTerm('  “Ephemeral,” ')==='Ephemeral'&&normTerm('well-known.')==='well-known');
@@ -32,6 +32,23 @@ ok('parseDatamuse: nothing for unknown words',parseDatamuse([])===null&&parseDat
 const wk=parseWiktionary({en:[{partOfSpeech:'Adjective',definitions:[{definition:'Lasting for a <a href="/wiki/short">short</a> period of time.'},{definition:'<span></span>Existing for one day &amp; no more.'}]}]});
 ok('parseWiktionary: HTML stripped, entities decoded',wk.def==='Lasting for a short period of time.'&&wk.pos==='adjective'&&wk.more[0]==='Existing for one day & no more.');
 ok('parseWiktionary: nothing without English entries',parseWiktionary({fr:[]})===null&&parseWiktionary(null)===null);
+// fact cards
+ok('wordId: unchanged by the shared hash (ids already stored stay valid)',wordId('ephemeral')==='w'+(()=>{let h=5381;for(const c of 'ephemeral')h=((h<<5)+h+c.charCodeAt(0))|0;return (h>>>0).toString(36);})());
+ok('factId: one id per book and highlight, "f" first',factId('k1','h1')===factId('k1','h1')&&factId('k1','h1')!==factId('k1','h2')&&factId('k1','h1')!==factId('k2','h1')&&/^f[0-9a-z]+$/.test(factId('k1','h1')));
+ok('isFact: only kind "fact"',isFact({kind:'fact'})&&!isFact({term:'calm'})&&!isFact(null));
+const fact={kind:'fact',text:'Mercator drew the world flat.',blank:{s:9,e:13}};
+ok('factCloze: the text around the blank, and the phrase',JSON.stringify(factCloze(fact))===JSON.stringify({before:'Mercator ',phrase:'drew',after:' the world flat.'}));
+ok('factCloze: no blank, none (a re-read card)',factCloze({...fact,blank:null})===null&&factBlank({...fact,blank:null})===null);
+ok('factBlank: a blank outside the text or empty is none',factBlank({...fact,blank:{s:20,e:99}})===null&&factBlank({...fact,blank:{s:4,e:4}})===null&&factBlank({...fact,blank:{s:'1',e:3}})===null&&factCloze({...fact,blank:{s:-1,e:3}})===null);
+const wt='Ships & sailors don’t agree—well-known “weather”, 1890s.';
+ok('wordsIn: words with inner apostrophes and hyphens, no punctuation',JSON.stringify(wordsIn(wt).map(w=>wt.slice(w.s,w.e)))===JSON.stringify(['Ships','sailors','don’t','agree','well-known','weather','1890s']));
+ok('wordsIn: letters with accents and marks',JSON.stringify(wordsIn('Tiếng Việt, café.').map(w=>w.e-w.s))===JSON.stringify([5,4,4]));
+const st='A squall is a sudden, violent gust of wind.',su=st.indexOf('sudden');
+const sn=snapWords(st,su+2,st.indexOf('gust')+2);
+ok('snapWords: a selection from inside one word to inside another takes both whole',st.slice(sn.s,sn.e)==='sudden, violent gust');
+const sp=snapWords(st,su-1,su+8);
+ok('snapWords: spaces and punctuation around the words are dropped',st.slice(sp.s,sp.e)==='sudden');
+ok('snapWords: nothing but spaces and punctuation, or nothing selected, is no phrase',snapWords(st,su+6,su+8)===null&&snapWords(st,5,5)===null);
 ok('baseForms: plural, past, -ing, -ly',baseForms('studies').includes('study')&&baseForms('ships').includes('ship')&&baseForms('walked').includes('walk')&&baseForms('making').includes('make')&&baseForms('quickly').includes('quick')&&baseForms('glass').length===0);
 
 done();

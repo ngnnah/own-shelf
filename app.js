@@ -1,7 +1,7 @@
 // own-shelf app (formerly Upwind). Ported from legacy/app-script.js; all data goes through the store.js adapters.
 import {makeLocal,makeCloud,exportShelf,importShelf} from './store.js';
 import {firebaseConfig,FIREBASE_VERSION,WORKER_URL} from './config.js';
-import {wordId,normTerm,termKey,sentenceAround,isDue,schedule,nextLabel,cloze,datamuseUrl,parseDatamuse,wiktionaryUrl,parseWiktionary,baseForms} from './vocab.js';
+import {wordId,normTerm,termKey,sentenceAround,isDue,schedule,nextLabel,cloze,datamuseUrl,parseDatamuse,wiktionaryUrl,parseWiktionary,baseForms,isFact,factId,factCloze,wordsIn,snapWords} from './vocab.js';
 /* ================= utils ================= */
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -347,14 +347,17 @@ function armed(btn,label){
   btn.dataset.orig=btn.textContent;btn.textContent=label;
   btn.dataset.armed=setTimeout(()=>{btn.textContent=btn.dataset.orig;delete btn.dataset.armed;},3500);return false;
 }
-// Deleting highlights or notes needs "yes" typed in a dialog; resolves true only then.
-let cfDone=null;
-const cfOk=()=>$('#cfInput').value.trim().toLowerCase()==='yes';
-function confirmTyped(title,body,label){
+// Deleting highlights or notes needs "yes" typed in a dialog; resolves true only then. plain: a change that deletes
+// nothing asks the same question without the typing, and its button isn't red.
+let cfDone=null,cfPlain=false;
+const cfOk=()=>cfPlain||$('#cfInput').value.trim().toLowerCase()==='yes';
+function confirmTyped(title,body,label,plain=false){
   return new Promise(res=>{
-    $('#cfH').textContent=title;$('#cfBody').textContent=body;$('#cfGo').textContent=label;$('#cfInput').value='';$('#cfGo').disabled=true;
+    cfPlain=plain;
+    $('#cfH').textContent=title;$('#cfBody').textContent=body;$('#cfGo').textContent=label;$('#cfInput').value='';$('#cfGo').disabled=!plain;
+    $('#cfInput').closest('label').classList.toggle('hidden',plain);$('#cfGo').classList.toggle('danger',!plain);$('#cfGo').classList.toggle('sea',plain);
     cfDone=v=>{cfDone=null;closeModal('#confirmM');res(v);};
-    openModal('#confirmM');$('#cfInput').focus(); // synchronous, so iOS opens the keyboard when this runs from a tap
+    openModal('#confirmM');(plain?$('#cfGo'):$('#cfInput')).focus(); // synchronous, so iOS opens the keyboard when this runs from a tap
   });
 }
 $('#cfInput').addEventListener('input',()=>{$('#cfGo').disabled=!cfOk();});
@@ -942,12 +945,14 @@ const nbFold=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u
 const nbCount=(n,w)=>`<b>${n}</b> ${w}${n===1?'':'s'}`;
 async function openNotebook(){
   const run=++NB.run;show('notebook');window.scrollTo(0,0);
+  SORT=sortReset(); // the Words tab's To sort waits for the books below
   nbTab(prefs.nbTab==='wd'?'wd':'hl',true);
   NB.f='all';$('#nbQ').value='';$('#nbStats').innerHTML='';$('#nbCtrl').classList.add('hidden');
   $('#nbList').innerHTML='<div class="empty">Gathering your highlights…</div>';
-  const books=await Promise.all(META.filter(m=>m.hl>0).map(async m=>{const [d,s]=await Promise.all([DB.get('doc:'+m.id),DB.get('state:'+m.id)]);return d&&s?{doc:d,hl:s.hl||[]}:null;}));
+  const books=(await Promise.all(META.filter(m=>m.hl>0).map(async m=>{const [d,s]=await Promise.all([DB.get('doc:'+m.id),DB.get('state:'+m.id)]);return d&&s?{doc:d,hl:s.hl||[]}:null;}))).filter(Boolean);
   if(run!==NB.run) return;
-  NB.items=books.filter(Boolean).flatMap(({doc,hl})=>entriesFor(doc,hl).map(e=>Object.assign(e,{book:doc.id,title:doc.title,hay:nbFold([...e.text,e.note,doc.title,doc.author].join(' '))})))
+  sortLoaded(books);
+  NB.items=books.flatMap(({doc,hl})=>entriesFor(doc,hl).map(e=>Object.assign(e,{book:doc.id,title:doc.title,hay:nbFold([...e.text,e.note,doc.title,doc.author].join(' '))})))
     .sort((a,b)=>(b.at||0)-(a.at||0));
   const bk=[...new Map(NB.items.map(e=>[e.book,e.title]))].sort((a,b)=>a[1].localeCompare(b[1]));
   $('#nbBook').innerHTML='<option value="">All books</option>'+bk.map(([id,t])=>`<option value="${id}">${esc(t)}</option>`).join('');
@@ -983,7 +988,7 @@ function nbTab(tab,opening){
   $('#nbTabHl').tabIndex=wd?-1:0;$('#nbTabWd').tabIndex=wd?0:-1;
   $('#nbPanelHl').classList.toggle('hidden',wd);$('#nbPanelWd').classList.toggle('hidden',!wd);
   $('#nbStats').classList.toggle('hidden',wd);$('#wdStats').classList.toggle('hidden',!wd);
-  if(opening){$('#wdQ').value='';$('#wdBook').value='';}
+  if(opening){$('#wdQ').value='';$('#wdBook').value='';WD.f='all';}
   if(wd) openWords(opening);
 }
 $('#nbTabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(b&&b.getAttribute('aria-selected')!=='true') nbTab(b.dataset.tab);};
@@ -1034,18 +1039,26 @@ async function saveWordFromSel(segs){
   if(!raw||raw.split(' ').length>4||raw.length>60){toast('Select a word or a short phrase');return;}
   const sel=getSelection(),rect=sel.rangeCount?sel.getRangeAt(0).getBoundingClientRect():null;
   sel.removeAllRanges();hideTool();
-  const ex=Object.assign(sentenceAround(t,ws,we),{bookId:DOC.id,pid:b.id,ws,we,title:DOC.title,at:Date.now()});
-  // lower case, unless it's capitalised mid-sentence (likely a name)
+  const r=await saveWordAt(DOC,b,ws,we);if(!r) return; // signed out meanwhile
+  if(!r.dup) rerender([b.id]);
+  toast(r.dup?'Already in Words':'Saved to Words');
+  openWordCard(r.w.id,r.ex,rect);
+}
+// Saves b.text[ws..we) of a book's block b as a word, with the sentence around it: a new word (no srs yet: new, and
+// due), or one more example of a word already saved. Lower case, unless it's capitalised mid-sentence (likely a name).
+// → {w, ex, dup}: dup when that place was saved before; null when signed out meanwhile.
+async function saveWordAt(book,b,ws,we){
+  const raw=normTerm(b.text.slice(ws,we));
+  const ex=Object.assign(sentenceAround(b.text,ws,we),{bookId:book.id,pid:b.id,ws,we,title:book.title,at:Date.now()});
   const name=b.t!=='h'&&/^\p{Lu}/u.test(raw)&&/[\p{L}\p{N}]/u.test(ex.text.slice(0,ex.s));
   const term=name?raw:raw.toLowerCase(),id=wordId(term);
-  await loadWords();if(!WORDS) return; // signed out meanwhile
+  await loadWords();if(!WORDS) return null;
   let w=WORDS.get(id);
   const dup=!!w&&(w.examples||[]).some(x=>x.bookId===ex.bookId&&x.pid===ex.pid&&x.ws===ex.ws);
-  if(!w){w={id,term,def:'',pos:'',defSource:'',examples:[ex],added:ex.at};LOOKUP.delete(id);} // no srs yet: new, and due
+  if(!w){w={id,term,def:'',pos:'',defSource:'',examples:[ex],added:ex.at};LOOKUP.delete(id);}
   else if(!dup) w.examples=[...(w.examples||[]),ex];
-  if(!dup){putWord(w);rerender([b.id]);}
-  toast(dup?'Already in Words':'Saved to Words');
-  openWordCard(id,ex,rect);
+  if(!dup) putWord(w);
+  return {w,ex,dup};
 }
 
 // Meanings: Datamuse, then Datamuse on simple base forms ("ships" → "ship"), then Wiktionary.
@@ -1062,7 +1075,7 @@ async function lookUp(term){
 // (offline or a service failed; tried again the next time the word is shown). Saving never waits for it.
 const LOOKUP=new Map();
 function fillDef(w){
-  const st=LOOKUP.get(w.id);if(w.def||(st&&st!=='fail')) return;
+  const st=LOOKUP.get(w.id);if(isFact(w)||w.def||(st&&st!=='fail')) return;
   LOOKUP.set(w.id,'busy');
   lookUp(w.term).then(d=>{
     LOOKUP.set(w.id,d?'done':d===null?'none':'fail');
@@ -1117,8 +1130,9 @@ $('#col').addEventListener('click',e=>{
   openWordCard(u.dataset.w,{bookId:DOC.id,pid:p&&p.dataset.pid,ws:+u.dataset.ws},u.getBoundingClientRect());
 },true);
 
-// The Notebook's Words tab: every word, newest first, with search, a book filter, and Study.
-let WD={run:0};
+// The Notebook's Words tab: every word and fact card, newest first, with search, a book filter and Study. Chips pick
+// All, Words, Facts or To sort (coral highlights waiting to become words or fact cards, see below).
+let WD={run:0,f:'all'};
 const wordBook=x=>(META.find(m=>m.id===x.bookId)||x).title||'';
 // Shows the cached words at once; fresh: reloads them too (other devices, a restored backup) and redraws only on a
 // change, and not while a meaning is being edited.
@@ -1132,40 +1146,61 @@ async function openWords(fresh){
   if(run===WD.run&&prefs.nbTab==='wd'&&WORDS&&wordsSig()!==shown&&!$('#wdList').contains(document.activeElement)) renderWords();
 }
 function renderWords(){
-  const all=WORDS?[...WORDS.values()]:[],now=Date.now();
-  $('#wdStats').innerHTML=all.length?`${nbCount(all.length,'word')} · <b>${all.filter(w=>isDue(w.srs,now)).length}</b> due`:'';
-  $('#wdCtrl').classList.toggle('hidden',!all.length);
+  const all=WORDS?[...WORDS.values()]:[],now=Date.now(),nf=all.filter(isFact).length;
+  $('#wdStats').innerHTML=all.length?[all.length>nf&&nbCount(all.length-nf,'word'),nf&&nbCount(nf,'fact'),`<b>${all.filter(w=>isDue(w.srs,now)).length}</b> due`].filter(Boolean).join(' · '):'';
   $('#wdStudy').classList.toggle('hidden',typeof openStudy!=='function'); // the Study screen defines openStudy
-  const books=new Map();all.forEach(w=>(w.examples||[]).forEach(x=>{if(!books.has(x.bookId)) books.set(x.bookId,wordBook(x));}));
+  // the book filter lists the books of what the chip shows
+  const books=new Map(),add=(id,t)=>{if(!books.has(id)) books.set(id,t);};
+  if(WD.f==='sort') (SORT.items||[]).forEach(it=>add(it.bookId,it.title));
+  else all.forEach(w=>isFact(w)?add(w.bookId,wordBook(w)):(w.examples||[]).forEach(x=>add(x.bookId,wordBook(x))));
   const sel=$('#wdBook'),cur=sel.value;
   sel.innerHTML='<option value="">All books</option>'+[...books].sort((a,b)=>a[1].localeCompare(b[1])).map(([id,t])=>`<option value="${esc(id)}">${esc(t)}</option>`).join('');
   sel.value=books.has(cur)?cur:'';
-  listWords();
+  wdChips();listWords();
 }
+// The chips, To sort with how many highlights wait (within the search and book filter). The controls show once there
+// are words, fact cards or coral highlights.
+const WD_CHIPS=[['all','All'],['words','Words'],['facts','Facts'],['sort','To sort']];
+function wdChips(){
+  const n=SORT.items?sortBase().filter(it=>!it.h.study).length:null;
+  $('#wdCtrl').classList.toggle('hidden',!(WORDS&&WORDS.size)&&!(SORT.items&&SORT.items.length));
+  $('#wdChips').innerHTML=WD_CHIPS.map(([f,l])=>`<button class="chip" aria-pressed="${WD.f===f}" data-f="${f}">${l}${f==='sort'&&n!==null?` (${n})`:''}</button>`).join('');
+}
+// A fact card in the list: its text with the blanked phrase marked, where it's from (opens the highlight), its note.
+const factQ=f=>{const c=factCloze(f);return c?esc(c.before)+`<span class="f-gap">${esc(c.phrase)}</span>`+esc(c.after):esc(f.text||'');};
+const factFrom=f=>[wordBook(f),f.section].filter(Boolean).join(' · ');
+const factHTML=f=>`<article class="wcard fcard" data-id="${esc(f.id)}"><div class="w-head"><span class="f-tag">Fact</span><button class="w-del" data-a="del" aria-label="Delete this fact card">Delete</button></div>`+
+  `<button class="w-ex" data-book="${esc(f.bookId)}" data-hl="${esc(f.hlId)}" data-pid="${esc(f.pid)}"><span class="w-q">${factQ(f)}</span><span class="w-bk">${esc(factFrom(f))}</span></button>`+
+  (f.note?`<p class="f-note">${esc(f.note)}</p>`:'')+'</article>';
 const wordHTML=w=>`<article class="wcard" data-id="${esc(w.id)}"><div class="w-head"><h3 class="w-term">${esc(w.term)}</h3><span class="w-pos">${esc(w.pos||'')}</span><button class="w-del" data-a="del" aria-label="Delete “${esc(w.term)}”">Delete</button></div>`+
   `<p class="w-def" contenteditable="plaintext-only" role="textbox" aria-label="Meaning of ${esc(w.term)}" data-ph="${esc(defPh(w))}">${esc(w.def||'')}</p><p class="w-src">${esc(srcText(w))}</p>`+
   (w.examples||[]).map(x=>`<button class="w-ex" data-book="${esc(x.bookId)}" data-pid="${esc(x.pid)}" data-ws="${x.ws}"><span class="w-q">${exampleHTML(x)}</span><span class="w-bk">${esc(wordBook(x))}</span></button>`).join('')+'</article>';
 function listWords(){
-  const all=WORDS?[...WORDS.values()]:[];
-  if(!all.length){$('#wdList').innerHTML='<div class="empty">No words yet.<br>Select a word while reading and tap Word.</div>';return;}
+  if(WD.f==='sort') return listSort();
+  const all=WORDS?[...WORDS.values()]:[],facts=WD.f==='facts',mine=all.filter(w=>WD.f==='all'||isFact(w)===facts);
+  if(!mine.length){$('#wdList').innerHTML=facts?'<div class="empty">No fact cards yet.<br>Make them from your coral highlights in To sort.</div>':'<div class="empty">No words yet.<br>Select a word while reading and tap Word.</div>';return;}
   const terms=nbFold($('#wdQ').value).split(/\s+/).filter(Boolean),book=$('#wdBook').value;
-  const list=all.filter(w=>{if(book&&!(w.examples||[]).some(x=>x.bookId===book)) return false;const h=nbFold([w.term,w.def,...(w.examples||[]).map(x=>x.text)].join(' '));return terms.every(t=>h.includes(t));})
-    .sort((a,b)=>(b.added||0)-(a.added||0));
-  $('#wdList').innerHTML=list.length?list.map(wordHTML).join(''):'<div class="empty">Nothing matches.</div>';
+  const list=mine.filter(w=>{
+    const f=isFact(w);if(book&&!(f?w.bookId===book:(w.examples||[]).some(x=>x.bookId===book))) return false;
+    const h=nbFold((f?[w.text,w.note,wordBook(w),w.section]:[w.term,w.def,...(w.examples||[]).map(x=>x.text)]).join(' '));return terms.every(t=>h.includes(t));
+  }).sort((a,b)=>(b.added||0)-(a.added||0));
+  $('#wdList').innerHTML=list.length?list.map(w=>isFact(w)?factHTML(w):wordHTML(w)).join(''):'<div class="empty">Nothing matches.</div>';
   list.forEach(fillDef);
 }
-// Deleting asks nothing: the whole word goes to the Trash, and Restore puts it back.
+// Deleting asks nothing: the whole word or fact card goes to the Trash, and Restore puts it back. A fact card's
+// highlight stays sorted.
 function deleteWord(id){
   const w=WORDS&&WORDS.get(id);if(!w) return;
-  toTrash('word',{title:w.term,word:w});
+  toTrash('word',{title:isFact(w)?wordBook(w):w.term,word:w});
   WORDS.delete(id);WIDX=null;DB.del('word:'+id);toast('Moved to Trash');
 }
 // A word back from the Trash. Saved again meanwhile: its examples are merged in, and the newer copy keeps its meaning
-// and flashcard schedule unless it has none.
+// and flashcard schedule unless it has none. A fact card made again meanwhile is the newer one and stays.
 async function restoreWord(w){
   await loadWords();
   const have=await DB.get('word:'+w.id);
-  if(have){
+  if(have&&isFact(w)) w=have;
+  else if(have){
     const key=x=>[x.bookId,x.pid,x.ws].join('|'),seen=new Set((have.examples||[]).map(key)),now=Date.now();
     w={...have,def:have.def||w.def||'',pos:have.def?have.pos:(w.pos||have.pos||''),defSource:have.def?have.defSource:(w.defSource||''),
       examples:[...(w.examples||[]).filter(x=>!seen.has(key(x))),...(have.examples||[])].sort((a,b)=>(a.at||0)-(b.at||0)),
@@ -1184,13 +1219,24 @@ async function openAtWord(bookId,pid,ws,id){
     us.forEach(u=>{u.classList.remove('flash');void u.offsetWidth;u.classList.add('flash');});
   });
 }
-$('#wdQ').oninput=listWords;
-$('#wdBook').onchange=listWords;
+// A fact card's highlight, opened in its book (scrolled to and flashed); its first block when the highlight is gone.
+async function openAtHl(bookId,hlId,pid){
+  if(!META.some(m=>m.id===bookId)){toast('That book isn’t on your shelf any more');return;}
+  await openBook(bookId,{hl:hlId});if(!DOC||DOC.id!==bookId||HL.some(h=>h.id===hlId)) return;
+  requestAnimationFrame(()=>{const p=document.querySelector(`#col .hp[data-pid="${CSS.escape(pid)}"]`);if(p) p.scrollIntoView({block:'center'});});
+}
+$('#wdQ').oninput=()=>{wdChips();listWords();};
+$('#wdBook').onchange=()=>{wdChips();listWords();};
 $('#wdStudy').onclick=()=>{if(typeof openStudy==='function') openStudy();};
+// leaving To sort ends its visit: what was sorted there can't be undone any more
+$('#wdChips').onclick=e=>{const b=e.target.closest('[data-f]');if(!b||b.dataset.f===WD.f) return;if(WD.f==='sort') SORT=sortReset(SORT.items);WD.f=b.dataset.f;renderWords();};
 $('#wdList').addEventListener('click',e=>{
+  const sc=e.target.closest('.scard');if(sc){sortClick(e,sc);return;}
+  const st=e.target.closest('[data-st]');if(st){if(st.dataset.st==='skipped'){SORT.skipped=!SORT.skipped;listSort();}else if(st.dataset.st==='rest') sortRest();return;}
   const c=e.target.closest('.wcard');if(!c) return;
   if(e.target.closest('[data-a="del"]')){deleteWord(c.dataset.id);renderWords();return;}
-  const x=e.target.closest('.w-ex');if(x&&getSelection().isCollapsed) openAtWord(x.dataset.book,x.dataset.pid,+x.dataset.ws,c.dataset.id);
+  const x=e.target.closest('.w-ex');if(!x||!getSelection().isCollapsed) return;
+  if(x.dataset.hl) openAtHl(x.dataset.book,x.dataset.hl,x.dataset.pid); else openAtWord(x.dataset.book,x.dataset.pid,+x.dataset.ws,c.dataset.id);
 });
 // the meaning, edited in place: Enter or leaving it saves
 $('#wdList').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches('.w-def')){e.preventDefault();e.target.blur();}});
@@ -1198,6 +1244,165 @@ $('#wdList').addEventListener('focusout',e=>{
   const d=e.target.closest('.w-def'),w=d&&WORDS&&WORDS.get(d.closest('.wcard').dataset.id);
   if(w&&setDef(w,d.textContent)){d.textContent=w.def;d.dataset.ph=defPh(w);d.closest('.wcard').querySelector('.w-src').textContent='';toast('Meaning saved');}
 });
+
+/* To sort: coral highlights become words or fact cards */
+// Every coral highlight on the shelf waits in To sort until it's sorted: h.study = {as: 'words' | 'fact' | 'skip', at},
+// kept on the highlight in its book's state (a merged Kindle export keeps it: see mergeKindle). Tapping a word in it
+// saves the word, as the reader's Word does, and sorts it as words; Fact makes it a fact card, with the phrase selected
+// in it blanked out; Skip hides it until "Show skipped". Deleting the word or card later doesn't bring it back.
+// SORT, for one visit to To sort:
+//   items    the coral highlights, newest books first, then in reading order; null until the books have loaded
+//   keep     highlights sorted as words during the visit: they stay listed, with their chosen words and Undo
+//   taps     per highlight, the words tapped in it, for Undo: [{id, term, pid, ws}]
+//   prev     per highlight, its h.study before the first tap, put back when every tap is undone
+//   blank    per highlight, the phrase selected for its fact card: {s, e} in the item's text
+//   skipped  whether skipped highlights are listed too
+let SORT=sortReset();
+function sortReset(items=null){return {items,keep:new Set(),taps:new Map(),prev:new Map(),blank:new Map(),skipped:false};}
+// From the books the Notebook read: each coral highlight with its text (its blocks joined with a space) and its words,
+// each word's place in the text (a, z) and in its block (k: which segment, s, e).
+function sortLoaded(books){
+  const added=id=>(META.find(m=>m.id===id)||{}).added||0;
+  SORT.items=[...books].sort((a,b)=>added(b.doc.id)-added(a.doc.id)).flatMap(({doc,hl})=>{
+    const coral=hl.filter(h=>h.color==='coral');if(!coral.length) return [];
+    const blocks={},byId=new Map(coral.map(h=>[h.id,h]));
+    doc.blocks.forEach(b=>{if(b.text!==undefined) blocks[b.id]=b;});(doc.notes||[]).forEach(n=>{blocks[n.id]={id:n.id,text:n.text};});
+    return entriesFor(doc,coral).map(e=>{
+      const h=byId.get(e.id),segs=h.segs.filter(g=>blocks[g.pid]).map(g=>({pid:g.pid,s:g.s,e:g.e,b:blocks[g.pid]}));
+      let text='';const toks=[];
+      segs.forEach((g,k)=>{if(k) text+=' ';const t=g.b.text.slice(g.s,g.e),o=text.length;wordsIn(t).forEach(w=>toks.push({a:o+w.s,z:o+w.e,k,s:g.s+w.s,e:g.s+w.e}));text+=t;});
+      return {key:doc.id+'|'+h.id,bookId:doc.id,title:doc.title,section:e.section,h,segs,text,toks,hay:nbFold([text,h.note,doc.title,doc.author].join(' '))};
+    });
+  });
+  if($('#nbPanelWd').classList.contains('hidden')) return;
+  if(WD.f==='sort') renderWords(); else wdChips();
+}
+// the highlights the search and book filter let through
+function sortBase(){
+  const terms=nbFold($('#wdQ').value).split(/\s+/).filter(Boolean),book=$('#wdBook').value;
+  return (SORT.items||[]).filter(it=>(!book||it.bookId===book)&&terms.every(t=>it.hay.includes(t)));
+}
+// Where saved words sit in the books ("bookId|pid" → [[ws, we]]): a word saved there shows as chosen.
+function wordPlaces(){const m=new Map();if(WORDS) WORDS.forEach(w=>(w.examples||[]).forEach(x=>{const k=x.bookId+'|'+x.pid;if(!m.has(k)) m.set(k,[]);m.get(k).push([x.ws,x.we]);}));return m;}
+const chosenAt=(it,x,places)=>(places.get(it.bookId+'|'+it.segs[x.k].pid)||[]).some(([s,e])=>s<=x.s&&x.e<=e);
+function listSort(){
+  if(!SORT.items){$('#wdList').innerHTML='<div class="empty">Gathering your highlights…</div>';return;}
+  const base=sortBase(),as=it=>it.h.study&&it.h.study.as,places=wordPlaces();
+  const n=base.filter(it=>!as(it)).length,sk=base.filter(it=>as(it)==='skip').length;
+  const list=base.filter(it=>!as(it)||SORT.keep.has(it.key)||(SORT.skipped&&as(it)==='skip'));
+  const bar=list.length||sk||SORT.skipped?`<div class="st-bar">${list.length?'<p class="st-hint">Tap a word to save it. Select a phrase to blank it on the fact card.</p>':''}<span class="st-acts">${sk||SORT.skipped?`<button class="chip" data-st="skipped" aria-pressed="${SORT.skipped}">Show skipped (${sk})</button>`:''}${n?'<button class="btn ghost" data-st="rest">Make the rest facts</button>':''}</span></div>`:'';
+  $('#wdList').innerHTML=bar+(list.length?list.map(it=>sortCardHTML(it,places)).join(''):
+    `<div class="empty">${!SORT.items.length?'Nothing to sort.<br>Coral highlights wait here, Kindle’s red, pink and orange ones too.':!base.length?'Nothing matches.':'All sorted.'}</div>`);
+}
+// A highlight to sort: where it's from, its text with each word to tap (chosen ones marked, the blank boxed), its note,
+// then Undo and Clear blank when they apply, Skip and Fact.
+function sortCardHTML(it,places){
+  const taps=SORT.taps.get(it.key)||[],b=SORT.blank.get(it.key),skipped=!!it.h.study&&it.h.study.as==='skip',t=it.text;
+  let q='',at=0;
+  it.toks.forEach((x,i)=>{
+    q+=esc(t.slice(at,x.a))+(b&&x.a===b.s?'<span class="f-gap">':'')+`<span class="st-w${chosenAt(it,x,places)?' on':''}" data-t="${i}">${esc(t.slice(x.a,x.z))}</span>`+(b&&x.z===b.e?'</span>':'');
+    at=x.z;
+  });
+  q+=esc(t.slice(at));
+  const info=(taps.length?`<span>Saved: ${esc(taps.map(x=>x.term).join(', '))}</span><button class="sc-link" data-st="undo">Undo</button>`:'')+(b?'<button class="sc-link" data-st="clear">Clear blank</button>':'');
+  return `<article class="wcard scard" data-k="${esc(it.key)}"><div class="sec"><b>${esc(it.title)}</b>${it.section?` · ${esc(it.section)}`:''}${skipped?' · Skipped':''}</div>`+
+    `<p class="st-text">${q}</p>${it.h.note?`<p class="f-note">${esc(it.h.note)}</p>`:''}`+
+    `<div class="sc-foot"><span class="sc-info">${info}</span><span class="sc-acts">${taps.length||skipped?'':'<button class="btn ghost" data-st="skip">Skip</button>'}<button class="btn" data-st="fact">Fact</button></span></div></article>`;
+}
+function sortClick(e,card){
+  const it=SORT.items&&SORT.items.find(x=>x.key===card.dataset.k),b=e.target.closest('[data-st]');if(!it) return;
+  if(b){const a=b.dataset.st;if(a==='fact') sortFact(it);else if(a==='skip') sortSkip(it);else if(a==='undo') sortUndo(it);else if(a==='clear'){SORT.blank.delete(it.key);listSort();}return;}
+  const w=e.target.closest('.st-w');if(w&&getSelection().isCollapsed) sortTap(it,+w.dataset.t);
+}
+// A tapped word is saved like the reader's Word (its sentence from its block, its meaning looked up) and sorts the
+// highlight as words; tapping it again, or Undo, takes it back.
+async function sortTap(it,i){
+  const x=it.toks[i],g=it.segs[x.k],mine=(SORT.taps.get(it.key)||[]).find(y=>y.pid===g.pid&&y.ws===x.s);
+  if(mine) return sortUndo(it,mine);
+  await loadWords();if(!WORDS) return;
+  if(chosenAt(it,x,wordPlaces())){toast('Already in Words');return;}
+  const r=await saveWordAt({id:it.bookId,title:it.title},g.b,x.s,x.e);if(!r) return;
+  if(r.dup){toast('Already in Words');return;}
+  fillDef(r.w);
+  const taps=SORT.taps.get(it.key)||[];
+  if(!taps.length) SORT.prev.set(it.key,it.h.study||null);
+  SORT.taps.set(it.key,[...taps,{id:r.w.id,term:r.w.term,pid:g.pid,ws:x.s}]);SORT.keep.add(it.key);
+  if(!it.h.study||it.h.study.as!=='words') setStudy(it,{as:'words',at:Date.now()});
+  toast('Saved to Words');listSort();wdChips();
+}
+// Takes back a tapped word (the last one by default): its example goes, and the word with it when that was its only one.
+// With no tapped word left, the highlight is as it was before.
+function sortUndo(it,tap){
+  const taps=SORT.taps.get(it.key)||[];tap=tap||taps[taps.length-1];if(!tap) return;
+  const w=WORDS&&WORDS.get(tap.id);
+  if(w){
+    const rest=(w.examples||[]).filter(x=>!(x.bookId===it.bookId&&x.pid===tap.pid&&x.ws===tap.ws));
+    if(rest.length){w.examples=rest;putWord(w);} else {WORDS.delete(w.id);WIDX=null;DB.del('word:'+w.id);}
+  }
+  const left=taps.filter(y=>y!==tap);SORT.taps.set(it.key,left);
+  if(!left.length){setStudy(it,SORT.prev.get(it.key)||null);SORT.prev.delete(it.key);}
+  toast('Undone');listSort();wdChips();
+}
+async function sortFact(it){
+  await loadWords();if(!WORDS) return;
+  makeFact(it,SORT.blank.get(it.key));setStudy(it,{as:'fact',at:Date.now()});
+  ['keep','taps','prev','blank'].forEach(k=>SORT[k].delete(it.key));
+  toast('Made a fact card');listSort();wdChips();
+}
+function sortSkip(it){setStudy(it,{as:'skip',at:Date.now()});SORT.keep.delete(it.key);toast('Skipped');listSort();wdChips();}
+// "Make the rest facts": every highlight listed and not sorted yet becomes a fact card (with its blank, if one was
+// selected), in list order. It deletes nothing, so a plain question is enough.
+async function sortRest(){
+  const rest=sortBase().filter(it=>!it.h.study),n=rest.length;if(!n) return;
+  if(!await confirmTyped(`Make ${n===1?'1 highlight a fact card':`${n} highlights fact cards`}?`,'Each one becomes a card to study. Nothing is deleted.','Make fact cards',true)) return;
+  await loadWords();if(!WORDS) return;
+  const at=Date.now(),v={as:'fact',at},by=new Map();
+  rest.forEach((it,i)=>{
+    makeFact(it,SORT.blank.get(it.key),at+i);it.h.study=v;SORT.blank.delete(it.key);
+    if(!by.has(it.bookId)) by.set(it.bookId,new Set());by.get(it.bookId).add(it.h.id);
+  });
+  by.forEach((ids,id)=>editState(id,hl=>hl.forEach(h=>{if(ids.has(h.id)) h.study=v;}))); // one write per book
+  toast(`Made ${plural(n,'fact card')}`);listSort();wdChips();
+}
+// A highlight's fact card (format: vocab.js). Made again, it keeps its schedule.
+function makeFact(it,blank,at=Date.now()){
+  const id=factId(it.bookId,it.h.id),have=WORDS.get(id),g=it.segs[0]||{};
+  putWord({...have,id,kind:'fact',text:it.text,blank:blank||null,note:it.h.note||'',bookId:it.bookId,hlId:it.h.id,pid:g.pid,ws:g.s,we:g.e,title:it.title,section:it.section||'',added:(have&&have.added)||at});
+}
+// Sorts a highlight (v: {as, at}, or null for not sorted): the list shows it at once, its book's state follows.
+function setStudy(it,v){
+  if(v) it.h.study=v; else delete it.h.study;
+  editState(it.bookId,hl=>{const h=hl.find(x=>x.id===it.h.id);if(!h) return;if(v) h.study=v; else delete h.study;});
+}
+// Changes a book's highlights in its stored state: one change at a time per book, each made to the latest copy, so none
+// is lost to another device or a merged Kindle export. The open book's highlights change in place.
+const EDITS=new Map();
+function editState(id,fn){
+  const db=DB,p=(EDITS.get(id)||Promise.resolve()).then(async()=>{
+    if(DOC&&DOC.id===id){fn(HL);commit();return;}
+    const st=await db.get('state:'+id);if(!st||db!==DB) return;
+    fn(st.hl=st.hl||[]);db.put('state:'+id,st);
+  }).catch(e=>console.warn('Sorting',e));
+  EDITS.set(id,p);return p;
+}
+// A phrase selected in a highlight's text becomes the blank on its fact card, stretched to whole words: with a mouse
+// once the button is let go, otherwise (touch, keyboard) once the selection has settled. Never while a mouse button is
+// down: a settle timer left from before the drag would take half the phrase and end the drag.
+let stMouse=false;
+function sortSelect(){
+  if(stMouse||WD.f!=='sort'||$('#notebook').classList.contains('hidden')) return;
+  const sel=getSelection();if(sel.isCollapsed||!sel.rangeCount) return;
+  const r=sel.getRangeAt(0),el=n=>{const e=n.nodeType===1?n:n.parentElement;return e&&e.closest('#wdList .st-text');},tx=el(r.startContainer);
+  if(!tx||tx!==el(r.endContainer)) return;
+  const it=SORT.items&&SORT.items.find(x=>x.key===tx.closest('.scard').dataset.k);if(!it) return;
+  const at=(n,o)=>{const q=document.createRange();q.setStart(tx,0);q.setEnd(n,o);return q.toString().length;};
+  const b=snapWords(it.text,at(r.startContainer,r.startOffset),at(r.endContainer,r.endOffset));
+  sel.removeAllRanges();if(!b) return;
+  SORT.blank.set(it.key,b);listSort();
+}
+$('#wdList').addEventListener('pointerdown',e=>{stMouse=e.pointerType==='mouse';});
+document.addEventListener('pointerup',()=>{if(stMouse){stMouse=false;setTimeout(sortSelect);}});
+document.addEventListener('selectionchange',()=>{clearTimeout(sortSelect.t);if(!stMouse&&WD.f==='sort') sortSelect.t=setTimeout(sortSelect,600);});
 
 /* ================= settings, backup ================= */
 function setErr(m){const e=$('#setErr');e.textContent=m;e.classList.remove('hidden');}
@@ -1247,7 +1452,8 @@ $('#restoreFile').onchange=async e=>{
 //   {id, kind:'book', deletedAt, bookId, title, meta, hl, notes}       only meta: was deleted; doc: and state: stay
 //   {id, kind:'highlights', deletedAt, bookId, title, items, quote}    items: the full highlight objects
 //   {id, kind:'note', deletedAt, bookId, title, hlId, text, quote, color}
-//   {id, kind:'word', deletedAt, title, word}                         word: the whole word (title is its term)
+//   {id, kind:'word', deletedAt, title, word}                         word: the whole word (title is its term), or a
+//                                                                     fact card (title is its book's)
 // Backups (exportShelf) cover the shelf only, so trashed books aren't in them.
 const TRASH_DAYS=30,DAY=864e5;
 let TRASH=[]; // the open Trash dialog's entries, newest first
@@ -1308,6 +1514,8 @@ function trashRow(e){
   } else if(e.kind==='highlights'){
     const n=e.items.length;what=n===1?'Highlight':`${n} highlights`;stripe=`var(--${esc(e.items[0].color)}S)`;
     body=`<p class="q">${esc(e.quote)}</p>`;
+  } else if(e.kind==='word'&&isFact(e.word)){
+    what='Fact';stripe='var(--coralS)';body=`<p class="q">${esc(e.word.text||'')}</p>`;
   } else if(e.kind==='word'){
     const w=e.word||{},x=(w.examples||[])[0];what='Word';stripe='var(--sea)';
     body=`<p class="q">${w.def?esc(w.def):x?exampleHTML(x):''}</p>`;
@@ -1342,7 +1550,8 @@ $('#trashEmpty').onclick=async()=>{
 // the day once rated (ls 'studyNew'). "Again" brings the card back STUDY_AGAIN cards later. Two kinds of card
 // (prefs.studyMode): 'word' shows the word and asks for its meaning; 'cloze' shows a sentence with the word blanked
 // out and the meaning as a hint, and asks for the word. srs.seen counts reviews; each one starts the examples one
-// further along, so the front sentence changes.
+// further along, so the front sentence changes. Fact cards (vocab.js) share the queue, the schedule and the day's new
+// allowance; the card type doesn't apply to them.
 const STUDY_NEW=20,STUDY_AGAIN=5,RATINGS=['again','good','easy'];
 let SY={words:[],queue:[],i:0,shown:false,done:new Set()},syRun=0;
 const syDay=()=>{const d=new Date();return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;};
@@ -1393,10 +1602,12 @@ function syRender(){
   if(!SY.words.length) return syEnd('No words yet','<p>Select a word while reading and tap <b>Word</b>. It’s saved here with its sentence, ready to study.</p>');
   if(!w){
     // new words left over wait for tomorrow's allowance
-    const next=SY.words.reduce((m,x)=>Math.min(m,x.srs?x.srs.due||0:syMidnight(now,1)),Infinity),n=SY.done.size;
-    return syEnd('All caught up',`<p>${n?`You reviewed ${n} word${n===1?'':'s'}.`:'Nothing is due right now.'}</p><p class="sy-next">Next review ${syWhen(next,now)}.</p>`);
+    const next=SY.words.reduce((m,x)=>Math.min(m,x.srs?x.srs.due||0:syMidnight(now,1)),Infinity);
+    const done=SY.words.filter(x=>SY.done.has(x.id)),nf=done.filter(isFact).length,nw=done.length-nf;
+    return syEnd('All caught up',`<p>${done.length?`You reviewed ${[nw&&plural(nw,'word'),nf&&plural(nf,'fact')].filter(Boolean).join(' and ')}.`:'Nothing is due right now.'}</p><p class="sy-next">Next review ${syWhen(next,now)}.</p>`);
   }
   syHead(true);
+  if(isFact(w)) return syFact(w,now);
   // a cloze needs a sentence that holds the word; without one the card shows the word
   const xs=syExamples(w),x=xs[0],cl=prefs.studyMode==='cloze'&&!!x&&syHasWord(x),open=SY.shown;
   const term=`<h2 class="sy-term">${esc(w.term)}</h2>${w.pos?`<p class="sy-pos">${esc(w.pos)}</p>`:''}`;
@@ -1404,9 +1615,23 @@ function syRender(){
   const more=xs.slice(1,3).map(y=>`<li><p class="sy-sent">${sySentence(y)}</p>${y.title?`<p class="sy-from">${esc(y.title)}</p>`:''}</li>`).join('');
   const front=cl?`<p class="sy-ask">Which word fits?</p>${sent}${w.def?`<p class="sy-hint"><span>Meaning</span>${esc(w.def)}</p>`:''}`:term+sent;
   const back=(cl?term:w.def?`<p class="sy-def">${esc(w.def)}</p>`:'<p class="sy-def none">No meaning saved yet</p>')+(more?`<ul class="sy-more">${more}</ul>`:'');
+  syCard(w,now,front,back,cl?'Show word':'Show meaning');
+}
+// A fact card. With a blank: the text with the phrase blanked out, and the back fills it in. Without: the text to
+// recall, and the back gives the note and where it's from. A long text reads left-aligned.
+function syFact(f,now){
+  const c=factCloze(f),t=String(f.text||'');
+  const text=c?esc(c.before)+(SY.shown?`<b class="sy-fill">${esc(c.phrase)}</b>`:'<span class="sy-gap" aria-label="blank">_____</span>')+esc(c.after):esc(t);
+  const front=`<p class="sy-ask">${c?'What’s missing?':'Remember this?'}</p><p class="sy-sent sy-fact${t.length>160?' long':''}">${text}</p>`;
+  const back=(f.note?`<p class="sy-note">${esc(f.note)}</p>`:'')+`<p class="sy-book"><b>${esc(wordBook(f))}</b>${f.section?`<span>${esc(f.section)}</span>`:''}</p>`;
+  syCard(f,now,front,back,c?'Show answer':f.note?'Show note':'Show source');
+}
+// the card, its back once shown, and the button that shows it or the three ratings
+function syCard(w,now,front,back,show){
+  const open=SY.shown;
   $('#syCard').innerHTML=`<article class="sy-card">${front}${open?`<div class="sy-back"><div class="sy-rule" aria-hidden="true">❦</div>${back}</div>`:''}</article>`;
   $('#syActs').innerHTML=open?`<div class="sy-rate">${RATINGS.map((r,i)=>`<button class="sy-r ${r}" data-r="${r}" aria-keyshortcuts="${i+1}"><b>${r[0].toUpperCase()+r.slice(1)}</b><small>${nextLabel(w.srs,r,now)}</small></button>`).join('')}</div>`
-    :`<button class="btn sy-big" data-sy="show" aria-keyshortcuts="Space Enter">${cl?'Show word':'Show meaning'}</button>`;
+    :`<button class="btn sy-big" data-sy="show" aria-keyshortcuts="Space Enter">${show}</button>`;
 }
 function syShow(){if(SY.queue[SY.i]&&!SY.shown){SY.shown=true;syRender();}}
 function syRate(r){

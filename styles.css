@@ -471,6 +471,30 @@ body.focus .fn-card .hp{opacity:1}
 .w-q{display:block;font:1rem/1.5 var(--body);overflow-wrap:anywhere}
 .w-bk{display:block;font:500 .78rem/1.4 var(--ui);color:var(--muted);margin-top:.2rem;overflow-wrap:anywhere}
 .w-bk::after{content:" ›"}
+/* fact cards and highlights to sort carry a coral stripe, like the highlights they come from */
+.wcard.fcard,.wcard.scard{border-left:6px solid var(--coralS)}
+.f-tag{font:600 .74rem var(--ui);letter-spacing:.08em;text-transform:uppercase;color:var(--sea)}
+.f-note{font:italic .98rem/1.45 var(--body);background:var(--paper);border-radius:10px;padding:.45rem .65rem;margin:.6rem 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+/* the phrase a fact card blanks out: a dashed box, unlike a chosen word's tint */
+.f-gap{border:1.5px dashed var(--buoy);border-radius:5px;padding:0 .1em;background:color-mix(in srgb,var(--buoy) 8%,transparent);box-decoration-break:clone;-webkit-box-decoration-break:clone}
+/* To sort: what to do, Show skipped and Make the rest facts; then a card per highlight */
+.st-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1rem;margin:0 0 1rem}
+.st-hint{flex:1 1 15rem;margin:0;font:500 .86rem/1.4 var(--ui);color:var(--muted)}
+.st-acts{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}
+.st-acts .btn{padding:.45rem 1rem;font-size:.98rem}
+.scard .sec{font:500 .8rem/1.4 var(--ui);color:var(--muted);margin-bottom:.4rem;overflow-wrap:anywhere}
+.scard .sec b{color:var(--ink);font-weight:600}
+/* large enough to tap a word with a thumb; each word's tap area reaches into the generous line gap */
+.st-text{font:1.24rem/1.8 var(--body);margin:0;overflow-wrap:anywhere}
+.st-w{cursor:pointer;border-radius:4px;padding:.2em 0}
+@media (hover:hover){.st-w:hover{background:color-mix(in srgb,var(--sea) 10%,transparent)}}
+.st-w.on{background:color-mix(in srgb,var(--sea) 22%,transparent);box-shadow:inset 0 -2px 0 var(--sea)}
+.sc-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;margin-top:.8rem}
+.sc-info{flex:1 1 12rem;display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .7rem;font:500 .84rem/1.4 var(--ui);color:var(--muted);overflow-wrap:anywhere}
+.sc-info:empty{display:none}
+.sc-link{border:0;background:none;padding:.3rem 0;font:600 .84rem var(--ui);color:var(--sea);text-decoration:underline;text-underline-offset:2px}
+.sc-acts{display:flex;gap:.5rem;margin-left:auto}
+.sc-acts .btn{padding:.5rem 1.15rem;font-size:1rem}
 
 /* ================= TRASH ================= */
 #confirmM{z-index:101} /* Empty Trash asks over the Trash dialog */
@@ -522,6 +546,12 @@ body.focus .fn-card .hp{opacity:1}
 .sy-more li{border-left:3px solid var(--wave);padding-left:.9rem}
 .sy-more .sy-sent{font-size:1.02rem;margin:0}
 .sy-from{font:500 .78rem/1.4 var(--ui);color:var(--muted);margin:.2rem 0 0}
+/* fact cards: the text (left-aligned when long), the phrase filled in, the note and where it's from */
+.sy-fact.long{text-align:left}
+.sy-fill{font-weight:600;color:var(--sea)}
+.sy-note{font:italic 1.15rem/1.5 var(--body);margin:0 0 .9rem;white-space:pre-wrap;text-wrap:pretty}
+.sy-book{font:500 1.15rem/1.35 var(--display);margin:0}
+.sy-book span{display:block;font:500 .82rem/1.4 var(--ui);color:var(--muted);margin-top:.2rem}
 .sy-acts{position:sticky;bottom:0;z-index:2;padding:.8rem 0 calc(env(safe-area-inset-bottom,0px) + 1rem);background:var(--paper)}
 .sy-acts::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:1rem;background:linear-gradient(transparent,var(--paper));pointer-events:none}
 .btn.sy-big{width:100%;justify-content:center;min-height:3.5rem;font-size:1.2rem}

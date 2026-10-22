@@ -223,9 +223,10 @@ export async function importShelf(db, data, existing, metaFor) {
     const meta = metaFor(doc, state); await db.put('meta:' + id, meta);
     res.metas.push(meta); res.merged++; res.highlights += extra.length;
   }
-  // words: add missing ones; for words already saved, add examples they don't have (same book, block and place)
+  // words: add missing ones; for words already saved, add examples they don't have (same book, block and place).
+  // Fact cards (kind 'fact', no term) are stored with the words: added when missing, else left alone.
   for (const w of Array.isArray(data.words) ? data.words : []) {
-    if (!w || !w.id || !w.term) continue;
+    if (!w || !w.id || !(w.term || w.kind === 'fact')) continue;
     const have = await db.get('word:' + w.id);
     if (!have) { await db.put('word:' + w.id, w); res.words++; continue; }
     const key = x => [x.bookId, x.pid, x.ws].join('|'), seen = new Set((have.examples || []).map(key));

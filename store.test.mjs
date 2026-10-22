@@ -143,6 +143,15 @@ const errs=[];
   ok('restore: merges a known word\'s examples, keeps its schedule, fills a missing meaning',r.words===1&&w.examples.length===2&&w.srs.reps===3&&w.def==='still');
   const r2=await importShelf(B,bk,await B.all('meta:'),metaFor);
   ok('restore: the same words again change nothing',r2.words===0&&(await B.get('word:w1')).examples.length===2);
+  // fact cards live with the words: backed up, restored when missing, a newer copy kept
+  const f={id:'fabc',kind:'fact',text:'Ink fades.',blank:{s:4,e:9},note:'',bookId:'x',hlId:'h1',pid:'b0',ws:0,we:10,title:'X',added:3};
+  await A.put('word:fabc',f);
+  const bk2=JSON.parse(JSON.stringify(await exportShelf(A))),C=makeLocal();await C.open();
+  const r3=await importShelf(C,bk2,[],metaFor),fc=await C.get('word:fabc');
+  ok('restore: a fact card comes back whole',r3.words===2&&fc&&fc.kind==='fact'&&fc.blank.e===9&&fc.text==='Ink fades.');
+  await C.put('word:fabc',{...f,srs:{reps:2}});
+  const r4=await importShelf(C,bk2,await C.all('meta:'),metaFor);
+  ok('restore: a fact card already here is left alone',r4.words===0&&(await C.get('word:fabc')).srs.reps===2);
 }
 
 ok('no write errors',errs.length===0);
