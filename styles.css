@@ -313,8 +313,11 @@ body.focus .fn-card .hp{opacity:1}
 /* five swatches and three buttons: a little tighter on phones under 380 px, so a 360 px screen fits them */
 @media (max-width:380px){#tool{gap:.2rem;padding:.35rem .4rem}#tool .sw{width:26px;height:26px}#tool .tb{padding:.35rem .45rem}}
 #tool.docked{left:50%!important;transform:translateX(-50%)!important;top:auto!important;bottom:calc(env(safe-area-inset-bottom,0px) + 18px)}
-#noteBox{position:fixed;z-index:61;width:min(340px,calc(100vw - 24px));background:var(--sheet);border-radius:18px;padding:.9rem;box-shadow:0 14px 40px rgba(40,24,12,.3);border:1px solid var(--rule)}
-#noteBox textarea{min-height:90px;font:1rem/1.45 var(--body);resize:vertical}
+/* the note box and the word card stay inside the visible area (max-height set in app.js): as a flex column, a long
+   or dragged-taller field gives way and scrolls, and the buttons stay in view */
+#noteBox{position:fixed;z-index:61;display:flex;flex-direction:column;overflow:auto;width:min(340px,calc(100vw - 24px));background:var(--sheet);border-radius:18px;padding:.9rem;box-shadow:0 14px 40px rgba(40,24,12,.3);border:1px solid var(--rule)}
+#noteBox>*,#wordBox>*{flex:none}
+#noteBox textarea{flex:0 1 auto;min-height:90px;font:1rem/1.45 var(--body);resize:vertical}
 #noteBox .row{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.6rem}
 #noteBox .btn{padding:.5rem 1rem;font-size:.9rem}
 
@@ -461,16 +464,20 @@ body.focus .fn-card .hp{opacity:1}
 .wd{text-decoration:underline dotted color-mix(in srgb,var(--sea) 80%,transparent);text-decoration-thickness:2px;text-underline-offset:.22em;text-decoration-skip-ink:none;cursor:pointer}
 .wd.flash{animation:wflash 1.6s ease;border-radius:3px}
 @keyframes wflash{0%,45%{background:color-mix(in srgb,var(--sea) 26%,transparent)}}
-/* the word card, in the note box's style; docked at the bottom on phones (set in app.js) */
-#wordBox{position:fixed;z-index:61;width:min(360px,calc(100vw - 24px));max-height:calc(100vh - 96px);overflow:auto;background:var(--sheet);border-radius:18px;padding:.85rem 1rem .9rem;box-shadow:0 14px 40px rgba(40,24,12,.3);border:1px solid var(--rule)}
+/* the word card, in the note box's style (and kept in view the same way); docked at the bottom on phones (set in app.js) */
+#wordBox{position:fixed;z-index:61;display:flex;flex-direction:column;width:min(360px,calc(100vw - 24px));max-height:calc(100vh - 96px);overflow:auto;background:var(--sheet);border-radius:18px;padding:.85rem 1rem .9rem;box-shadow:0 14px 40px rgba(40,24,12,.3);border:1px solid var(--rule)}
 .wb-head,.w-head{display:flex;align-items:baseline;gap:.2rem .6rem;flex-wrap:wrap}
-.wb-head{margin-bottom:.55rem}
+/* the card's top, out to its edges, is the handle that drags it; a small grip shows it on touch screens */
+.wb-head{position:relative;margin:-.85rem -1rem .55rem;padding:.85rem 1rem 0;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+#wordBox.drag .wb-head{cursor:grabbing}
+@media (pointer:coarse){.wb-head::before{content:"";position:absolute;top:5px;left:50%;width:34px;height:4px;margin-left:-17px;border-radius:2px;background:var(--rule)}}
 #wbTerm,.w-term{font:600 1.5rem/1.15 var(--display);margin:0;overflow-wrap:anywhere}
 #wbPos,.w-pos{font:italic 400 1.02rem var(--display);color:var(--muted)}
-#wbDef{min-height:76px;font:1rem/1.45 var(--body);resize:vertical}
+/* in a full card the field gives way first; the sentence (#wbEx) shrinks and scrolls only once the field is at its minimum */
+#wbDef{flex:0 1000 auto;min-height:76px;font:1rem/1.45 var(--body);resize:vertical}
 #wbSrc,.w-src{font:500 .74rem var(--ui);color:var(--muted);margin:.3rem 0 0}
-#wbPos:empty,#wbSrc:empty,.w-pos:empty,.w-src:empty{display:none}
-#wbEx{font:.98rem/1.5 var(--body);margin:.7rem 0 0;padding-left:.75rem;border-left:3px solid var(--wave);overflow-wrap:anywhere}
+#wbPos:empty,#wbSrc:empty,#wbEx:empty,.w-pos:empty,.w-src:empty{display:none}
+#wbEx{flex:0 1 auto;min-height:3em;overflow:auto;font:.98rem/1.5 var(--body);margin:.7rem 0 0;padding-left:.75rem;border-left:3px solid var(--wave);overflow-wrap:anywhere}
 #wbEx b,.w-q b{font-weight:650}
 #wordBox .row{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.8rem}
 #wordBox .btn{padding:.5rem 1rem;font-size:.9rem}
