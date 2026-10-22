@@ -25,6 +25,8 @@
 //   setup.mjs       a fork's Firebase setup errors name the setting to fix (Firebase SDK faked)
 //   colours.mjs     colour meanings: five swatches and keys 1–5, renaming a meaning in Settings, grouping by colour
 //                   in the Notebook, the drawer and the export, Kindle orange importing as amber (screenshots in out/colours/)
+//   signin.mjs      Google sign-in with the Firebase SDK stubbed: popup or redirect, the iPhone home-screen app,
+//                   the message for each failure, a redirect back without an account, local mode
 // Every file also fails on any page error.
 //
 // Run: `npm install` once, then `npm run test:browser`. One file: `node tests/browser/search.mjs`.
@@ -40,7 +42,7 @@ import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','words.mjs','study.mjs','sort.mjs','migrate.mjs','linkimport.mjs','setup.mjs','colours.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','words.mjs','study.mjs','sort.mjs','migrate.mjs','linkimport.mjs','setup.mjs','colours.mjs','signin.mjs'];
 
 // Run one file, echo its output and count its PASS/FAIL lines.
 const runOne=f=>new Promise(res=>{
