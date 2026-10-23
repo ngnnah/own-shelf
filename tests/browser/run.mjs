@@ -38,7 +38,7 @@
 //                   the message for each failure, a redirect back without an account, local mode
 //   overflow.mjs    the page never scrolls sideways on a phone (375 and 320 px, touch): every screen, drawer, dialog
 //                   and card, with unbroken links and titles, long words, a wide table and picture; the overflow-x:clip
-//                   backstop, the window's scroll and Study's sticky buttons under it
+//                   backstop, the window's scroll and Study's sticky buttons under it; text fields at 16 px or more
 // Every file also fails on any page error.
 //
 // Run: `npm install` once, then `npm run test:browser`. One file: `node tests/browser/search.mjs`.

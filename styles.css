@@ -537,6 +537,8 @@ body:has(#noteBox:not(.hidden),#wordBox:not(.hidden)) #toast{top:calc(env(safe-a
 #wdBook{flex:0 1 20rem;min-width:0;width:auto;appearance:none;-webkit-appearance:none;border:2px solid var(--rule);border-radius:999px;color:var(--ink);font:500 .92rem var(--ui);padding:.5rem 2.2rem .5rem 1rem;text-overflow:ellipsis;
   background:var(--sheet) no-repeat;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 1.2rem) 52%,calc(100% - .85rem) 52%;background-size:.35rem .35rem}
 #wdStudy{margin-left:auto;flex:none}
+/* iOS zooms into a focused field under 16 px and leaves the page zoomed, so it pans sideways */
+@media (pointer:coarse){#nbBook,#wdBook{font-size:1rem}}
 .wcard{background:var(--sheet);border:1.5px solid var(--rule);border-radius:18px;padding:.8rem 1.1rem .95rem;margin-bottom:.8rem}
 .w-del{margin-left:auto;align-self:center;border:0;background:transparent;font:600 .78rem var(--ui);color:var(--muted);padding:.25rem .5rem;border-radius:8px}
 .w-del:hover{background:var(--paper);color:var(--ink)}

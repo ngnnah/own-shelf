@@ -214,6 +214,9 @@ await t.run(async()=>{
   ok('something too wide still leaves the page as wide as the screen, and it can’t be scrolled sideways',held.sw===held.cw&&held.x===0);
   ok('the window still scrolls down, and the reader bar stays at the top',held.y>1000&&held.bar===0);
   await page.evaluate(()=>scrollTo(0,0));
+  // iOS zooms into a focused field under 16 px, and the zoomed page pans sideways
+  const small=await page.evaluate(()=>[...document.querySelectorAll('input,textarea,select,[contenteditable]')].filter(e=>!/^(checkbox|radio|file|hidden)$/.test(e.type)&&parseFloat(getComputedStyle(e).fontSize)<16).map(e=>e.id||e.className));
+  ok('every text field and menu is at least 16 px on a touch screen',!small.length);if(small.length)console.log('     under 16 px: '+small.join(', '));
 
   // 320 px: the shelf and the reader
   await phone(320);await page.goto(t.base,{waitUntil:'networkidle0'});await page.waitForSelector('#shelf:not(.hidden),#reader:not(.hidden)');
