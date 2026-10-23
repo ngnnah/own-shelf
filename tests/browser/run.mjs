@@ -20,6 +20,12 @@
 //                   underline in the text, the Notebook's Words tab (search, book filter, open at the word), the Trash
 //   wordbox.mjs     the word card and the note box stay inside the visible area with their buttons in view (a long or
 //                   pasted meaning, the field dragged taller, a short window, an iPhone keyboard); dragging the word card
+//   notesheet.mjs   on a phone, the note box as a sheet above the keyboard whose field grows with the note (a short
+//                   and a long note, from the toolbar, a highlight and the drawer, an iPhone keyboard); a tap outside the
+//                   note box or the word card saves it (the text, the bar, the scrim), Cancel drops, Escape saves,
+//                   scrolling or selecting doesn't count, opening another note or the word card saves the open one
+//   fastscroll.mjs  the fast-scroll handle under 1180 px: shown while scrolling, dragged by finger or mouse to any part
+//                   with the section and percentage beside it, the position saved, none at 1280 px or for short texts
 //   wordcard.mjs    the richer word card (lookups mocked): synonyms, antonyms, the dictionary's examples and Wikipedia's
 //                   picture on saving, a title mismatch giving none, fact cards' pictures from their blank, pictures pasted,
 //                   dropped or picked (3 at most, ×, the size guard), editing, meanings' line breaks, Study backs, older
@@ -51,7 +57,7 @@ import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','words.mjs','wordbox.mjs','wordcard.mjs','study.mjs','sort.mjs','migrate.mjs','linkimport.mjs','setup.mjs','colours.mjs','signin.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','words.mjs','wordbox.mjs','notesheet.mjs','fastscroll.mjs','wordcard.mjs','study.mjs','sort.mjs','migrate.mjs','linkimport.mjs','setup.mjs','colours.mjs','signin.mjs'];
 
 // Run one file, echo its output and count its PASS/FAIL lines.
 const runOne=f=>new Promise(res=>{

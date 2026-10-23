@@ -209,6 +209,20 @@ label.fl,div.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--mut
 #rail .wp:hover .tip,#rail .wp:focus-visible .tip{opacity:1}
 #rail .bookmark{left:50%;width:18px;height:34px;margin:-5px 0 0 -9px}
 
+/* fast scroll, where the rail isn't shown: the track runs from under the bar to the bottom edge, on the right. The thumb
+   is a 48 px tall touch target whose visible pill sits in the reader's margin; under the drawers, the toolbar and the
+   cards (app.js shows it while scrolling) */
+#scrub{position:fixed;z-index:35;right:env(safe-area-inset-right,0px);top:calc(env(safe-area-inset-top,0px) + 72px);bottom:calc(env(safe-area-inset-bottom,0px) + 12px);width:26px;pointer-events:none;opacity:0;transition:opacity .3s;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#scrub.on{opacity:1;transition-duration:.15s}
+#scrub.on .sc-thumb{pointer-events:auto}
+@media (min-width:1180px){#scrub{display:none}}
+#scrub .sc-thumb{position:absolute;right:0;width:26px;height:48px;touch-action:none;cursor:grab}
+#scrub.drag .sc-thumb{cursor:grabbing}
+#scrub .sc-thumb i{position:absolute;right:5px;top:4px;bottom:4px;width:6px;border-radius:3px;background:var(--sea);box-shadow:0 0 0 1.5px var(--sheet),0 2px 6px rgba(40,24,12,.25);transition:width .15s}
+#scrub.drag .sc-thumb i{width:8px}
+#scrub .sc-tip{position:absolute;right:30px;top:50%;transform:translateY(-50%);white-space:nowrap;max-width:calc(100vw - 72px);overflow:hidden;text-overflow:ellipsis;background:var(--ink);color:var(--sheet);font:600 .85rem var(--ui,system-ui);padding:.4rem .7rem;border-radius:8px;box-shadow:0 6px 18px rgba(40,24,12,.25);opacity:0;pointer-events:none;transition:opacity .15s}
+#scrub.drag .sc-tip{opacity:1}
+
 /* ================= ARTICLE ================= */
 #reader{padding:calc(env(safe-area-inset-top,0px) + 86px) clamp(1rem,4vw,2rem) 6rem}
 .col{max-width:36rem;margin:0 auto;position:relative}
@@ -320,6 +334,9 @@ body.focus .fn-card .hp{opacity:1}
 #noteBox textarea{flex:0 1 auto;min-height:90px;font:1rem/1.45 var(--body);resize:vertical}
 #noteBox .row{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.6rem}
 #noteBox .btn{padding:.5rem 1rem;font-size:.9rem}
+/* on a phone: a sheet across the screen, docked above the keyboard; its field grows with the note (app.js) */
+#noteBox.sheet{width:min(640px,calc(100vw - 16px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)))}
+#noteBox.sheet textarea{resize:none}
 
 /* drawers */
 .drawer{position:fixed;z-index:50;top:0;bottom:0;width:min(420px,100vw);background:var(--sheet);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 0 40px rgba(40,24,12,.14);visibility:hidden;transition:transform .3s cubic-bezier(.2,.8,.2,1),visibility 0s .3s}
