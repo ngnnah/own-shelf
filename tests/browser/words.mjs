@@ -29,6 +29,7 @@ page.on('request',req=>{
   const u=new URL(req.url());
   if(u.hostname==='api.datamuse.com'){const w=u.searchParams.get('sp');asked.push('datamuse:'+w);return failing?req.abort('failed'):json(req,200,DATAMUSE[w]||[]);}
   if(u.hostname==='en.wiktionary.org'){const w=decodeURIComponent(u.pathname.split('/').pop());asked.push('wiktionary:'+w);return failing?req.abort('failed'):WIKTIONARY[w]?json(req,200,WIKTIONARY[w]):json(req,404,{});}
+  if(u.hostname==='en.wikipedia.org') return failing?req.abort('failed'):json(req,404,{}); // pictures: see wordcard.mjs
   req.continue();
 });
 

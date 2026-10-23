@@ -20,7 +20,7 @@ await page.setRequestInterception(true);
 page.on('request',req=>{
   const h=new URL(req.url()).hostname,json=(status,body)=>req.respond({status,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:JSON.stringify(body)});
   if(h==='api.datamuse.com') return json(200,[{word:'taciturn',defs:['adj\tReserved; saying little.']}]);
-  if(h==='en.wiktionary.org') return json(404,{});
+  if(h==='en.wiktionary.org'||h==='en.wikipedia.org') return json(404,{});
   req.continue();
 });
 

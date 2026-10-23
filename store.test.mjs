@@ -152,6 +152,21 @@ const errs=[];
   await C.put('word:fabc',{...f,srs:{reps:2}});
   const r4=await importShelf(C,bk2,await C.all('meta:'),metaFor);
   ok('restore: a fact card already here is left alone',r4.words===0&&(await C.get('word:fabc')).srs.reps===2);
+  // pictures, synonyms, antonyms and dictionary examples: a word already here keeps its own and gets only the missing ones
+  const pic={src:'data:image/jpeg;base64,AAAA',credit:{title:'Calm',url:'https://en.wikipedia.org/wiki/Calm'}};
+  await A.put('word:w1',{...(await A.get('word:w1')),syn:['still','quiet'],ant:['stormy'],dex:[{text:'A calm sea.',s:2,e:6,cite:'1850, Ann Example'}],pics:[pic],tried:{wiki:'calm',muse:'calm',wikt:'calm'}});
+  await A.put('word:fabc',{...f,pics:[pic],tried:{wiki:'fades'}});
+  const bk3=JSON.parse(JSON.stringify(await exportShelf(A)));
+  ok('backup: includes pictures, synonyms, antonyms and examples',bk3.words.find(x=>x.id==='w1').pics[0].src===pic.src&&bk3.words.find(x=>x.id==='w1').dex.length===1);
+  const D=makeLocal();await D.open();
+  await D.put('word:w1',{id:'w1',term:'calm',def:'my own',examples:[ex('b0',0)],syn:['tranquil'],tried:{muse:'calm'},srs:{reps:5}});
+  await D.put('word:fabc',{...f,srs:{reps:1}});
+  const r5=await importShelf(D,bk3,[],metaFor),dw=await D.get('word:w1'),df=await D.get('word:fabc');
+  ok('restore: a known word keeps its fields and gets the missing pictures, antonyms and examples',r5.words===2&&dw.def==='my own'&&dw.srs.reps===5&&dw.syn.join()==='tranquil'
+    &&dw.ant.join()==='stormy'&&dw.pics[0].src===pic.src&&dw.dex[0].cite==='1850, Ann Example'&&dw.examples.length===1&&dw.tried.muse==='calm'&&dw.tried.wiki==='calm');
+  ok('restore: a known fact card gets its missing picture, keeps its schedule',df.pics.length===1&&df.srs.reps===1&&df.text==='Ink fades.');
+  const r6=await importShelf(D,bk3,[],metaFor);
+  ok('restore: the same again changes nothing',r6.words===0);
 }
 
 ok('no write errors',errs.length===0);

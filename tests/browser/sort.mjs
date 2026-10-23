@@ -23,7 +23,7 @@ await page.setRequestInterception(true);
 page.on('request',req=>{
   const u=new URL(req.url());
   if(u.hostname==='api.datamuse.com'){const w=u.searchParams.get('sp');asked.push(w);return json(req,200,DATAMUSE[w]||[]);}
-  if(u.hostname==='en.wiktionary.org') return json(req,404,{});
+  if(u.hostname==='en.wiktionary.org'||u.hostname==='en.wikipedia.org') return json(req,404,{});
   req.continue();
 });
 
