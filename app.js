@@ -176,7 +176,7 @@ function shelfRows(list){
 $('#shelf').addEventListener('click',e=>{
   const o=e.target.closest('[data-open]'); if(o){openBook(o.dataset.open);return;}
   const ed=e.target.closest('[data-edit]'); if(ed){openDetails(ed.dataset.edit);return;}
-  if(e.target.closest('[data-add]')){openImport();return;}
+  if(e.target.closest('[data-add]')){resumeImport();return;}
   const se=e.target.closest('[data-shelf-edit]'); if(se){openShelf(se.dataset.shelfEdit);return;}
   if(e.target.closest('[data-shelf-new]')){openShelf(null);return;}
   const s=e.target.closest('[data-sort]'); if(s){const c=s.dataset.sort;if(prefs.sort===c) prefs.dir*=-1; else {prefs.sort=c;prefs.dir=['title','author','shelf'].includes(c)?1:-1;}savePrefs();renderShelf();}
@@ -185,7 +185,7 @@ $('#shelf').addEventListener('keydown',e=>{if(e.key==='Enter'){const r=e.target.
 $('#segGroup').onclick=e=>{const b=e.target.closest('button');if(!b)return;prefs.group=b.dataset.g;if(prefs.view==='list'){prefs.sort=prefs.group;prefs.dir=['author','title','shelf'].includes(prefs.group)?1:-1;}savePrefs();applyPrefs();renderShelf();};
 $('#segView').onclick=e=>{const b=e.target.closest('button');if(!b)return;prefs.view=b.dataset.v;savePrefs();applyPrefs();renderShelf();};
 $('#q').oninput=renderShelf;
-$('#addBtn').onclick=()=>openImport();
+$('#addBtn').onclick=()=>resumeImport();
 
 /* ================= shelves: moving books, managing the list ================= */
 // A book onto another shelf: its shelf entry at once, then its doc, in a queue so quick moves land in order.
@@ -297,9 +297,26 @@ $('#shelf').addEventListener('click',e=>{if(dragClick){dragClick=false;e.stopPro
 let pending=null; // {name, blocks, hint, author, source}
 function openModal(id){$(id).classList.remove('hidden');}
 function closeModal(id){$(id).classList.add('hidden');}
-document.querySelectorAll('.modal').forEach(m=>{m.addEventListener('click',e=>{if(e.target===m||e.target.closest('[data-cancel]')) closeModal('#'+m.id);});});
+// A tap outside or Escape: Book details and Settings save (Details closes quietly when nothing changed), the Add dialog
+// keeps its draft, the rest cancel.
+function dismiss(m){
+  if(m.id==='detM'&&detNow()!==detWas) $('#dSave').click();
+  else if(m.id==='setM') $('#sSave').click();
+  else{if(m.id==='importM') impDraft=true;closeModal('#'+m.id);}
+}
+// A tap outside starts and ends on the backdrop: a press inside that ends there (selecting a field's text) isn't one.
+document.querySelectorAll('.modal').forEach(m=>{
+  let down=false,up=false;
+  m.addEventListener('pointerdown',e=>{down=e.target===m;});
+  m.addEventListener('pointerup',e=>{up=e.target===m;});
+  m.addEventListener('click',e=>{if(e.target.closest('[data-cancel]')) closeModal('#'+m.id); else if(e.target===m&&down&&up) dismiss(m);down=up=false;});
+});
+// A tap outside keeps what's in the Add dialog for the next time Add opens it. Cancel and adding a book drop it, and a
+// deep link or a dropped file opens the dialog fresh.
+let impDraft=false;
+const resumeImport=()=>{if(!impDraft) return openImport();impDraft=false;openModal('#importM');};
 function openImport(file){
-  pending=null;$('#paste').innerHTML='';$('#link').value='';$('#paste').classList.add('empty');['#fTitle','#fAuthor','#fWritten'].forEach(s=>{$(s).value='';});
+  pending=null;impDraft=false;$('#paste').innerHTML='';$('#link').value='';$('#paste').classList.add('empty');['#fTitle','#fAuthor','#fWritten'].forEach(s=>{$(s).value='';});
   $('#fTitle').placeholder='Detected automatically';$('#fAuthor').placeholder='Optional';$('#fWritten').placeholder='e.g. July 2023';
   $('#det').textContent='';$('#impErr').classList.add('hidden');renderPending();openModal('#importM');
   if(file) loadFile(file); else setTimeout(()=>$('#paste').focus(),50);
@@ -478,7 +495,9 @@ addEventListener('drop',e=>{e.preventDefault();dragDepth=0;$('#dropAll').classLi
   if(!fs.length||!$('#importM').classList.contains('hidden')) return;if(fs.length>1) addMany(fs); else openImport(fs[0]);});
 
 /* ================= details ================= */
-let detId=null;
+let detId=null,detWas='';
+// what the fields and the cover pick hold, so a tap outside can tell whether there is anything to save
+const detNow=()=>{const p=$('#dCover [aria-pressed="true"]');return ['#dTitle','#dAuthor','#dWritten','#dSource'].map(s=>$(s).value.trim()).concat(p?p.dataset.c:'',$('#dShelf').value).join('\n');};
 async function openDetails(id){
   detId=id;const m=META.find(x=>x.id===id);if(!m)return;
   $('#dTitle').value=m.title;$('#dAuthor').value=m.author;$('#dWritten').value=m.written;$('#dSource').value=m.source;renderDone(m);
@@ -486,8 +505,21 @@ async function openDetails(id){
   $('#dCoverRow').classList.toggle('hidden',isKindleId(id));
   $('#dCover').innerHTML=COVERS.map(([bc],i)=>`<button type="button" class="cv-sw" data-c="${i}" aria-pressed="${i===coverIdx(m)}" aria-label="${COVER_NAMES[i]}" title="${COVER_NAMES[i]}" style="--c:${bc}"></button>`).join('');
   $('#dShelf').innerHTML=[...shelves(),{id:'',name:'Unsorted'}].map(s=>`<option value="${esc(s.id)}"${s.id===shelfOf(m)?' selected':''}>${esc(s.name)}</option>`).join('');
-  openModal('#detM');
+  detWas=detNow();openModal('#detM');
 }
+// Date written quick picks: Today, Yesterday, and a calendar chip with a transparent native date input lying over it,
+// so one tap opens the phone's own picker (iOS has no showPicker() for dates). The date is written the way link import
+// writes a published one ("October 23, 2026"), which parseDate sorts.
+const CAL='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>';
+document.querySelectorAll('.dq').forEach(q=>{
+  const f=$('#'+q.dataset.for);
+  q.innerHTML=`<button type="button" class="chip" data-ago="0">Today</button><button type="button" class="chip" data-ago="1">Yesterday</button><span class="chip dq-cal">${CAL}<input type="date" aria-label="Pick a date"></span>`;
+  q.onclick=e=>{const b=e.target.closest('[data-ago]');if(!b) return;const d=new Date();d.setDate(d.getDate()-b.dataset.ago);f.value=published(d);};
+  const cal=q.querySelector('input'),pick=()=>{const [y,m,d]=cal.value.split('-').map(Number);if(d) f.value=published(new Date(y,m-1,d));}; // local midnight, not UTC
+  cal.addEventListener('pointerdown',()=>{cal.value='';}); // so it opens on today
+  cal.addEventListener('click',()=>{try{cal.showPicker();}catch(e){}}); // desktop browsers; a tap opens it on phones
+  cal.addEventListener('input',pick);cal.addEventListener('change',pick);
+});
 $('#dCover').onclick=e=>{const b=e.target.closest('[data-c]');if(b) $('#dCover').querySelectorAll('[data-c]').forEach(x=>x.setAttribute('aria-pressed',x===b));};
 function renderDone(m){
   $('#dState').textContent=m.finished?'✓ Finished':`Reading · ${Math.round(m.progress*100)}%`;
@@ -608,6 +640,7 @@ function pickPulls(){
 }
 const minsOf=w=>Math.max(1,Math.round(w/230));
 const CHECK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const PENCIL='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>';
 function blockHTML(b,first){
   const pid=`data-pid="${b.id}"`;
   if(b.t==='h'){const lv=Math.min(4,Math.max(3,(b.level||2)-(DOC.secLevel||1)+3));return `<h${lv} class="hp" id="h-${b.id}" ${pid}>${inlineHTML(b)}</h${lv}>`;}
@@ -625,8 +658,9 @@ function buildReader(){
   document.title=DOC.title+' · own-shelf';
   const tw=DOC.title.split(/\s+/),per=Math.ceil(tw.length/Math.min(3,tw.length)),lines=[];
   for(let i=0;i<tw.length;i+=per) lines.push(tw.slice(i,i+per).join(' '));
-  let h=`<header class="hero"><h1${DOC.title.length>34?' class="long"':''}>${lines.map(l=>`<span class="ln">${esc(l)}</span>`).join('')}</h1>
-    ${DOC.author||DOC.source?`<p class="byline">${DOC.author?'by '+esc(DOC.author):''}${DOC.source?`<a href="${esc(DOC.source)}" target="_blank" rel="noopener noreferrer">Original ↗</a>`:''}</p>`:''}
+  const by=(DOC.author?'by '+esc(DOC.author):'')+(DOC.source?`<a href="${esc(DOC.source)}" target="_blank" rel="noopener noreferrer">Original ↗</a>`:'');
+  let h=`<header class="hero"><h1${DOC.title.length>34?' class="long"':''} title="Edit details">${lines.map(l=>`<span class="ln">${esc(l)}</span>`).join('')}</h1>
+    <p class="byline">${by}<button class="ed${by?'':' solo'}" aria-label="Edit details" title="Edit details">${PENCIL}</button></p>
     <div class="log">${DOC.written?`<span>Written <b>${esc(DOC.written)}</b></span>`:''}<span><b>${DOC.words.toLocaleString()}</b> words</span><span><b>${mins}</b> min</span><span><b>${N}</b> section${N>1?'s':''}</span>${DOC.notes.length?`<span><b>${DOC.notes.length}</b> notes</span>`:''}</div>
     <div class="howto">Select text to highlight in ${COLORS.map(c=>`<span class="sw" style="background:var(--${c[0]}S)" title="${esc(meaning(c[0]))}"></span>`).join('')} · keys 1–${COLORS.length} work too</div>
     ${N>1?`<details class="toc-inline"${N<=12?' open':''}><summary>Contents · ${N} sections</summary><ol class="tocl">${tocItems()}</ol></details>`:''}</header>`;
@@ -667,6 +701,12 @@ function buildReader(){
   col.querySelectorAll('.pull button').forEach(btn=>btn.onclick=()=>{const [pid,s,e]=btn.dataset.pq.split(':');addHighlight([{pid,s:+s,e:+e}],'sun','','Highlighted');});
   col.querySelectorAll('figure.fig img').forEach(im=>{im.onerror=()=>{const f=im.closest('figure');f.innerHTML=`<span class="imgfail">This image can't load here${/^https?:/.test(im.src)?` · <a href="${esc(im.src)}" target="_blank" rel="noopener noreferrer">open it</a>`:''}</span>`;};});
   $('#landCopy').onclick=copyAll;$('#landOpen').onclick=()=>openDrawer('#drawer');$('#landShelf').onclick=goShelf;$('#landExp').onclick=()=>openExport('book');
+  // The heading opens Details on every screen (phones hide the bar's title), on a plain tap only: not after selecting
+  // its text. A mouse waits out a double click, which selects a word.
+  const hd=col.querySelector('.hero h1');let ptr='',hdT=0;
+  hd.onpointerdown=e=>{ptr=e.pointerType;};
+  hd.onclick=e=>{clearTimeout(hdT);if(e.detail>1) return;hdT=setTimeout(()=>{if(DOC&&getSelection().isCollapsed) openDetails(DOC.id);},ptr==='mouse'?300:0);};
+  col.querySelector('.hero .ed').onclick=()=>openDetails(DOC.id);
   updateCount();observeCheckpoints();lastH=0;
 }
 function tocItems(){
@@ -839,7 +879,7 @@ document.addEventListener('selectionchange',()=>{clearTimeout(selT);selT=setTime
 document.addEventListener('mousedown',e=>{if(!tool.contains(e.target)&&!e.target.closest('mark.hl')&&!$('#noteBox').contains(e.target)){editing=null;if(getSelection().isCollapsed)hideTool();}});
 addEventListener('scroll',()=>{if(tool.classList.contains('hidden')||coarse)return;if(editing){hideTool();return;}const sel=getSelection();if(pendingSegs&&sel.rangeCount&&!sel.isCollapsed){const s=pendingSegs;showTool(sel.getRangeAt(0).getBoundingClientRect(),null);pendingSegs=s;}},{passive:true});
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){hideTool();closeDrawers();$('#noteBox').classList.add('hidden');$('#lightbox').classList.add('hidden');document.querySelectorAll('.modal').forEach(m=>m.classList.add('hidden'));return;}
+  if(e.key==='Escape'){hideTool();closeDrawers();$('#noteBox').classList.add('hidden');$('#lightbox').classList.add('hidden');document.querySelectorAll('.modal:not(.hidden)').forEach(dismiss);return;}
   if(e.target.matches('textarea,input,[contenteditable]'))return;
   if(/^[1-9]$/.test(e.key)&&COLORS[+e.key-1]&&pendingSegs&&!tool.classList.contains('hidden')){addHighlight(pendingSegs,COLORS[+e.key-1][0]);getSelection().removeAllRanges();hideTool();}
 });
@@ -2167,7 +2207,7 @@ function startCloud(user){
 }
 const siErr=m=>{$('#siErr').textContent=m||'';$('#siErr').classList.toggle('hidden',!m);};
 function showSignin(msg){
-  unwatch();unwatch=()=>{};DB=null;META=[];DOC=null;ST=null;HL=[];SETTINGS={};
+  unwatch();unwatch=()=>{};DB=null;META=[];DOC=null;ST=null;HL=[];SETTINGS={};impDraft=false;
   document.querySelectorAll('.modal').forEach(m=>m.classList.add('hidden'));
   show('signin');document.title='own-shelf';
   $('#siGoogle').classList.toggle('hidden',!fb);
