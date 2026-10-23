@@ -84,13 +84,15 @@ label.fl,div.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--mut
 .shelf-row{margin-bottom:2.6rem;border-radius:14px;outline:2px dashed transparent;outline-offset:8px;transition:outline-color .15s,background-color .15s,box-shadow .15s}
 .shelf-label{font:600 1.5rem var(--display);margin:0 0 .9rem;display:flex;align-items:baseline;gap:.5rem}
 .shelf-label small{font:500 .8rem var(--ui);color:var(--muted)}
-/* Arrange by Shelf: a shelf's name opens its dialog; an empty shelf is a bare board with a hint, a place to drop */
+/* Arrange by Shelf: a shelf's name opens its dialog. An empty shelf is compact (~56 px at 390): its name, then a slim
+   strip with the hint on a bare board, so Unsorted and the six starting shelves fit one phone screen */
 .sl-name{border:0;background:none;padding:0;font:inherit;text-align:left;text-decoration:underline dotted color-mix(in srgb,var(--wave) 80%,transparent);text-decoration-thickness:1.5px;text-underline-offset:.22em}
 .sl-name:hover{text-decoration-color:var(--sea)}
-.shelf-row.bare{margin-bottom:1.4rem}
-.shelf-row.bare .shelf-label{margin-bottom:.2rem}
-.shelf-row.bare .books{padding-top:.2rem}
-.sl-hint{margin:0;padding:.2rem .2rem .45rem;font:italic 400 1rem var(--display);color:var(--muted)}
+.shelf-row.bare{margin-bottom:1.1rem}
+.shelf-row.bare .shelf-label{margin:0;line-height:1.1}
+.shelf-row.bare .books{padding:.25rem .4rem .2rem}
+.shelf-row.bare .plank{height:10px}
+.sl-hint{margin:0;font:italic 400 .85rem/1 var(--display);color:var(--muted)}
 .sl-new{margin-top:-.6rem}
 /* dragging: the lifted book follows the pointer, its place stays faint, the shelf it would land on lights up */
 .shelf-row.drop{outline-color:var(--sea);background:color-mix(in srgb,var(--sea) 12%,transparent);box-shadow:0 0 0 8px color-mix(in srgb,var(--sea) 12%,transparent)}

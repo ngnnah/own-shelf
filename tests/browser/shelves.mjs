@@ -1,5 +1,5 @@
-// Arrange by Shelf: category shelves (one per book), dragging covers between them with a mouse and with a finger,
-// the Shelf picker in Book details, new, rename, move and delete, search, the List view and backups.
+// Arrange by Shelf: category shelves (one per book, kept in its reading state), dragging covers between them with a
+// mouse and with a finger, the Shelf picker in Book details, new, rename, move and delete, search, the List view and backups.
 // Usage: node tests/browser/shelves.mjs [repo dir]. Screenshots: tests/browser/out/shelves/ (390 and 1280 px, light and dark).
 import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {dirname,join} from 'node:path';
@@ -15,10 +15,14 @@ const md=title=>`# ${title}\n\n`+'Plain words for a plain test book on the shelf
 const KINDLE='The Lighthouse Ledger (Harbour Tales Book 2)';
 const home=async()=>{await page.click('#bHome');await page.waitForSelector('#shelf:not(.hidden)');};
 // Before a reload, let the writes land: IndexedDB runs a store's readwrite transactions in order, so once a new one
-// completes every earlier write has (a moved book's doc is written a moment after its shelf entry).
+// completes every earlier write has (a moved book's state is written a moment after its shelf entry).
 const settle=p=>p.evaluate(()=>new Promise(res=>{const r=indexedDB.open('upwind',1);r.onsuccess=()=>{const tx=r.result.transaction('kv','readwrite');tx.objectStore('kv').get('-');tx.oncomplete=()=>{r.result.close();res();};};}));
 const reload=async(p=page)=>{await sleep(150);await settle(p);await p.reload({waitUntil:'networkidle0'});await p.waitForSelector('#shelf:not(.hidden)');};
 const prefs=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('upwind:prefs')||'{}'));
+// one stored value (local mode keeps every key in IndexedDB), and a book's id from its cover
+const idb=(key,p=page)=>p.evaluate(k=>new Promise(res=>{const r=indexedDB.open('upwind',1);r.onsuccess=()=>{const g=r.result.transaction('kv').objectStore('kv').get(k);g.onsuccess=()=>{r.result.close();res(g.result);};};}),key);
+const idOf=title=>page.$eval(cov(title),c=>c.dataset.open);
+const outside=()=>page.mouse.click(4,4); // on a dialog's backdrop
 // every shelf row on screen: its id, name and the titles on it
 const rows=(p=page)=>p.$$eval('#shelfBody .shelf-row',rs=>rs.map(r=>({id:r.dataset.shelf,name:r.querySelector('.shelf-label').firstChild.textContent.trim(),
   books:[...r.querySelectorAll('.c-t')].map(x=>x.textContent),hint:!!r.querySelector('.sl-hint')})));
@@ -69,15 +73,21 @@ await t.run(async()=>{
   // Arrange by: Shelf comes first, and is chosen once for everyone
   ok('Arrange by starts with Shelf',(await page.$$eval('#segGroup button',bs=>bs.map(b=>b.textContent).join('|')))==='Shelf|Date added|Date written|Author|Title');
   ok('an existing user is switched to Shelf once',(await page.$eval('#segGroup [data-g="shelf"]',b=>b.getAttribute('aria-pressed')))==='true'&&(await prefs()).group==='shelf');
-  ok('the six starting shelves, then Unsorted',(await names())==='Travel|Adventure|History|Finance|Fantasy|Philosophy|Unsorted');
+  ok('Unsorted comes first while it holds books, then the six starting shelves',(await names())==='Unsorted|Travel|Adventure|History|Finance|Fantasy|Philosophy');
   ok('every book starts Unsorted, Kindle notebooks too, newest added first',(await on('Unsorted')).join('|')===`${KINDLE}|Salt and Sails|A Ledger of Kings|Atlas of Winds`);
   ok('empty shelves show with a hint to drag books there',(await rows()).filter(r=>r.hint).length===6&&(await text(rowSel('travel'))).includes('Drag books here'));
   ok('no sideways scroll on a phone',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-  await shoot('start-390');
+  const lay=await page.evaluate(()=>{const rs=[...document.querySelectorAll('#shelfBody .shelf-row')],r=e=>e.getBoundingClientRect();
+    return {bare:rs.filter(x=>x.classList.contains('bare')).map(x=>Math.round(r(x).height)),span:Math.round(r(rs.at(-1)).bottom-r(rs[0]).top)};});
+  ok('an empty shelf is compact: its name and a slim strip (about 56 px)',lay.bare.length===6&&lay.bare.every(h=>h>=44&&h<=60));
+  ok('Unsorted and the six empty shelves fit on one phone screen',lay.span<=844);
+  await page.evaluate(()=>document.querySelector('#shelfBody').scrollIntoView());
+  await shoot('start-390',{});
+  await shoot('start-390-full');
   await page.click('#segGroup [data-g="added"]');await reload();
   ok('after that, another choice is remembered',(await prefs()).group==='added'&&!(await page.$('#shelfBody .sl-name')));
   await page.click('#segGroup [data-g="shelf"]');
-  ok('choosing Shelf again shows the shelves',(await names()).startsWith('Travel|'));
+  ok('choosing Shelf again shows the shelves',(await names()).startsWith('Unsorted|Travel|'));
 
   // drag with a mouse (a tall window, so every shelf is on screen)
   await page.setViewport(TALL);
@@ -87,6 +97,11 @@ await t.run(async()=>{
   ok('mouse: the drag leaves no ghost and opens nothing',!(await ghost())&&await shelfNow()&&!(await lit()).length);
   await reload();
   ok('the move is kept after a reload',(await on('History')).join()==='Atlas of Winds');
+  const atlas=await idOf('Atlas of Winds');
+  ok('a move is kept in the book\'s reading state, not its doc',(await idb('state:'+atlas)).shelf==='history'&&(await idb('meta:'+atlas)).shelf==='history'&&!('shelf' in (await idb('doc:'+atlas))));
+  // reading the book saves its state and shelf entry again: the shelf stays
+  await page.click(cov('Atlas of Winds'));await t.reader();await page.evaluate(()=>scrollTo(0,200));await sleep(800);await home();
+  ok('reading the book keeps its shelf',(await on('History')).join()==='Atlas of Winds'&&(await idb('state:'+atlas)).shelf==='history');
   // a plain click still opens the book
   await page.click(cov('Salt and Sails'));await t.reader();
   ok('mouse: a click on a cover still opens the book',(await page.title()).startsWith('Salt and Sails'));
@@ -139,7 +154,7 @@ await t.run(async()=>{
   await page.setViewport(PHONE);await reload();
   {
     await page.evaluate(()=>scrollTo(0,0));
-    const a=await spot(cov('Salt and Sails'),false);
+    const a=await spot(cov(KINDLE),false);
     await page.mouse.move(a.x,a.y);await page.mouse.down();await page.mouse.move(a.x+12,a.y+12,{steps:3});
     const y0=await page.evaluate(()=>scrollY);await page.mouse.move(a.x,836,{steps:4});await sleep(600);
     const y1=await page.evaluate(()=>scrollY);
@@ -160,17 +175,44 @@ await t.run(async()=>{
   ok('an unsorted book shows Unsorted',(await page.$eval('#dShelf',s=>s.value))==='');
   await page.select('#dShelf','finance');await page.click('#dSave');await until(()=>document.querySelector('#detM').classList.contains('hidden'));
   ok('saving Details moves the book',(await on('Finance')).join()==='A Ledger of Kings');
+  const ledger=await idOf('A Ledger of Kings');
+  ok('… into its reading state, not its doc',(await idb('state:'+ledger)).shelf==='finance'&&!('shelf' in (await idb('doc:'+ledger))));
   await reload();
   ok('… and it stays after a reload',(await on('Finance')).join()==='A Ledger of Kings');
-  await details(KINDLE);await page.select('#dShelf','philosophy');await page.click('#dSave');await until(()=>document.querySelector('#detM').classList.contains('hidden'));
-  ok('with every book placed, Unsorted hides',!(await names()).includes('Unsorted')&&(await on('Philosophy')).join()===KINDLE);
+  // Mark as finished rewrites the state: the shelf stays
+  await details('A Ledger of Kings');await page.click('#dFinish');await toastHas('Marked as finished');await page.click('#detM [data-cancel]');
+  ok('Mark as finished keeps the shelf',(await on('Finance')).join()==='A Ledger of Kings'&&(await idb('state:'+ledger)).finished&&(await idb('state:'+ledger)).shelf==='finance');
+  // while reading: the heading's pencil opens Details; only the shelf changes, and a tap outside saves it
+  await page.click(cov(KINDLE));await t.reader();await page.click('.hero .ed');await page.waitForSelector('#detM:not(.hidden)');
+  await page.select('#dShelf','philosophy');await outside();await until(()=>document.querySelector('#detM').classList.contains('hidden'));
+  await sleep(700);await home(); // the open book's state is saved a moment later, and again on the way out
+  const kid=await idOf(KINDLE);
+  ok('Details while reading: a tap outside saves a new shelf',(await on('Philosophy')).join()===KINDLE&&(await idb('state:'+kid)).shelf==='philosophy');
+  ok('with every book placed, Unsorted hides',!(await names()).includes('Unsorted'));
+  // a newer Kindle export merges into the book: the shelf stays
+  const newer=readFileSync(join(t.repo,'tests/fixtures/kindle-notebook.html'),'utf8').replace('Part Two\n</div>','Part Two\n</div><div class="noteHeading">Highlight(<span class="annotation_yellow">yellow</span>) - Storms > Page 19 · Location 290</div><div class="noteText">A brand new line from the second read.</div>');
+  const k2=join(t.tmp,'k2.html');writeFileSync(k2,newer);
+  await page.click('#addBtn');await page.waitForSelector('#importM:not(.hidden)');await (await page.$('#file')).uploadFile(k2);
+  await until(()=>document.querySelector('#det').textContent.includes('Kindle highlights'));await page.click('#impGo');
+  ok('a newer Kindle export merges',await toastHas('Merged: 1 new highlight'));
+  await t.reader();await home();
+  ok('… and the book keeps its shelf',(await on('Philosophy')).join()===KINDLE&&(await idb('state:'+kid)).shelf==='philosophy');
+  // removed, then Undo: back on its shelf
+  await details('Salt and Sails');await page.click('#dRemove');await page.click('#dRemove');
+  await toastHas('Moved to Trash');
+  ok('a removed book leaves its shelf',!(await on('Travel')).length);
+  await page.click('#toast button');await toastHas('Restored');
+  ok('Undo puts it back on its shelf',(await on('Travel')).join()==='Salt and Sails');
 
   // managing shelves: new, rename, move up and down, delete
   ok('Unsorted isn\'t a button; named shelves are',(await page.$$('#shelfBody .sl-name')).length===6);
   await page.click('#shelfBody [data-shelf-new]');await page.waitForSelector('#shelfM:not(.hidden)');
   ok('+ New shelf asks for a name',(await text('#shH'))==='New shelf'&&!(await vis('#shDel'))&&!(await vis('#shMove')));
-  await page.type('#shName','Poetry');await page.click('#shSave');await until(()=>document.querySelector('#shelfM').classList.contains('hidden'));
-  ok('a new shelf joins the end, empty with its hint',(await names())==='Travel|Adventure|History|Finance|Fantasy|Philosophy|Poetry'&&(await rows()).find(r=>r.name==='Poetry').hint);
+  await outside();
+  ok('a tap outside with nothing typed just closes',await until(()=>document.querySelector('#shelfM').classList.contains('hidden'))&&(await names())==='Travel|Adventure|History|Finance|Fantasy|Philosophy');
+  await page.click('#shelfBody [data-shelf-new]');await page.waitForSelector('#shelfM:not(.hidden)');
+  await page.type('#shName','Poetry');await outside();await until(()=>document.querySelector('#shelfM').classList.contains('hidden'));
+  ok('a tap outside with a name typed adds the shelf, at the end, empty with its hint',(await names())==='Travel|Adventure|History|Finance|Fantasy|Philosophy|Poetry'&&(await rows()).find(r=>r.name==='Poetry').hint);
   await page.click('#shelfBody [data-shelf-new]');await page.waitForSelector('#shelfM:not(.hidden)');
   await page.type('#shName','history');await page.click('#shSave');
   ok('a name already taken is refused',await vis('#shErr')&&(await text('#shErr')).includes('already')&&await vis('#shelfM'));
@@ -196,17 +238,17 @@ await t.run(async()=>{
   await page.click('#shDel');
   ok('Delete asks for a second tap, no typing',(await text('#shDel'))==='Tap again to delete'&&await vis('#shelfM')&&!(await vis('#confirmM')));
   await page.click('#shDel');await until(()=>document.querySelector('#shelfM').classList.contains('hidden'));
-  ok('delete: the shelf goes, its books go to Unsorted',!(await names()).includes('Old Times')&&(await names()).endsWith('|Unsorted')&&(await on('Unsorted')).join()==='Atlas of Winds');
+  ok('delete: the shelf goes, its books go to Unsorted (first again)',!(await names()).includes('Old Times')&&(await names()).startsWith('Unsorted|')&&(await on('Unsorted')).join()==='Atlas of Winds');
   ok('delete: the toast says where the books went',await toastHas('in Unsorted'));
   await reload();
-  ok('shelf changes are kept after a reload',(await names())==='Travel|Adventure|Finance|Fantasy|Poetry|Philosophy|Unsorted');
+  ok('shelf changes are kept after a reload',(await names())==='Unsorted|Travel|Adventure|Finance|Fantasy|Poetry|Philosophy');
   ok('the Details picker follows the shelves',(await (async()=>{await details('Atlas of Winds');const o=await page.$$eval('#dShelf option',os=>os.map(o=>o.textContent).join('|'));await page.click('#detM [data-cancel]');return o;})())==='Travel|Adventure|Finance|Fantasy|Poetry|Philosophy|Unsorted');
 
   // search filters across shelves; empty shelves hide while searching
   await page.type('#q','ledger');
   ok('search: only shelves with a match show',(await names())==='Finance|Philosophy'&&!(await page.$('#shelfBody [data-shelf-new]')));
   await page.$eval('#q',i=>{i.value='';i.dispatchEvent(new Event('input'));});
-  ok('clearing the search shows every shelf again',(await names())==='Travel|Adventure|Finance|Fantasy|Poetry|Philosophy|Unsorted');
+  ok('clearing the search shows every shelf again',(await names())==='Unsorted|Travel|Adventure|Finance|Fantasy|Poetry|Philosophy');
 
   // List view: arranged by shelf, it sorts by a Shelf column in shelf order, Unsorted last
   await page.click('#segView [data-v="list"]');await page.waitForSelector('.tbl');
@@ -232,7 +274,7 @@ await t.run(async()=>{
   await page.click('#setBtn');await page.waitForSelector('#setM:not(.hidden)');await page.click('#backupBtn');
   const bk=await waitForFile(t.dl,/^own-shelf-backup-.*\.json$/);const data=bk&&JSON.parse(readFileSync(join(t.dl,bk),'utf8'));
   ok('the backup carries the shelf list and each book\'s shelf',data&&data.version===1&&data.shelves.map(s=>s.name).join('|')==='Travel|Adventure|Finance|Fantasy|Poetry|Philosophy'
-    &&data.books.find(b=>b.doc.title==='Salt and Sails').doc.shelf==='travel'&&data.books.find(b=>b.doc.title==='Atlas of Winds').doc.shelf==='fantasy');
+    &&data.books.find(b=>b.doc.title==='Salt and Sails').state.shelf==='travel'&&data.books.find(b=>b.doc.title==='Atlas of Winds').state.shelf==='fantasy'&&data.books.every(b=>!('shelf' in b.doc)));
   await page.click('#setM [data-cancel]');
   // a fresh shelf in another origin (its own storage) restores it
   const p2=await t.newPage();

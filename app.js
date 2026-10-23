@@ -78,7 +78,7 @@ function applyPrefs(){
 applyPrefs();
 function metaFor(doc,st){
   return {id:doc.id,title:doc.title,author:doc.author||'',written:doc.written||'',writtenSort:doc.writtenSort||'',source:doc.source||'',added:doc.added,
-    color:doc.color,shelf:doc.shelf||'',words:doc.words,secs:doc.sections.length,opened:st.opened||0,progress:st.finished?1:Math.min(1,st.maxP||0),finished:!!st.finished,hl:(st.hl||[]).length};
+    color:doc.color,shelf:st.shelf||'',words:doc.words,secs:doc.sections.length,opened:st.opened||0,progress:st.finished?1:Math.min(1,st.maxP||0),finished:!!st.finished,hl:(st.hl||[]).length};
 }
 async function saveMeta(){ if(!DOC) return; const m=metaFor(DOC,ST); META=META.filter(x=>x.id!==m.id).concat(m); await DB.put('meta:'+m.id,m); }
 let stT;function saveState(now){clearTimeout(stT);const f=async()=>{if(!DOC)return;ST.hl=HL;await DB.put('state:'+DOC.id,ST);await saveMeta();};if(now) return f(); stT=setTimeout(f,500);}
@@ -102,7 +102,8 @@ $('#bHome').onclick=goShelf;
 
 /* ================= shelf ================= */
 // Category shelves (Arrange by Shelf), one per book. The list ([{id, name}] in order) is settings:app's `shelves`; until
-// it's first changed, the starting six. A book's shelf id is on its doc and shelf entry; none, or a deleted shelf's: Unsorted ('').
+// it's first changed, the starting six. A book's shelf id is in its reading state (state:, small and coalesced) and shelf
+// entry; none, or a deleted shelf's: Unsorted ('').
 const SHELVES=['Travel','Adventure','History','Finance','Fantasy','Philosophy'].map(name=>({id:name.toLowerCase(),name}));
 const shelves=()=>Array.isArray(SETTINGS.shelves)?SETTINGS.shelves:SHELVES;
 const shelfOf=m=>m.shelf&&shelves().some(s=>s.id===m.shelf)?m.shelf:'';
@@ -164,9 +165,10 @@ function renderShelf(){
   const inner=m=>prefs.group==='added'?-m.added:prefs.group==='written'?-(+(m.writtenSort||'0').replace(/-/g,'')):-(+(m.writtenSort||'0').replace(/-/g,''));
   body.innerHTML=ord.map(([label,g])=>`<section class="shelf-row"><h3 class="shelf-label">${esc(label)}<small>${g.items.length}</small></h3><div class="books">${g.items.sort(prefs.group==='title'?(a,b)=>sortTitle(a).localeCompare(sortTitle(b)):(a,b)=>inner(a)-inner(b)).map(bookHTML).join('')}</div><div class="plank"></div></section>`).join('');
 }
-// Arranged by shelf: every shelf in order, then Unsorted (only when it has books). While searching, only shelves with a match.
+// Arranged by shelf: Unsorted first while it holds books (a new shelf's books are in view), then every shelf in order.
+// While searching, only shelves with a match.
 function shelfRows(list){
-  const q=!!$('#q').value.trim(),all=[...shelves(),{id:'',name:'Unsorted'}],by=new Map(all.map(s=>[s.id,[]]));
+  const q=!!$('#q').value.trim(),all=[{id:'',name:'Unsorted'},...shelves()],by=new Map(all.map(s=>[s.id,[]]));
   list.forEach(m=>by.get(shelfOf(m)).push(m));
   return all.map(s=>{const l=by.get(s.id).sort((a,b)=>b.added-a.added);if(!l.length&&(q||!s.id)) return '';
     return `<section class="shelf-row${l.length?'':' bare'}" data-shelf="${esc(s.id)}"><h3 class="shelf-label">${s.id?`<button class="sl-name" data-shelf-edit="${esc(s.id)}" aria-label="${esc(s.name)}: rename, move or delete">${esc(s.name)}</button>`:'Unsorted'}${l.length?`<small>${l.length}</small>`:''}</h3>`+
@@ -188,23 +190,27 @@ $('#q').oninput=renderShelf;
 $('#addBtn').onclick=()=>resumeImport();
 
 /* ================= shelves: moving books, managing the list ================= */
-// A book onto another shelf: its shelf entry at once, then its doc, in a queue so quick moves land in order.
+// A book onto another shelf: its shelf entry at once, then its reading state (never the doc, which in Firestore would
+// rewrite every chunk), in a queue so quick moves land in order. A state that can't be read isn't overwritten.
 let shelfQ=Promise.resolve();
 function moveBook(id,shelf){
   const m=META.find(x=>x.id===id);if(!m||shelfOf(m)===shelf) return;
   const nm={...m,shelf};META=META.map(x=>x===m?nm:x);DB.put('meta:'+id,nm);renderShelf();toast(`Moved to ${shelfName(shelf)}`);
-  shelfQ=shelfQ.then(async()=>{const d=DOC&&DOC.id===id?DOC:await DB.get('doc:'+id);if(d){d.shelf=shelf;await DB.put('doc:'+id,d);}}).catch(e=>console.error(e));
+  shelfQ=shelfQ.then(async()=>{
+    const st=DOC&&DOC.id===id?ST:await DB.get('state:'+id);
+    if(DOC&&DOC.id===id){ST.shelf=shelf;saveState();} else if(st){st.shelf=shelf;await DB.put('state:'+id,st);}
+  }).catch(e=>console.error(e));
 }
 // The list changes on this device and is written once (settings:app goes straight to Firestore). Books keep their
 // shelf ids: a deleted shelf's books show under Unsorted without a write each.
 function saveShelves(l){SETTINGS={...SETTINGS,shelves:l};DB.put('settings:app',SETTINGS);renderShelf();}
 // The shelf dialog: a new shelf (id null), or rename, move or delete one
-let shId=null;
+let shId=null,shWas='';
 const shErr=m=>{$('#shErr').textContent=m||'';$('#shErr').classList.toggle('hidden',!m);};
 function openShelf(id){
   const s=shelves().find(x=>x.id===id);shId=s?id:null;
   $('#shH').textContent=s?'Shelf':'New shelf';$('#shName').value=s?s.name:'';$('#shSave').textContent=s?'Save':'Add shelf';
-  ['#shSub','#shMove','#shDel'].forEach(x=>$(x).classList.toggle('hidden',!s));shErr('');shMoves();openModal('#shelfM');
+  ['#shSub','#shMove','#shDel'].forEach(x=>$(x).classList.toggle('hidden',!s));shErr('');shMoves();shWas=$('#shName').value;openModal('#shelfM');
   if(!s) $('#shName').focus();
 }
 function shMoves(){const l=shelves(),i=l.findIndex(s=>s.id===shId);$('#shUp').disabled=i<=0;$('#shDown').disabled=i<0||i===l.length-1;}
@@ -302,6 +308,7 @@ function closeModal(id){$(id).classList.add('hidden');}
 function dismiss(m){
   if(m.id==='detM'&&detNow()!==detWas) $('#dSave').click();
   else if(m.id==='setM') $('#sSave').click();
+  else if(m.id==='shelfM'&&$('#shName').value.trim()!==shWas.trim()) $('#shSave').click(); // a name typed: saved like Save
   else{if(m.id==='importM') impDraft=true;closeModal('#'+m.id);}
 }
 // A tap outside starts and ends on the backdrop: a press inside that ends there (selecting a field's text) isn't one.
@@ -474,7 +481,7 @@ async function mergeInto(d,hl,quiet){
   const old=open?DOC:await DB.get('doc:'+id),st=(open?ST:await DB.get('state:'+id))||{hl:[],pos:0,maxP:0,done:[]};
   const r=old?mergeKindle(old,st.hl||[],d,hl):{hl,added:hl.length,dropped:0,recoloured:{}};
   if(r.same) return null;
-  if(old) ['added','color','shelf','title','author','written','writtenSort','source'].forEach(k=>{d[k]=old[k];}); else d.added=Date.now();
+  if(old) ['added','color','title','author','written','writtenSort','source'].forEach(k=>{d[k]=old[k];}); else d.added=Date.now();
   st.hl=r.hl;
   await DB.put('doc:'+id,d);await DB.put('state:'+id,st);const m=metaFor(d,st);META=META.filter(x=>x.id!==id).concat(m);await DB.put('meta:'+id,m);
   if(open&&quiet) await openBook(id);
@@ -538,13 +545,15 @@ $('#dFinish').onclick=async()=>{
 };
 $('#dSave').onclick=async()=>{
   const d=DOC&&DOC.id===detId?DOC:await DB.get('doc:'+detId);if(!d)return;
+  const fields=()=>JSON.stringify([d.title,d.author,d.written,d.writtenSort,d.source,d.color]),was=fields();
   d.title=$('#dTitle').value.trim()||d.title;d.author=$('#dAuthor').value.trim();d.written=$('#dWritten').value.trim();d.writtenSort=parseDate(d.written);
   const src=$('#dSource').value.trim();d.source=/^https?:\/\//i.test(src)?src:'';
   const pick=$('#dCover [aria-pressed="true"]');if(pick&&!isKindleId(d.id)) d.color=+pick.dataset.c;
-  d.shelf=$('#dShelf').value;
-  await DB.put('doc:'+d.id,d);
-  const st=DOC&&DOC.id===d.id?ST:(await DB.get('state:'+d.id))||{hl:[]};
-  const m=metaFor(d,st);META=META.filter(x=>x.id!==m.id).concat(m);await DB.put('meta:'+m.id,m);
+  if(fields()!==was) await DB.put('doc:'+d.id,d); // only the shelf changed: no doc write
+  // the shelf goes in the reading state (the open book's saves on its own); a state that can't be read isn't overwritten
+  const open=!!(DOC&&DOC.id===d.id),sh=$('#dShelf').value,st=open?ST:await DB.get('state:'+d.id);
+  if(st&&(st.shelf||'')!==sh){st.shelf=sh;if(open) saveState(); else DB.put('state:'+d.id,st);}
+  const m=metaFor(d,st||{hl:[],shelf:sh});META=META.filter(x=>x.id!==m.id).concat(m);await DB.put('meta:'+m.id,m);
   closeModal('#detM');toast('Details saved');
   if(DOC&&DOC.id===d.id){DOC=d;buildReader();} else renderShelf();
 };
@@ -595,6 +604,7 @@ async function openBook(id,opts){
   if(!d){$('#busy').classList.add('hidden');toast("Couldn't find that text");return;}
   resetFind(id);
   const st=(await DB.get('state:'+id))||{hl:[],pos:0,maxP:0,done:[]}; // read first: the save timers expect DOC and ST together
+  const sm=META.find(x=>x.id===id);if(sm) st.shelf=sm.shelf||''; // a move just before opening may not be in the state yet
   DOC=d;ST=st;ST.done=ST.done||[];HL=ST.hl||[];ST.opened=Date.now();landSeen=false;lastTick=Date.now();
   show('reader');buildReader();$('#busy').classList.add('hidden');
   ls.set('last',id);

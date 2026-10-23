@@ -41,8 +41,8 @@ export function makeLocal({ onError = () => {} } = {}) {
 //   meta/{id}                 shelf entry (small)
 //   books/{id}                book header (everything except blocks) + nChunks
 //   books/{id}/chunks/{i}     slices of the blocks array, each well under Firestore's 1 MiB doc limit
-//   state/{id}                highlights, reading position, checkpoints
-//   settings/app              app settings that follow you between devices
+//   state/{id}                highlights, reading position, checkpoints, the book's shelf
+//   settings/app              app settings that follow you between devices (helper URL, colour meanings, shelves)
 //   trash/{id}                deleted books, highlights and notes, kept 30 days (the app purges them)
 //   words/{id}                saved vocabulary with example sentences and a flashcard schedule (see vocab.js)
 export const CHUNK_BYTES = 700 * 1024;
@@ -183,7 +183,7 @@ export function makeCloud(fs, db, uid, { onError = () => {}, delay = 2500 } = {}
 /* ---------------- backup and restore ---------------- */
 // Format: { app: 'upwind', version: 1, exported, books: [{ meta, doc, state }], words, shelves }.
 // The artifact's "Back up shelf" button writes the same format, without words and shelves.
-// shelves: the shelf list ([{ id, name }] in order); each book's shelf id is on its doc.
+// shelves: the shelf list ([{ id, name }] in order); each book's shelf id is in its state (state.shelf).
 export async function exportShelf(db, metas, shelves) {
   metas = metas || await db.all('meta:');
   const books = [];
