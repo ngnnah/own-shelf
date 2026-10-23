@@ -9,6 +9,12 @@
 //   { id, kind: 'fact', text, blank: {s, e} | null, note, bookId, hlId, pid, ws, we, title, section, added, srs }
 //     text is the highlight's text (its blocks joined with a space), blank the phrase the card hides, as offsets into
 //     text (null: a re-read card); hlId the highlight, pid/ws/we its first block's place; title and section the book's then.
+// Both may also hold (fact cards only pics and tried), filled by the dictionaries or by hand:
+//   pics  [{ src, credit?: {title, url} }]  up to 3 pictures, JPEG data URLs ≤640 px; credit: the Wikipedia page
+//   syn, ant  [term]                        synonyms and antonyms
+//   dex   [{ text, s, e, cite }]            the dictionary's examples: a sentence, the word's place in it (s = e: not
+//                                           found), and "year, author" when known
+//   tried { wiki, muse, wikt }              the query each source answered, found or not, so a miss isn't asked again
 
 const DAY = 86400000;
 const djb2 = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
@@ -112,5 +118,198 @@ export function baseForms(term) {
   if (/ed$/.test(t)) { add(t.slice(0, -2)); add(t.slice(0, -1)); }
   if (/ing$/.test(t)) { add(t.slice(0, -3)); add(t.slice(0, -3) + 'e'); }
   if (/ly$/.test(t)) add(t.slice(0, -2));
+  return out;
+}
+
+/* ---------- pictures, synonyms, antonyms and examples (free, no key, CORS-enabled) ---------- */
+// Wikipedia's page summary: its thumbnail, only for an article whose title is the word (any case, spaces or
+// underscores, or a base form), so "ephemeral" → "Ephemerality" brings no unrelated photo.
+export const wikiSummaryUrl = q => `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(normTerm(q).replace(/ /g, '_'))}`;
+export function parseWikiSummary(json, q) {
+  const th = json && json.thumbnail, k = s => termKey(String(s || '').replace(/_/g, ' '));
+  if (!json || json.type !== 'standard' || !th || !/^https:\/\//.test(th.source || '')) return null;
+  if (![termKey(q), ...baseForms(q)].includes(k(json.title))) return null;
+  const page = json.content_urls && json.content_urls.desktop && json.content_urls.desktop.page;
+  return { src: th.source, title: json.title, url: /^https:\/\//.test(page || '') ? page : `https://en.wikipedia.org/wiki/${encodeURIComponent(json.title.replace(/ /g, '_'))}` };
+}
+// Datamuse synonyms (rel 'syn') and antonyms ('ant'): up to 6 words, not the word itself.
+export const datamuseRelUrl = (term, rel) => `https://api.datamuse.com/words?rel_${rel}=${encodeURIComponent(termKey(term))}&max=6`;
+export function parseDatamuseWords(json, term) {
+  const k = termKey(term), out = [];
+  (Array.isArray(json) ? json : []).forEach(x => { const w = normTerm(x && x.word); if (w && w.toLowerCase() !== k && !out.includes(w) && out.length < 6) out.push(w); });
+  return out;
+}
+// Wiktionary's wikitext: its definitions API no longer carries examples.
+export const wikitextUrl = term => `https://en.wiktionary.org/w/api.php?action=parse&page=${encodeURIComponent(termKey(term))}&prop=wikitext&format=json&formatversion=2&origin=*`;
+
+// s split at `sep` outside {{templates}} and [[links]].
+function splitTop(s, sep = '|') {
+  const out = []; let d = 0, cur = '';
+  for (let i = 0; i < s.length; i++) {
+    const two = s.slice(i, i + 2);
+    if (two === '{{' || two === '[[') { d++; cur += two; i++; continue; }
+    if ((two === '}}' || two === ']]') && d) { d--; cur += two; i++; continue; }
+    if (s[i] === sep && !d) { out.push(cur); cur = ''; continue; }
+    cur += s[i];
+  }
+  out.push(cur);
+  return out;
+}
+// The templates at the top level of s: [{ name, args (positional), named }]. Nested ones stay inside their arguments.
+function templates(s) {
+  const out = []; let i = 0;
+  while ((i = s.indexOf('{{', i)) >= 0) {
+    let d = 0, j = i;
+    for (; j < s.length; j++) {
+      if (s.startsWith('{{', j)) { d++; j++; } else if (s.startsWith('}}', j)) { d--; j++; if (!d) break; }
+    }
+    if (d) break;
+    const [name, ...parts] = splitTop(s.slice(i + 2, j - 1)), t = { name: name.trim().toLowerCase(), args: [], named: {} };
+    parts.forEach(p => { const m = /^\s*([\w-]+)\s*=([\s\S]*)$/.exec(p); if (m) t.named[m[1]] = m[2].trim(); else t.args.push(p.trim()); });
+    out.push(t); i = j + 1;
+  }
+  return out;
+}
+const ENT = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'", mdash: '—', ndash: '–', hellip: '…' };
+// Wiki markup to plain text: links and {{w|…}} keep their text, {{...}} is "…", other templates, refs and comments
+// go, bold and italic quotes go. The \u0001 and \u0002 marks (the headword, see wikiExample) are kept.
+export function stripWiki(s) {
+  s = String(s || '').replace(/<ref[^>]*\/>|<ref[\s\S]*?<\/ref>|<!--[\s\S]*?-->/g, '')
+    .replace(/\[\[([^\[\]]*)\]\]/g, (_, l) => { const p = l.split('|'); return /^(file|image|category):/i.test(l) ? '' : p.length > 1 ? p.pop() : p[0].replace(/#.*$/, ''); });
+  for (let k = 0; k < 20 && /\{\{[^{}]*\}\}/.test(s); k++) s = s.replace(/\{\{([^{}]*)\}\}/g, (_, inner) => {
+    const [n, ...ps] = inner.split('|'), name = n.trim().toLowerCase(), pos = ps.filter(p => !/^\s*[\w-]+\s*=/.test(p));
+    if (name === '...' || name === '…') return '…';
+    if (name === 'w') return pos[1] || pos[0] || '';
+    if (['l', 'm', 'l-self', 'll', 'mention', 'link'].includes(name)) return pos[2] || pos[1] || '';
+    return '';
+  });
+  return s.replace(/'{2,}/g, '').replace(/<[^>]+>/g, '').replace(/&(nbsp|amp|lt|gt|quot|#39|mdash|ndash|hellip);/g, (_, e) => ENT[e])
+    .replace(/\[(?:https?:)?\/\/\S+\s([^\]]*)\]/g, '$1').replace(/\s+/g, ' ').trim();
+}
+// The place of the word in a sentence: the word itself or a base form, as a whole word; else a word that starts with
+// it or its stem ("study" → "studied"). null: not there.
+export function findWord(text, term) {
+  const t = String(text || ''), low = t.toLowerCase(), k = termKey(term);
+  if (!k) return null;
+  const forms = [k, ...baseForms(k)], L = /[\p{L}\p{M}\p{N}]/u;
+  const at = (f, whole) => {
+    for (let i = low.indexOf(f); i >= 0; i = low.indexOf(f, i + 1)) {
+      if (i > 0 && L.test(t[i - 1])) continue;
+      let e = i + f.length;
+      if (whole) { if (e < t.length && L.test(t[e])) continue; } else while (e < t.length && L.test(t[e])) e++;
+      return { s: i, e };
+    }
+    return null;
+  };
+  for (const f of forms) { const r = at(f, true); if (r) return r; }
+  for (const f of [k, ...(k.length > 3 && /[ey]$/.test(k) ? [k.slice(0, -1)] : [])]) { const r = at(f, false); if (r) return r; }
+  return null;
+}
+// An example from wikitext: plain text cut to the sentence holding the word (bold in Wiktionary, else found), with
+// the word's place. null when the word isn't in it or the sentence is still very long.
+const LONG_EXAMPLE = 250;
+function wikiExample(raw, term, cite) {
+  let t = stripWiki(String(raw || '').replace(/'''(.+?)'''/, '\u0001$1\u0002'));
+  let s = t.indexOf('\u0001'), e = t.indexOf('\u0002');
+  t = t.replace(/[\u0001\u0002]/g, '');
+  if (s >= 0 && e > s) e -= 1; else { const f = findWord(t, term); if (!f) return null; ({ s, e } = f); }
+  const x = sentenceAround(t, s, e, Infinity);
+  return x.text.length > LONG_EXAMPLE || x.e <= x.s ? null : { text: x.text, s: x.s, e: x.e, cite };
+}
+// "1853, Mary Shelley" from a quotation's citation line: a quote template's year (or date) and author, or the plain
+// form '''1821-1822''', {{w|Vicesimus Knox}}, ''Title'', …
+function citeOf(line) {
+  const year = s => ((String(s || '').match(/\d{4}/) || [])[0] || '');
+  const q = templates(line).find(t => /^quote-/.test(t.name));
+  if (q) {
+    const n = q.named, a = stripWiki(n.author || n.authors || [n.first, n.last].filter(Boolean).join(' '));
+    return [year(n.year || n.date), a.length <= 60 ? a : ''].filter(Boolean).join(', ');
+  }
+  const m = /^#+\*\s*'''([^']+)'''\s*,?([\s\S]*)$/.exec(line);
+  if (!m) return '';
+  const first = splitTop(m[2], ',')[0].trim(), a = /^(''|")/.test(first) ? '' : stripWiki(first);
+  return [year(m[1]), a.length <= 60 && /\p{L}/u.test(a) ? a : ''].filter(Boolean).join(', ');
+}
+const NYMS = { syn: 'syn', synonyms: 'syn', ant: 'ant', antonyms: 'ant' };
+const UX = ['ux', 'usex', 'uxi'];
+const NOT_EXAMPLE = /^(syn|synonyms|ant|antonyms|hyper|hypernyms|hypo|hyponyms|cot|coordinate terms|holo|holonyms|mero|meronyms|tropo|troponyms|alti|alt|altform|der|rel|also|desc|q|qual|i|gloss|senseid)$/;
+// A nym line's terms: "transient", without inline qualifiers (<qq:…>), "#Noun", thesaurus links or ";" separators.
+const nymTerms = t => t.args.slice(1).filter(a => !/^thesaurus:/i.test(a.trim())).map(a => stripWiki(a.replace(/<[^>]*>/g, '').replace(/#.*$/, ''))).filter(a => a && a !== ';');
+// From a Wiktionary page (the parse API's JSON, formatversion 2): the first English sense's synonyms and antonyms, and
+// up to 2 examples, first sense first: its usage examples, then its quotations. null: no English entry.
+export function parseWikitext(json, term) {
+  const p = json && json.parse, wt = p && (typeof p.wikitext === 'string' ? p.wikitext : p.wikitext && p.wikitext['*']);
+  if (typeof wt !== 'string') return null;
+  const en = /^==\s*English\s*==\s*$/m.exec(wt);
+  if (!en) return null;
+  let body = wt.slice(en.index + en[0].length);
+  const next = /^==[^=].*==\s*$/m.exec(body);
+  if (next) body = body.slice(0, next.index);
+  // lines, with a template that runs over several lines joined into one
+  const lines = [];
+  body.split('\n').forEach(l => {
+    const open = s => (s.match(/\{\{/g) || []).length - (s.match(/\}\}/g) || []).length;
+    if (lines.length && open(lines[lines.length - 1]) > 0) lines[lines.length - 1] += ' ' + l; else lines.push(l);
+  });
+  const senses = []; let sense = null, quote = null;
+  for (const l of lines) {
+    const m = /^(#+)([:*]*)\s*([\s\S]*)$/.exec(l);
+    if (!m) { if (/^=/.test(l)) sense = quote = null; continue; }
+    const kind = m[2], text = m[3];
+    if (!kind) { sense = { ux: [], quotes: [], syn: [], ant: [] }; senses.push(sense); quote = null; continue; }
+    if (!sense) continue;
+    if (kind === ':') {
+      const ts = templates(text), ux = ts.find(t => UX.includes(t.name));
+      ts.forEach(t => { const k = NYMS[t.name]; if (k) sense[k].push(...nymTerms(t)); });
+      if (ux) sense.ux.push(ux.args[1] || '');
+      else if (!ts.some(t => NOT_EXAMPLE.test(t.name)) && stripWiki(text)) sense.ux.push(text);
+    } else if (kind === '*') {
+      const q = templates(text).find(t => /^(quote-|rq:)/.test(t.name)), passage = q && (q.named.passage || q.named.text);
+      quote = { cite: citeOf(m[1] + kind + ' ' + text), text: passage || '', done: !!passage };
+      sense.quotes.push(quote);
+    } else if (kind === '*:' && quote && !quote.done) quote.text += (quote.text ? ' ' : '') + text;
+  }
+  const first = senses[0] || { syn: [], ant: [] }, dex = [];
+  for (const s of senses) {
+    for (const [raw, cite] of [...s.ux.map(u => [u, '']), ...s.quotes.map(q => [q.text, q.cite])]) {
+      const x = dex.length < 2 && raw && wikiExample(raw, term, cite);
+      if (x && !dex.some(y => y.text === x.text)) dex.push(x);
+    }
+    if (dex.length >= 2) break;
+  }
+  const six = l => [...new Set(l)].filter(w => w.toLowerCase() !== termKey(term)).slice(0, 6);
+  return { syn: six(first.syn), ant: six(first.ant), dex };
+}
+
+/* ---------- editing them as text ---------- */
+// A meaning as the card shows it (white-space: pre-line): line breaks kept, spaces collapsed, ends trimmed, at most
+// one empty line in a row.
+export const cleanText = s => String(s || '').replace(/\r\n?/g, '\n').split('\n').map(l => l.replace(/[ \t\f\v ]+/g, ' ').trim()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+// "transient, transitory" (or one per line) → ['transient', 'transitory'], without repeats.
+export function parseList(s) {
+  const seen = new Set();
+  return String(s || '').split(/[,;\n]+/).map(x => x.replace(/\s+/g, ' ').trim()).filter(x => x && !seen.has(x.toLowerCase()) && seen.add(x.toLowerCase()));
+}
+// An example as one line of text: "sentence — 1853, Mary Shelley".
+export const exampleLine = x => x.text + (x.cite ? ' — ' + x.cite : '');
+// Examples edited as text, one per line. A line unchanged keeps its example; a line ending in an example's " — cite"
+// keeps that cite; the word's place is found again.
+export function parseExamples(s, old, term) {
+  old = old || [];
+  return String(s || '').split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean).map(l => {
+    const same = old.find(x => exampleLine(x) === l);
+    if (same) return same;
+    const o = old.find(x => x.cite && l.endsWith(' — ' + x.cite)), text = o ? l.slice(0, l.length - o.cite.length - 3).trim() : l, f = findWord(text, term) || { s: 0, e: 0 };
+    return { text, s: f.s, e: f.e, cite: o ? o.cite : '' };
+  });
+}
+// For a word or fact card already here: the pictures, synonyms, antonyms and examples it lacks, from another copy (a
+// backup, the Trash), and the lookups either one tried. → the merged entry, or null when there's nothing to add.
+export function mergeExtras(have, from) {
+  const add = ['pics', 'syn', 'ant', 'dex'].filter(k => !(Array.isArray(have[k]) && have[k].length) && from && Array.isArray(from[k]) && from[k].length);
+  if (!add.length) return null;
+  const out = { ...have };
+  add.forEach(k => { out[k] = from[k]; });
+  if (have.tried || from.tried) out.tried = { ...(from.tried || {}), ...(have.tried || {}) };
   return out;
 }

@@ -17,6 +17,10 @@
 //                   underline in the text, the Notebook's Words tab (search, book filter, open at the word), the Trash
 //   wordbox.mjs     the word card and the note box stay inside the visible area with their buttons in view (a long or
 //                   pasted meaning, the field dragged taller, a short window, an iPhone keyboard); dragging the word card
+//   wordcard.mjs    the richer word card (lookups mocked): synonyms, antonyms, the dictionary's examples and Wikipedia's
+//                   picture on saving, a title mismatch giving none, fact cards' pictures from their blank, pictures pasted,
+//                   dropped or picked (3 at most, ×, the size guard), editing, meanings' line breaks, Study backs, older
+//                   cards filled once when shown, saving offline
 //   migrate.mjs     the artifact's "Back up shelf" (legacy/app-artifact.html) → the app's "Restore from backup"
 //   study.mjs       Study flashcards: the queue (due first, the daily new-word cap), front and back, ratings and
 //                   their saved schedule, Again, keys, Sentence → word, done and empty states, ?study=1
@@ -44,7 +48,7 @@ import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','words.mjs','wordbox.mjs','study.mjs','sort.mjs','migrate.mjs','linkimport.mjs','setup.mjs','colours.mjs','signin.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','words.mjs','wordbox.mjs','wordcard.mjs','study.mjs','sort.mjs','migrate.mjs','linkimport.mjs','setup.mjs','colours.mjs','signin.mjs'];
 
 // Run one file, echo its output and count its PASS/FAIL lines.
 const runOne=f=>new Promise(res=>{

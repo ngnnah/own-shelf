@@ -18,7 +18,7 @@ await page.setRequestInterception(true);
 page.on('request',req=>{
   const h=new URL(req.url()).hostname;
   if(h==='api.datamuse.com') return req.respond({status:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:'[]'});
-  if(h==='en.wiktionary.org') return req.respond({status:404,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:'{}'});
+  if(h==='en.wiktionary.org'||h==='en.wikipedia.org') return req.respond({status:404,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:'{}'});
   req.continue();
 });
 
@@ -128,7 +128,7 @@ await t.run(async()=>{
     ok(`${size}: the grip makes the field taller`,(await fieldHeight('#wbDef'))>h0+100);
     ok(`${size}: dragged taller, the card stays inside the window with its buttons in view`,inView(f));
     ok(`${size}: and the text still scrolls`,await scrolls('#wbDef'));
-    ok(`${size}: the field gives way, the sentence below it stays whole`,await page.$eval('#wbEx',e=>e.scrollHeight<=e.clientHeight));
+    ok(`${size}: the field gives way, the sentence below it stays whole`,await page.$eval('#wbMore',e=>e.scrollHeight<=e.clientHeight));
     await shot(`${size}-grip`);
     const h1=await fieldHeight('#wbDef');await dragGrip('#wbDef',-150);
     ok(`${size}: the grip shrinks the field again at once`,Math.abs((await fieldHeight('#wbDef'))-(h1-150))<=4);
@@ -139,7 +139,7 @@ await t.run(async()=>{
     await page.setViewport({width:vw,height:400,deviceScaleFactor:size==='phone'?2:1});await sleep(150);
     f=await cardFit();
     ok(`${size}: in a 400 px tall window, the card fits and its buttons are in view`,inView(f)&&f.h<=400);
-    ok(`${size}: there, the text still scrolls, and the sentence stays whole`,await scrolls('#wbDef')&&await page.$eval('#wbEx',e=>e.scrollHeight<=e.clientHeight));
+    ok(`${size}: there, the text still scrolls, and the sentence stays whole`,await scrolls('#wbDef')&&await page.$eval('#wbMore',e=>e.scrollHeight<=e.clientHeight));
     await shot(`${size}-400`);
     await page.setViewport({width:vw,height:vh,deviceScaleFactor:size==='phone'?2:1});await sleep(150);
 
