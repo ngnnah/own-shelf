@@ -527,7 +527,7 @@ function buildReader(){
   }
   h+=`<section class="land" id="land"><h2>The end.</h2><p id="landMsg"></p><div class="acts"><button class="btn" id="landCopy">Copy all highlights</button><button class="btn ghost" id="landOpen">Review them</button><button class="btn ghost" id="landExp">Export</button><button class="btn ghost" id="landShelf">Back to shelf</button></div></section>`;
   col.innerHTML=h;
-  col.querySelectorAll('.pull button').forEach(btn=>btn.onclick=()=>{const [pid,s,e]=btn.dataset.pq.split(':');addHighlight([{pid,s:+s,e:+e}],'sun');toast('Highlighted');});
+  col.querySelectorAll('.pull button').forEach(btn=>btn.onclick=()=>{const [pid,s,e]=btn.dataset.pq.split(':');addHighlight([{pid,s:+s,e:+e}],'sun','','Highlighted');});
   col.querySelectorAll('figure.fig img').forEach(im=>{im.onerror=()=>{const f=im.closest('figure');f.innerHTML=`<span class="imgfail">This image can't load here${/^https?:/.test(im.src)?` · <a href="${esc(im.src)}" target="_blank" rel="noopener noreferrer">open it</a>`:''}</span>`;};});
   $('#landCopy').onclick=copyAll;$('#landOpen').onclick=()=>openDrawer('#drawer');$('#landShelf').onclick=goShelf;$('#landExp').onclick=()=>openExport('book');
   updateCount();observeCheckpoints();lastH=0;
@@ -641,7 +641,28 @@ function rangeToSegs(range){
 function segText(h){return h.segs.map(s=>blockIndex[s.pid]?blockIndex[s.pid].text.slice(s.s,s.e):'').join('\n\n');}
 function rerender(pids){new Set(pids).forEach(pid=>{const b=blockIndex[pid];if(!b||b.t==='code')return;document.querySelectorAll(`#col .hp[data-pid="${pid}"]`).forEach(el=>{el.innerHTML=inlineHTML(b);});});}
 function commit(){ST.hl=HL;saveState();updateCount();if($('#drawer').classList.contains('open'))renderDrawer();}
-function addHighlight(segs,color,note){const h={id:'h'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),color,note:note||'',segs,at:Date.now()};HL.push(h);commit();rerender(segs.map(s=>s.pid));return h;}
+// A new highlight joins the ones it overlaps or touches (joinHighlights in parse.js); "Joined N highlights · Undo".
+// color null (the toolbar's Note): the colour of the one it joins, else Sunny. said: the toast when nothing joins.
+function addHighlight(segs,color,note,said){
+  const now=Date.now(),texts={},linked=new Set(),id=DOC.id;
+  segs.forEach(s=>{texts[s.pid]=blockIndex[s.pid]&&blockIndex[s.pid].text;});
+  if(WORDS) WORDS.forEach(w=>{if(isFact(w)&&w.bookId===id) linked.add(w.hlId);});
+  const {h,hit,n}=joinHighlights(HL,{id:'h'+now.toString(36)+Math.random().toString(36).slice(2,5),color:color||null,note:note||'',segs,at:now},texts,order,linked);
+  if(!h.color) h.color='sun';
+  const was=JSON.parse(JSON.stringify(hit));
+  HL=HL.filter(x=>!hit.includes(x)).concat(h);commit();rerender(h.segs.map(s=>s.pid));
+  if(n) toast(`Joined ${n} highlights`,{label:'Undo',run:()=>unjoin(id,h,was)});else if(said) toast(said);
+  return h;
+}
+// Undo for a join: the joined highlight gives way to the ones it was made from, as they were.
+async function unjoin(id,h,was){
+  const open=!!(DOC&&DOC.id===id),st=open?ST:await DB.get('state:'+id),hl=open?HL:st&&st.hl,i=hl?hl.findIndex(x=>x.id===h.id):-1;
+  if(i<0) return;
+  hl.splice(i,1,...was);
+  if(open){commit();rerender(h.segs.map(s=>s.pid));if(noteTarget===h) $('#noteBox').classList.add('hidden');}
+  else{DB.put('state:'+id,st);const m=META.find(x=>x.id===id);if(m){m.hl=hl.length;DB.put('meta:'+id,m);}}
+  toast('Undone');
+}
 function updateCount(){
   $('#hlCount').textContent=HL.length;const lm=$('#landMsg');if(!lm)return;const nn=HL.filter(h=>h.note).length;
   lm.textContent=HL.length?`You marked ${HL.length} highlight${HL.length>1?'s':''}${nn?` and wrote ${nn} note${nn>1?'s':''}`:''}. Take them with you.`:'You made it to the end. Select any passage above to highlight it, then copy everything from here.';
@@ -667,7 +688,7 @@ tool.addEventListener('click',e=>{
   if(b.dataset.a==='del'&&editing){const pids=editing.segs.map(s=>s.pid),tr=trashHighlights([editing]);HL=HL.filter(x=>x!==editing);commit();rerender(pids);hideTool();movedToTrash(tr);return;}
   if(b.dataset.a==='word'&&pendingSegs){saveWordFromSel(pendingSegs);return;}
   if(b.dataset.a==='copy'&&pendingSegs){copyText(pendingSegs.map(s=>blockIndex[s.pid].text.slice(s.s,s.e)).join('\n\n'),'Copied');return;}
-  if(b.dataset.a==='note'){let h=editing;if(!h&&pendingSegs){h=addHighlight(pendingSegs,'sun');getSelection().removeAllRanges();}if(h)openNote(h,tool.getBoundingClientRect());hideTool();}
+  if(b.dataset.a==='note'){let h=editing;if(!h&&pendingSegs){h=addHighlight(pendingSegs,null);getSelection().removeAllRanges();}if(h)openNote(h,tool.getBoundingClientRect());hideTool();}
 });
 let selT;
 function checkSel(){

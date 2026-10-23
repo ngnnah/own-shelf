@@ -423,6 +423,32 @@ function mergeKindle(oldDoc,oldHl,newDoc,newHl){
   return {hl:hl.concat(add),added:add.length,dropped,recoloured,same:!Object.keys(recoloured).length&&had.size===olds&&olds===news};
 }
 
+/* ---------- joining highlights ---------- */
+// A new highlight `fresh` joins the highlights it overlaps, or touches with only whitespace between them in one block,
+// into one, as Kindle does (touching across blocks doesn't count: a Kindle book's passages sit side by side). The joined
+// highlight covers the union of their segs, one per block in reading order, takes fresh's colour (null: keeps its own)
+// and their notes in reading order, separated by a blank line, without repeats. It is the earliest-made of those that
+// are sorted in To sort (study) or have a fact card (`linked`, a Set of ids), else the earliest-made of all: it keeps
+// its id, `at` and study, so To sort, fact cards and Kindle re-imports still find it. A fresh highlight inside one
+// recolours that one. texts: pid → block text for fresh's blocks; order: pid → place in the book.
+// → {h, hit, n}: h replaces the highlights in hit (none: h is fresh); n how many highlights became h, fresh included
+// (0 when nothing joined: a new highlight or a recolour).
+function joinHighlights(hl,fresh,texts,order,linked){
+  const inside=fresh.segs.length?hl.filter(h=>fresh.segs.every(f=>h.segs.some(g=>g.pid===f.pid&&g.s<=f.s&&f.e<=g.e))).pop():null;
+  const meet=(f,g)=>{if(f.pid!==g.pid) return false;const [x,y]=f.s<=g.s?[f,g]:[g,f],t=texts[f.pid];return y.s<=x.e||(t!=null&&!/\S/.test(t.slice(x.e,y.s)));};
+  const hit=inside?[inside]:hl.filter(h=>h.segs.some(g=>fresh.segs.some(f=>meet(f,g))));
+  if(!hit.length) return {h:fresh,hit,n:0};
+  const before=(a,b)=>((order[a.pid]??1e9)-(order[b.pid]??1e9))||a.s-b.s,head=h=>h.segs.reduce((a,g)=>before(g,a)<0?g:a);
+  const linkedOnes=hit.filter(h=>h.study||(linked&&linked.has(h.id)));
+  const keep=(linkedOnes.length?linkedOnes:hit).reduce((a,h)=>(h.at||0)<(a.at||0)?h:a);
+  const by=new Map();
+  if(!inside) [fresh,...hit].forEach(h=>h.segs.forEach(g=>{const u=by.get(g.pid);if(u){u.s=Math.min(u.s,g.s);u.e=Math.max(u.e,g.e);}else by.set(g.pid,{pid:g.pid,s:g.s,e:g.e});}));
+  const notes=[];
+  [fresh,...hit].sort((a,b)=>before(head(a),head(b))).forEach(h=>{const t=(h.note||'').trim();if(t&&!notes.includes(t)) notes.push(t);});
+  const h=Object.assign({},keep,{color:fresh.color||keep.color,note:notes.join('\n\n'),segs:inside?keep.segs:[...by.values()].sort(before)});
+  return {h,hit,n:inside?0:hit.length+1};
+}
+
 /* ---------- links ---------- */
 // First http(s) link in shared text, without trailing punctuation or brackets.
 function firstUrl(s){const m=String(s||'').match(/https?:\/\/[^\s<>"'“”‘’]+/i);return m?m[0].replace(/[.,;:!?)\]}>]+$/,''):'';}
@@ -437,4 +463,4 @@ function decodeBody(buf,type){
   try{return new TextDecoder(cs||'utf-8').decode(buf);}catch(e){return new TextDecoder('utf-8').decode(buf);}
 }
 // ===== PARSE END =====
-if(typeof module!=='undefined') module.exports={linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,decodeBody,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle};
+if(typeof module!=='undefined') module.exports={linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,decodeBody,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights};

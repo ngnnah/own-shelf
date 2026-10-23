@@ -5,6 +5,9 @@
 //   notebook.mjs    the Notebook: every highlight across books, chips, search, book filter, export, open at a highlight
 //   search.mjs      search inside a book: accent folding, counts, the 200 cap, marking the match, Enter, Escape
 //   notefilter.mjs  the "With note" chip in the highlights drawer
+//   join.mjs        overlapping or touching highlights join into one, as on a Kindle: at either end, bridging two,
+//                   across paragraphs, a recolour inside one, notes joined, Note, keys 1–5, the pull quote,
+//                   "Joined N highlights · Undo", a sorted Coral highlight keeping its id (To sort, its fact card)
 //   deletes.mjs     deletes that lose highlights or notes ask for "yes"
 //   trash.mjs       the Trash: removed books, highlights and notes, restore, delete forever, the 30-day purge
 //   undo.mjs        "Moved to Trash · Undo" after every delete: Undo per kind, the toast's lifetime, hover and focus,
@@ -44,7 +47,7 @@ import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','words.mjs','wordbox.mjs','study.mjs','sort.mjs','migrate.mjs','linkimport.mjs','setup.mjs','colours.mjs','signin.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','words.mjs','wordbox.mjs','study.mjs','sort.mjs','migrate.mjs','linkimport.mjs','setup.mjs','colours.mjs','signin.mjs'];
 
 // Run one file, echo its output and count its PASS/FAIL lines.
 const runOne=f=>new Promise(res=>{
