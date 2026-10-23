@@ -172,7 +172,7 @@
     <div class="fields">
       <label class="fl">Title<input class="f" id="fTitle" placeholder="Detected automatically"></label>
       <label class="fl">Author<input class="f" id="fAuthor" placeholder="Optional"></label>
-      <label class="fl">Date written<input class="f" id="fWritten" placeholder="e.g. July 2023"></label>
+      <div><label class="fl">Date written<input class="f" id="fWritten" placeholder="e.g. July 2023"></label><div class="dq" data-for="fWritten"></div></div>
     </div>
     <p class="err hidden" id="impErr"></p>
     <div class="dlg-acts"><button class="btn ghost" data-cancel>Cancel</button><button class="btn" id="impGo">Add and start reading</button></div>
@@ -186,7 +186,7 @@
     <div style="display:grid;gap:.8rem;margin-top:1rem">
       <label class="fl">Title<input class="f" id="dTitle"></label>
       <label class="fl">Author<input class="f" id="dAuthor" placeholder="Unknown"></label>
-      <label class="fl">Date written<input class="f" id="dWritten" placeholder="e.g. July 2023 or 2024-03-01"></label>
+      <div><label class="fl">Date written<input class="f" id="dWritten" placeholder="e.g. July 2023 or 2024-03-01"></label><div class="dq" data-for="dWritten"></div></div>
       <label class="fl">Source link<input class="f" id="dSource" placeholder="https://"></label>
       <div class="fl" id="dCoverRow">Cover<div class="cv-sws" id="dCover" role="group" aria-label="Cover colour"></div></div>
     </div>
