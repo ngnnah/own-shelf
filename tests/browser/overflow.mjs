@@ -1,6 +1,7 @@
 // The page never scrolls sideways on a phone: on every screen and in every state, at 375 px with a touch screen (and
 // at 320 px for the shelf and the reader), nothing in the page is wider than the screen, no drawer or dialog scrolls
-// sideways inside, and the fixed bar, toolbar, cards, toast, drawers and dialogs stay inside the screen. The books:
+// sideways inside, and the fixed bar, toolbar, cards, toast, drawers and dialogs stay inside the screen (with the
+// Date written quick picks in Add and Book details, and the byline's pencil, at both widths). The books:
 // the rich paste; a stress paste (a 300-character unbroken link in a paragraph, a list item, a quote, a caption, a
 // footnote and a note; long words in headings; a wide table; a long code line; a wide picture; a pull quote); a
 // Kindle notebook (its contents list chapters); a book whose title and author have no spaces.
@@ -102,6 +103,12 @@ async function fits(label){
   ok(`${m.cw} px, ${label}: nothing passes the screen's edge`,good);
   if(!good) console.log(`     page ${m.sw} px wide${m.wide.length?' ('+m.wide.join(', ')+')':''}${m.inner.length?'; scrolls inside: '+m.inner.join(', '):''}${m.fixed.length?'; fixed past the edge: '+m.fixed.join(', '):''}`);
 }
+// Every shown element matching sel (at least one) lies inside the screen and inside its box (box: a selector for
+// the nearest ancestor that holds it, e.g. the dialog).
+const inside=(label,sel,box)=>page.evaluate((sel,box)=>{
+  const cw=document.documentElement.clientWidth,es=[...document.querySelectorAll(sel)].filter(e=>e.getClientRects().length);
+  return es.length>0&&es.every(e=>{const r=e.getBoundingClientRect(),b=box?e.closest(box).getBoundingClientRect():{left:0,right:cw};return r.left>=Math.max(0,b.left)-.5&&r.right<=Math.min(cw,b.right)+.5;});
+},sel,box).then(good=>ok(`${label} inside the screen`,good));
 
 /* ---------- the screens ---------- */
 async function shelf(){
@@ -115,6 +122,7 @@ async function shelf(){
 async function reader(){
   for(const b of ['The Quiet Engine','Overflow Stress Test','The Lighthouse Ledger',LONGTITLE]){
     await openBook(b);await page.evaluate(()=>scrollTo(0,0));await fits(`reader, ${b.slice(0,24)}, top`);
+    await inside(`${await page.evaluate(()=>document.documentElement.clientWidth)} px, reader, ${b.slice(0,24)}: the byline's pencil`,'.hero .byline .ed');
     await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));await fits(`reader, ${b.slice(0,24)}, end`);
   }
   await openBook('Overflow Stress Test');
@@ -144,14 +152,19 @@ async function readerStates(){
   await drawer('#bHl','#drawer');await clk('#clearAll');await shown('#confirmM');await fits('typed-yes confirm naming an unbroken title');
   await clk('#confirmM [data-cancel]');await hidden('#confirmM');await closeDrawers();
 }
-async function dialogs(){
-  await home();
+// The Add and Book details dialogs, with the Date written quick picks (.dq); at 375 px also the rest
+async function dialogs(all=true){
+  await home();const w=await page.evaluate(()=>document.documentElement.clientWidth);
   await clk('#addBtn');await shown('#importM');await fits('Add');
+  await inside(`${w} px, Add: the Date written quick picks`,'#importM .dq .chip','.dlg');
   await pasteHtml(page,STRESS,'x');await until(()=>document.querySelector('#det').textContent.includes('Wren'));await fits('Add, the stress paste');
   await pasteHtml(page,LONGBOOK,'x');await until(t=>document.querySelector('#det').textContent.includes(t),LONGTITLE.slice(0,20));await fits('Add, an unbroken title');
+  await inside(`${w} px, Add with an unbroken title: the Date written quick picks`,'#importM .dq .chip','.dlg');
   await clk('#importM [data-cancel]');await hidden('#importM');
   await page.$$eval('.book',(bs,tt)=>bs.find(b=>b.querySelector('.c-t').textContent===tt).querySelector('.c-more').click(),LONGTITLE);await shown('#detM');
   await fits('Book details');
+  await inside(`${w} px, Book details: the Date written quick picks`,'#detM .dq .chip','.dlg');
+  if(!all){await clk('#detM [data-cancel]');await hidden('#detM');return;}
   await clk('#dRemove');await shown('#confirmM');await fits('removing a book: the typed-yes confirm');
   await clk('#confirmM [data-cancel]');await hidden('#confirmM');await clk('#detM [data-cancel]');await hidden('#detM');
   await clk('#setBtn');await shown('#setM');await fits('Settings');
@@ -221,6 +234,7 @@ await t.run(async()=>{
   // 320 px: the shelf and the reader
   await phone(320);await page.goto(t.base,{waitUntil:'networkidle0'});await page.waitForSelector('#shelf:not(.hidden),#reader:not(.hidden)');
   await shelf();
+  await dialogs(false);
   await reader();
   await openBook('Overflow Stress Test');await select('#col p.hp',30);await fits('highlight toolbar');
   await page.evaluate(()=>getSelection().removeAllRanges());
