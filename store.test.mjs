@@ -169,5 +169,57 @@ const errs=[];
   ok('restore: the same again changes nothing',r6.words===0);
 }
 
+// shelves (categories): the list in backups, each book's shelf on its reading state and shelf entry
+{
+  const metaFor=(d,s)=>({id:d.id,title:d.title,shelf:s.shelf||'',hl:(s.hl||[]).length});
+  const DEF=[{id:'travel',name:'Travel'},{id:'history',name:'History'},{id:'finance',name:'Finance'}];
+  const mine=[{id:'history',name:'Old times'},{id:'s1',name:'Poetry'}];
+  const A=makeLocal();await A.open();
+  for(const [id,shelf] of [['x','s1'],['y','history'],['z','']]){const d={id,title:'Book '+id,blocks:[{t:'p',id:'b0',text:'hi'}],sections:[]},st={hl:[],shelf};await A.put('doc:'+id,d);await A.put('state:'+id,st);await A.put('meta:'+id,metaFor(d,st));}
+  const bk=JSON.parse(JSON.stringify(await exportShelf(A,null,mine)));
+  ok('backup: carries the shelf list and each book\'s shelf (in its state)',bk.version===1&&bk.shelves.length===2&&bk.shelves[1].name==='Poetry'&&bk.books.find(b=>b.doc.id==='x').state.shelf==='s1'&&!('shelf' in bk.books[0].doc));
+  ok('backup: no list given, no shelves field',!('shelves' in JSON.parse(JSON.stringify(await exportShelf(A)))));
+
+  // a shelf that was never arranged takes the backup's list, then those of its own shelves the backup lacks that hold books
+  const B=makeLocal();await B.open();await B.put('settings:app',{workerUrl:'https://w.example'});
+  const w={id:'w',title:'Book w',blocks:[{t:'p',id:'b0',text:'hi'}],sections:[]};await B.put('doc:w',w);await B.put('state:w',{hl:[],shelf:'finance'});await B.put('meta:w',metaFor(w,{shelf:'finance'}));
+  const r1=await importShelf(B,bk,await B.all('meta:'),metaFor,DEF),sb=await B.get('settings:app');
+  ok('restore: an unarranged shelf takes the backup\'s names and order, plus its own shelves that hold books',r1.shelves.map(s=>s.name).join()==='Old times,Poetry,Finance'&&sb.shelves.map(s=>s.id).join()==='history,s1,finance');
+  ok('restore: other settings stay',sb.workerUrl==='https://w.example');
+  ok('restore: books come back on their shelves',(await B.get('state:x')).shelf==='s1'&&(await B.get('meta:x')).shelf==='s1'&&(await B.get('meta:y')).shelf==='history'&&(await B.get('meta:z')).shelf==='');
+  const r2=await importShelf(B,bk,await B.all('meta:'),metaFor,(await B.get('settings:app')).shelves);
+  ok('restore: twice changes no shelves',!r2.shelves&&(await B.get('settings:app')).shelves.length===3);
+
+  // an arranged shelf keeps its own names and order; the backup's new shelves join at the end
+  const C=makeLocal();await C.open();const own=[{id:'s9',name:'Cooking'},{id:'history',name:'History'}];
+  await C.put('settings:app',{shelves:own});
+  const d0={id:'y',title:'Book y',blocks:[{t:'p',id:'b0',text:'hi'}],sections:[]};await C.put('doc:y',d0);await C.put('state:y',{hl:[],shelf:'s9'});await C.put('meta:y',metaFor(d0,{shelf:'s9'}));
+  const r3=await importShelf(C,bk,await C.all('meta:'),metaFor,own);
+  ok('restore: an arranged shelf keeps its names and order, adds missing shelves at the end',r3.shelves.map(s=>s.name).join()==='Cooking,History,Poetry'&&(await C.get('settings:app')).shelves.length===3);
+  ok('restore: a book already here stays on its own shelf',(await C.get('state:y')).shelf==='s9'&&(await C.get('meta:y')).shelf==='s9');
+  // a book already here that gets the backup's missing highlights keeps its own shelf too
+  const bh=JSON.parse(JSON.stringify(bk));bh.books.find(b=>b.doc.id==='y').state.hl=[{id:'h1'}];
+  const r5=await importShelf(C,bh,await C.all('meta:'),metaFor,own);
+  ok('restore: merging highlights keeps the book\'s shelf',r5.merged===1&&(await C.get('state:y')).shelf==='s9'&&(await C.get('state:y')).hl.length===1&&(await C.get('meta:y')).shelf==='s9');
+
+  // old backups (no list) still restore, and leave the shelves alone
+  const old=JSON.parse(JSON.stringify(bk));delete old.shelves;old.books.forEach(b=>delete b.state.shelf);
+  const D=makeLocal();await D.open();
+  const r4=await importShelf(D,old,[],metaFor,DEF);
+  ok('restore: an old backup adds its books unsorted and writes no shelves',r4.added===3&&!r4.shelves&&!(await D.get('settings:app'))&&(await D.get('meta:x')).shelf==='');
+  // a broken list entry is skipped
+  const bad=JSON.parse(JSON.stringify(bk));bad.shelves.push(null,{id:'',name:'x'},{name:'No id'});
+  const E=makeLocal();await E.open();
+  ok('restore: skips shelves without an id or name',(await importShelf(E,bad,[],metaFor,[])).shelves.length===2);
+}
+// cloud: a backup's shelves restore into settings/app, which Firestore takes (no arrays in arrays)
+{
+  const F=fakeFirestore();const C=makeCloud(F.fs,{},'u1',{onError:e=>errs.push(e),delay:10000});
+  const metaFor=(d,s)=>({id:d.id,title:d.title,shelf:s.shelf||'',hl:(s.hl||[]).length});
+  const bk={app:'upwind',version:1,books:[{meta:{id:'x'},doc:{id:'x',title:'X',blocks:[{t:'p',id:'b0',text:'hi'}],sections:[]},state:{hl:[],shelf:'s1'}}],shelves:[{id:'s1',name:'Poetry'}]};
+  const r=await importShelf(C,bk,[],metaFor,[{id:'travel',name:'Travel'}]);await C.flush();
+  ok('cloud: restored shelves land in settings/app, a book\'s shelf in its state',r.shelves.length===1&&F.docs.get('users/u1/settings/app').shelves[0].name==='Poetry'&&F.docs.get('users/u1/state/x').shelf==='s1'&&F.docs.get('users/u1/meta/x').shelf==='s1');
+}
+
 ok('no write errors',errs.length===0);
 done();

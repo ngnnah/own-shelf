@@ -54,6 +54,10 @@ label.fl,div.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--mut
 .cv-sws{display:flex;flex-wrap:wrap;gap:.55rem;padding:.15rem 0}
 .cv-sw{width:26px;height:34px;border:0;padding:0;border-radius:3px 6px 6px 3px;background:var(--c);cursor:pointer;box-shadow:inset 3px 0 0 rgba(0,0,0,.2),inset 0 0 0 1px rgba(0,0,0,.12)}
 .cv-sw[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:2px}
+/* the shelf picker in Details: a field like the others, with the Notebook filter's arrow */
+#dShelf{width:100%;appearance:none;-webkit-appearance:none;border-radius:12px;border:1.5px solid var(--rule);color:var(--ink);padding:.6rem 2.2rem .6rem .8rem;font:1rem var(--body);
+  background:var(--paper) no-repeat;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 1.2rem) 52%,calc(100% - .85rem) 52%;background-size:.35rem .35rem}
+.sh-move{margin-top:1rem}
 
 /* ================= SHELF ================= */
 #shelf{min-height:100vh;padding:calc(env(safe-area-inset-top,0px) + 1.2rem) clamp(1rem,4vw,3rem) 4rem;max-width:1240px;margin:0 auto}
@@ -76,15 +80,32 @@ label.fl,div.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--mut
 .sh-stats b{color:var(--ink);font-weight:600}
 .sh-ctrl{display:flex;gap:.8rem 1.2rem;flex-wrap:wrap;align-items:center;font:500 .85rem var(--ui);color:var(--muted);margin-bottom:1.6rem}
 .sh-ctrl span{margin-right:.3rem}
+/* five ways to arrange: narrower buttons keep them on one line on a phone */
+@media (max-width:440px){#segGroup button{padding-inline:.55rem}}
 .cont{display:flex;gap:1rem;align-items:center;background:var(--sheet);border:1.5px solid var(--rule);border-radius:22px;padding:1rem 1.2rem;margin-bottom:2rem}
 .cont .cv{width:44px;height:62px;border-radius:4px 8px 8px 4px;flex:none;box-shadow:inset 4px 0 0 rgba(0,0,0,.18)}
 .cont .ct{flex:1;min-width:0}
 .cont .ct small{font:600 .72rem var(--ui);letter-spacing:.07em;text-transform:uppercase;color:var(--sea)}
 .cont .ct b{display:block;font:600 1.3rem/1.2 var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cont .ct span{font:400 .85rem var(--ui);color:var(--muted)}
-.shelf-row{margin-bottom:2.6rem}
+.shelf-row{margin-bottom:2.6rem;border-radius:14px;outline:2px dashed transparent;outline-offset:8px;transition:outline-color .15s,background-color .15s,box-shadow .15s}
 .shelf-label{font:600 1.5rem var(--display);margin:0 0 .9rem;display:flex;align-items:baseline;gap:.5rem}
 .shelf-label small{font:500 .8rem var(--ui);color:var(--muted)}
+/* Arrange by Shelf: a shelf's name opens its dialog. An empty shelf is compact (~56 px at 390): its name, then a slim
+   strip with the hint on a bare board, so Unsorted and the six starting shelves fit one phone screen */
+.sl-name{border:0;background:none;padding:0;font:inherit;text-align:left;text-decoration:underline dotted color-mix(in srgb,var(--wave) 80%,transparent);text-decoration-thickness:1.5px;text-underline-offset:.22em}
+.sl-name:hover{text-decoration-color:var(--sea)}
+.shelf-row.bare{margin-bottom:1.1rem}
+.shelf-row.bare .shelf-label{margin:0;line-height:1.1}
+.shelf-row.bare .books{padding:.25rem .4rem .2rem}
+.shelf-row.bare .plank{height:10px}
+.sl-hint{margin:0;font:italic 400 .85rem/1 var(--display);color:var(--muted)}
+.sl-new{margin-top:-.6rem}
+/* dragging: the lifted book follows the pointer, its place stays faint, the shelf it would land on lights up */
+.shelf-row.drop{outline-color:var(--sea);background:color-mix(in srgb,var(--sea) 12%,transparent);box-shadow:0 0 0 8px color-mix(in srgb,var(--sea) 12%,transparent)}
+.book.lifted{opacity:.3}
+.book.drag-ghost{position:fixed;left:0;top:0;z-index:150;pointer-events:none;filter:drop-shadow(0 16px 18px rgba(40,22,8,.45))}
+body.dragging,body.dragging *{cursor:grabbing!important;-webkit-user-select:none;user-select:none}
 .books{display:flex;gap:1.1rem;align-items:flex-end;overflow-x:auto;padding:1rem .4rem 0;scroll-snap-type:x proximity;scrollbar-width:thin}
 .plank{height:15px;background:linear-gradient(rgba(255,255,255,.04),rgba(0,0,0,.22)) var(--plank);border-radius:3px 3px 8px 8px;box-shadow:0 10px 18px -8px rgba(40,22,8,.5);position:relative}
 .plank::after{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:rgba(255,255,255,.12);border-radius:3px}
@@ -94,7 +115,8 @@ label.fl,div.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--mut
 :root[data-theme="dark"] .book{--leaf:#C9BB9A}
 /* min-height: a long title and author stretch a short cover (to ~211 px at most, inside the 186–219 px spread) instead of being clipped */
 .cover{display:flex;flex-direction:column;width:146px;min-height:var(--h,200px);border:0;border-radius:4px 10px 10px 4px;padding:1.1rem .9rem 1.3rem 1.15rem;text-align:left;background:var(--bc);color:var(--bt);position:relative;overflow:hidden;
-  box-shadow:inset 6px 0 0 rgba(0,0,0,.18),inset 8px 0 0 rgba(255,255,255,.12),0 2px 0 rgba(0,0,0,.08);transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+  box-shadow:inset 6px 0 0 rgba(0,0,0,.18),inset 8px 0 0 rgba(255,255,255,.12),0 2px 0 rgba(0,0,0,.08);transition:transform .2s cubic-bezier(.2,.8,.2,1);
+  -webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .cover:hover,.cover:focus-visible{transform:translateY(-8px) rotate(-1deg)}
 /* the page block: fine page lines and a darker fore-edge, inset 3 px top and bottom like pages between boards.
    A sibling, since the cover clips its children. It starts 8 px under the cover's rounded corner, and lifts with the
@@ -153,7 +175,9 @@ label.fl,div.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--mut
 .pbar{display:inline-block;width:70px;height:6px;border-radius:9px;background:var(--rule);vertical-align:middle;margin-right:.4rem;overflow:hidden}
 .pbar i{display:block;height:100%;background:var(--sea)}
 /* phones: the covers show each length, so the table drops it with Added and Highlights; five columns don't fit 390 px */
-@media (max-width:700px){.tbl .c-added,.tbl .c-words,.tbl .c-hl{display:none}.tbl td,.tbl th button{padding-left:.5rem;padding-right:.5rem}.tbl .tt{font-size:1rem;gap:.55rem}.pbar{width:48px}}
+@media (max-width:700px){.tbl .c-added,.tbl .c-words,.tbl .c-hl{display:none}.tbl td,.tbl th button{padding-left:.5rem;padding-right:.5rem}.tbl .tt{font-size:1rem;gap:.55rem}.pbar{width:48px}
+  /* a phone shows the Shelf column in Written's place, only while sorted by shelf */
+  .tbl:not(.by-shelf) .c-shelf,.tbl.by-shelf .c-written{display:none}}
 /* an unbroken title wraps instead of widening the table, though not inside a word that fits the 7rem; where the
    four columns still don't fit (320 px, long words), the table scrolls in its own box, not the page */
 .tbl .tt{overflow-wrap:anywhere;min-width:7rem}

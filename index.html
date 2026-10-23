@@ -51,7 +51,7 @@
   </div>
   <div id="contWrap"></div>
   <div class="sh-ctrl" id="ctrl">
-    <div><span>Arrange by</span><div class="seg" id="segGroup"><button data-g="added">Date added</button><button data-g="written">Date written</button><button data-g="author">Author</button><button data-g="title">Title</button></div></div>
+    <div><span>Arrange by</span><div class="seg" id="segGroup"><button data-g="shelf">Shelf</button><button data-g="added">Date added</button><button data-g="written">Date written</button><button data-g="author">Author</button><button data-g="title">Title</button></div></div>
     <div><span>View</span><div class="seg" id="segView"><button data-v="shelves">Shelves</button><button data-v="list">List</button></div></div>
   </div>
   <div id="shelfBody"></div>
@@ -189,9 +189,22 @@
       <div><label class="fl">Date written<input class="f" id="dWritten" placeholder="e.g. July 2023 or 2024-03-01"></label><div class="dq" data-for="dWritten"></div></div>
       <label class="fl">Source link<input class="f" id="dSource" placeholder="https://"></label>
       <div class="fl" id="dCoverRow">Cover<div class="cv-sws" id="dCover" role="group" aria-label="Cover colour"></div></div>
+      <label class="fl">Shelf<select class="f" id="dShelf"></select></label>
     </div>
     <div class="set-row d-done" id="dDone"><span id="dState"></span><button class="btn ghost" id="dFinish"></button></div>
     <div class="dlg-acts"><button class="btn danger sp" id="dRemove">Remove from shelf</button><button class="btn ghost" data-cancel>Cancel</button><button class="btn" id="dSave">Save</button></div>
+  </div>
+</div>
+
+<!-- a shelf (Arrange by Shelf): a new one, or rename, move or delete one -->
+<div class="modal hidden" id="shelfM" role="dialog" aria-modal="true" aria-labelledby="shH">
+  <div class="dlg sm">
+    <h2 id="shH">Shelf</h2>
+    <p class="sub" id="shSub">Deleting a shelf moves its books to Unsorted.</p>
+    <label class="fl">Name<input class="f" id="shName" maxlength="40" autocomplete="off" enterkeyhint="done"></label>
+    <p class="err hidden" id="shErr"></p>
+    <div class="set-row sh-move" id="shMove"><button class="btn ghost" id="shUp">Move up</button><button class="btn ghost" id="shDown">Move down</button></div>
+    <div class="dlg-acts"><button class="btn danger sp" id="shDel">Delete shelf</button><button class="btn ghost" data-cancel>Cancel</button><button class="btn" id="shSave">Save</button></div>
   </div>
 </div>
 

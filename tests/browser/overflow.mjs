@@ -1,7 +1,8 @@
 // The page never scrolls sideways on a phone: on every screen and in every state, at 375 px with a touch screen (and
 // at 320 px for the shelf and the reader), nothing in the page is wider than the screen, no drawer or dialog scrolls
 // sideways inside, and the fixed bar, toolbar, cards, toast, drawers and dialogs stay inside the screen (with the
-// Date written quick picks in Add and Book details, and the byline's pencil, at both widths). The books:
+// Date written quick picks in Add and Book details, the byline's pencil, every arrangement including by Shelf, the shelf
+// dialog and a shelf name without spaces, at both widths). The books:
 // the rich paste; a stress paste (a 300-character unbroken link in a paragraph, a list item, a quote, a caption, a
 // footnote and a note; long words in headings; a wide table; a long code line; a wide picture; a pull quote); a
 // Kindle notebook (its contents list chapters); a book whose title and author have no spaces.
@@ -53,6 +54,7 @@ const STRESS=`<h1>Overflow Stress Test</h1><p>By Wren Margin</p><p>May 1, 2024</
 const LONGTITLE='Harbour_Committee_Minutes_2024_final_version_two_with_every_appendix_attached';
 const LONGAUTHOR='harbour.committee.secretary.office@example.org';
 const LONGBOOK=`<h1>${LONGTITLE}</h1><p>By ${LONGAUTHOR}</p><p>${filler(12)}</p><p>${filler(12)}</p>`;
+const SHELFNAME='Harbour_Committee_Minutes_and_Appendices';
 const MEANING=Array.from({length:30},(_,i)=>`${i+1}. A meaning on a line of its own, long enough to need scrolling.`).join('\n');
 
 /* ---------- helpers ---------- */
@@ -115,9 +117,17 @@ async function shelf(){
   await home();
   for(const v of ['shelves','list']){
     await clk(`#segView [data-v="${v}"]`);
-    for(const g of ['added','written','author','title']){await clk(`#segGroup [data-g="${g}"]`);await fits(`shelf, ${v==='list'?'List':'Shelves'} by ${g}`);}
+    for(const g of ['shelf','added','written','author','title']){await clk(`#segGroup [data-g="${g}"]`);await fits(`shelf, ${v==='list'?'List':'Shelves'} by ${g}`);}
   }
-  await clk('#segView [data-v="shelves"]');await clk('#segGroup [data-g="added"]');
+  // Arrange by Shelf: the shelf dialog, and a shelf whose name has no spaces (40 characters, the most a name takes)
+  await clk('#segView [data-v="shelves"]');await clk('#segGroup [data-g="shelf"]');
+  await clk('#shelfBody [data-shelf-new]');await shown('#shelfM');await fits('the New shelf dialog');
+  await page.$eval('#shName',(e,v)=>{e.value=v;},SHELFNAME);await clk('#shSave');await hidden('#shelfM');
+  await fits('shelf, a shelf named without spaces');
+  const sid=await page.$$eval('#shelfBody .sl-name',(bs,n)=>bs.find(b=>b.textContent===n).dataset.shelfEdit,SHELFNAME);
+  await clk(`#shelfBody [data-shelf-edit="${sid}"]`);await shown('#shelfM');await fits('the shelf dialog (rename, move or delete)');
+  await clk('#shDel');await clk('#shDel');await hidden('#shelfM');
+  await clk('#segGroup [data-g="added"]');
 }
 async function reader(){
   for(const b of ['The Quiet Engine','Overflow Stress Test','The Lighthouse Ledger',LONGTITLE]){
