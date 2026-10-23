@@ -19,9 +19,16 @@
   --paper:#1E1A16; --sheet:#29221C; --ink:#EFE4CC; --muted:#B5A68C; --sea:#9CC8A8; --buoy:#E2826F; --rule:#3D332A; --wave:#6E5B3C; --plank:#4A3020;
   --sun:rgba(255,212,59,.38); --mint:rgba(70,214,160,.33); --coral:rgba(255,120,150,.33); --sky:rgba(110,170,255,.35); --amber:rgba(255,146,43,.36); color-scheme:dark;}
 *,*::before,*::after{box-sizing:inherit}
+/* a <details> passes its contents through a shadow slot, which drops the inherited box-sizing: restart it there */
+details>*{box-sizing:border-box}
 html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 90px)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);-webkit-font-smoothing:antialiased}
+/* The page never scrolls sideways (a phone pans a page wider than its screen). Text from books and users breaks
+   anywhere in a long link or word, so flex items and grid tracks shrink to fit too. clip is the backstop, not
+   hidden, which would make body a scroll container and break position:sticky */
+html,body{overflow-x:clip}
+.hp,.pull,figure.fig figcaption,.byline,.toci .tt,.tocsub,.hcard .q,.hcard .nt,.hcard .sec,.fhit,.shelf-label,.dlg .sub,.det{overflow-wrap:anywhere}
 button{font:inherit;color:inherit;cursor:pointer}
 a{color:var(--sea)}
 :focus-visible{outline:2.5px solid var(--sea);outline-offset:2px;border-radius:6px}
@@ -171,6 +178,10 @@ body.dragging,body.dragging *{cursor:grabbing!important;-webkit-user-select:none
 @media (max-width:700px){.tbl .c-added,.tbl .c-words,.tbl .c-hl{display:none}.tbl td,.tbl th button{padding-left:.5rem;padding-right:.5rem}.tbl .tt{font-size:1rem;gap:.55rem}.pbar{width:48px}
   /* a phone shows the Shelf column in Written's place, only while sorted by shelf */
   .tbl:not(.by-shelf) .c-shelf,.tbl.by-shelf .c-written{display:none}}
+/* an unbroken title wraps instead of widening the table, though not inside a word that fits the 7rem; where the
+   four columns still don't fit (320 px, long words), the table scrolls in its own box, not the page */
+.tbl .tt{overflow-wrap:anywhere;min-width:7rem}
+#shelfBody:has(>.tbl){overflow-x:auto}
 
 /* ================= MODALS ================= */
 .modal{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:1rem;background:rgba(30,20,12,.45)}
@@ -223,7 +234,9 @@ body.dragging,body.dragging *{cursor:grabbing!important;-webkit-user-select:none
 .bar-title small{font-weight:450;color:var(--muted);margin-left:.5rem}
 .ib .lbl{display:none}
 @media (min-width:860px){.ib .lbl{display:inline}}
-@media (max-width:520px){.bar-title{display:none}.bar-in{justify-content:space-between}}
+/* phones: space-between spaces the buttons, so no gap; slimmer buttons under 360 px, so the bar fits 320 px */
+@media (max-width:520px){.bar-title{display:none}.bar-in{justify-content:space-between;gap:0}}
+@media (max-width:360px){.bar-in .ib{padding-left:.3rem;padding-right:.3rem}}
 #hbar{height:4px;position:relative}
 #hbar .fill{position:absolute;inset:0 auto 0 0;width:0;background:var(--sea)}
 /* the bookmark ribbon hangs from the bar at the reading position */
@@ -241,6 +254,20 @@ body.dragging,body.dragging *{cursor:grabbing!important;-webkit-user-select:none
 #rail .wp .tip{position:absolute;left:28px;top:50%;transform:translateY(-50%);white-space:nowrap;background:var(--ink);color:var(--sheet);font:600 .8rem var(--ui,system-ui);padding:.3rem .6rem;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .15s;max-width:320px;overflow:hidden;text-overflow:ellipsis}
 #rail .wp:hover .tip,#rail .wp:focus-visible .tip{opacity:1}
 #rail .bookmark{left:50%;width:18px;height:34px;margin:-5px 0 0 -9px}
+
+/* fast scroll, where the rail isn't shown: the track runs from under the bar to the bottom edge, on the right. The thumb
+   is a 48 px tall touch target whose visible pill sits in the reader's margin; under the drawers, the toolbar and the
+   cards (app.js shows it while scrolling) */
+#scrub{position:fixed;z-index:35;right:env(safe-area-inset-right,0px);top:calc(env(safe-area-inset-top,0px) + 72px);bottom:calc(env(safe-area-inset-bottom,0px) + 12px);width:26px;pointer-events:none;opacity:0;transition:opacity .3s;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#scrub.on{opacity:1;transition-duration:.15s}
+#scrub.on .sc-thumb{pointer-events:auto}
+@media (min-width:1180px){#scrub{display:none}}
+#scrub .sc-thumb{position:absolute;right:0;width:26px;height:48px;touch-action:none;cursor:grab}
+#scrub.drag .sc-thumb{cursor:grabbing}
+#scrub .sc-thumb i{position:absolute;right:5px;top:4px;bottom:4px;width:6px;border-radius:3px;background:var(--sea);box-shadow:0 0 0 1.5px var(--sheet),0 2px 6px rgba(40,24,12,.25);transition:width .15s}
+#scrub.drag .sc-thumb i{width:8px}
+#scrub .sc-tip{position:absolute;right:30px;top:50%;transform:translateY(-50%);white-space:nowrap;max-width:calc(100vw - 72px);overflow:hidden;text-overflow:ellipsis;background:var(--ink);color:var(--sheet);font:600 .85rem var(--ui,system-ui);padding:.4rem .7rem;border-radius:8px;box-shadow:0 6px 18px rgba(40,24,12,.25);opacity:0;pointer-events:none;transition:opacity .15s}
+#scrub.drag .sc-tip{opacity:1}
 
 /* ================= ARTICLE ================= */
 #reader{padding:calc(env(safe-area-inset-top,0px) + 86px) clamp(1rem,4vw,2rem) 6rem}
@@ -349,8 +376,10 @@ body.focus .fn-card .hp{opacity:1}
 #tool .sep{width:1px;height:22px;background:color-mix(in srgb,var(--sheet) 30%,transparent);margin:0 .15rem}
 #tool .tb{border:0;background:transparent;color:var(--sheet);font-weight:650;font-size:.88rem;padding:.35rem .6rem;border-radius:999px}
 #tool .tb:hover{background:color-mix(in srgb,var(--sheet) 15%,transparent)}
-/* five swatches and three buttons: a little tighter on phones under 380 px, so a 360 px screen fits them */
+/* five swatches and three buttons: a little tighter on phones under 380 px, so a 360 px screen fits them, and
+   tighter again under 340 px for a 320 px one */
 @media (max-width:380px){#tool{gap:.2rem;padding:.35rem .4rem}#tool .sw{width:26px;height:26px}#tool .tb{padding:.35rem .45rem}}
+@media (max-width:340px){#tool{gap:.1rem;padding:.35rem .3rem}#tool .tb{padding:.35rem .3rem}}
 #tool.docked{left:50%!important;transform:translateX(-50%)!important;top:auto!important;bottom:calc(env(safe-area-inset-bottom,0px) + 18px)}
 /* the note box and the word card stay inside the visible area (max-height set in app.js): as a flex column, a long
    or dragged-taller field gives way and scrolls, and the buttons stay in view */
@@ -359,6 +388,9 @@ body.focus .fn-card .hp{opacity:1}
 #noteBox textarea{flex:0 1 auto;min-height:90px;font:1rem/1.45 var(--body);resize:vertical}
 #noteBox .row{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.6rem}
 #noteBox .btn{padding:.5rem 1rem;font-size:.9rem}
+/* on a phone: a sheet across the screen, docked above the keyboard; its field grows with the note (app.js) */
+#noteBox.sheet{width:min(640px,calc(100vw - 16px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)))}
+#noteBox.sheet textarea{resize:none}
 
 /* drawers */
 .drawer{position:fixed;z-index:50;top:0;bottom:0;width:min(420px,100vw);background:var(--sheet);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 0 40px rgba(40,24,12,.14);visibility:hidden;transition:transform .3s cubic-bezier(.2,.8,.2,1),visibility 0s .3s}
@@ -472,7 +504,8 @@ body:has(#noteBox:not(.hidden),#wordBox:not(.hidden)) #toast{top:calc(env(safe-a
 .nb-hero .motto{font-size:1.15rem;margin-top:.5rem}
 .nb-hero .motto+.sh-stats{margin-top:.25rem}
 .nb-ctrl,#nbList{max-width:46rem}
-.nb-ctrl{display:grid;gap:.8rem;margin-bottom:1.4rem}
+/* minmax(0,…): the book filter's longest title mustn't widen the column past the screen */
+.nb-ctrl{display:grid;grid-template-columns:minmax(0,1fr);gap:.8rem;margin-bottom:1.4rem}
 .nb-ctrl .search{order:0}
 .nb-chips{display:flex;gap:.4rem;flex-wrap:wrap}
 #notebook .chip{background:var(--sheet);box-shadow:inset 0 0 0 1px var(--rule);font:500 .84rem var(--ui)}
@@ -560,6 +593,8 @@ body:has(#noteBox:not(.hidden),#wordBox:not(.hidden)) #toast{top:calc(env(safe-a
 #wdBook{flex:0 1 20rem;min-width:0;width:auto;appearance:none;-webkit-appearance:none;border:2px solid var(--rule);border-radius:999px;color:var(--ink);font:500 .92rem var(--ui);padding:.5rem 2.2rem .5rem 1rem;text-overflow:ellipsis;
   background:var(--sheet) no-repeat;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 1.2rem) 52%,calc(100% - .85rem) 52%;background-size:.35rem .35rem}
 #wdStudy{margin-left:auto;flex:none}
+/* iOS zooms into a focused field under 16 px and leaves the page zoomed, so it pans sideways */
+@media (pointer:coarse){#nbBook,#wdBook{font-size:1rem}}
 .wcard{background:var(--sheet);border:1.5px solid var(--rule);border-radius:18px;padding:.8rem 1.1rem .95rem;margin-bottom:.8rem}
 .w-del{margin-left:auto;align-self:center;border:0;background:transparent;font:600 .78rem var(--ui);color:var(--muted);padding:.25rem .5rem;border-radius:8px}
 .w-del:hover{background:var(--paper);color:var(--ink)}

@@ -89,10 +89,11 @@ function show(view){
   $('#shelf').classList.toggle('hidden',view!=='shelf');
   $('#notebook').classList.toggle('hidden',view!=='notebook');
   $('#study').classList.toggle('hidden',view!=='study');
-  ['#bar','#rail','#reader'].forEach(s=>$(s).classList.toggle('hidden',view!=='reader'));
+  ['#bar','#rail','#scrub','#reader'].forEach(s=>$(s).classList.toggle('hidden',view!=='reader'));
   hideTool();closeDrawers();
 }
 async function goShelf(){
+  saveCards(); // an open note box or word card is saved, as by a tap outside
   if(DOC){ST.pos=scrollY;await saveState(true);}
   resetFind();
   DOC=null;ST=null;HL=[];show('shelf');ls.set('last',null);renderShelf();window.scrollTo(0,0);
@@ -766,6 +767,7 @@ function layoutRail(){
   legPos=[...document.querySelectorAll('.leg')].map(l=>({i:+l.dataset.sec,y:l.getBoundingClientRect().top+scrollY-110}));
   $('#wps').innerHTML=legPos.map(l=>{const p=Math.min(1,Math.max(0,l.y/total));return `<button class="wp" style="top:${p*100}%" data-go="${l.i}" aria-label="Section ${l.i+1}"><span class="tip">${l.i+1}. ${esc(DOC.sections[l.i].title)}</span></button>`;}).join('');
 }
+const secAt=y=>{let i=0;legPos.forEach(l=>{if(y>=l.y-5)i=l.i;});return i;}; // the section at scroll position y
 function onScroll(){
   if(!DOC) return;
   const H=document.documentElement.scrollHeight;if(H!==lastH){lastH=H;layoutRail();}
@@ -773,7 +775,7 @@ function onScroll(){
   $('#routeFg').setAttribute('stroke-dasharray',`${(p*1000).toFixed(1)} 1000`);
   $('#railMark').style.top=(p*100)+'%';
   $('#hbar .fill').style.width=(p*100)+'%';$('#hbar .bookmark').style.left=`clamp(8px,${p*100}%,calc(100% - 8px))`;
-  curSec=0;legPos.forEach(l=>{if(scrollY>=l.y-5)curSec=l.i;});
+  curSec=secAt(scrollY);
   document.querySelectorAll('#wps .wp').forEach((w,i)=>w.classList.toggle('done',ST.done.includes(i)||!!ST.finished||(legPos[i]&&scrollY>=legPos[i].y+5&&i<curSec)));
   if(p>(ST.maxP||0)+0.004){ST.maxP=p;saveState();}
   if(document.body.classList.contains('focus')){
@@ -783,8 +785,35 @@ function onScroll(){
   }
   clearTimeout(onScroll.t);onScroll.t=setTimeout(()=>{if(DOC){ST.pos=scrollY;saveState();}},400);
 }
-addEventListener('scroll',()=>{if(!ticking){ticking=true;requestAnimationFrame(()=>{ticking=false;onScroll();});}},{passive:true});
+addEventListener('scroll',()=>{if(!ticking){ticking=true;requestAnimationFrame(()=>{ticking=false;onScroll();showScrub();});}},{passive:true});
 addEventListener('resize',()=>{lastH=0;onScroll();});
+
+/* fast scroll: where the rail isn't shown (under 1180 px, styles.css), a handle at the right edge shows while you scroll
+   a text over three screens long, and fades 1.5 s after. Dragging it moves through the whole text, with the section
+   and the percentage beside it. Its place always follows scrollY, so a jump saves the reading position like any scroll. */
+const scrub=$('#scrub'),thumb=$('#scrub .sc-thumb');let scDrag=null,scT;
+function showScrub(){
+  const room=document.documentElement.scrollHeight-innerHeight;
+  if(!DOC||room<innerHeight*2){scrub.classList.remove('on');return;}
+  thumb.style.top=`calc(${Math.min(1,Math.max(0,scrollY/room))} * (100% - ${thumb.offsetHeight}px))`;
+  scrub.classList.add('on');clearTimeout(scT);if(!scDrag) scT=setTimeout(()=>scrub.classList.remove('on'),1500);
+}
+function scrubTip(){
+  const room=Math.max(1,document.documentElement.scrollHeight-innerHeight),i=secAt(scrollY),s=DOC.sections[i];
+  $('#scrub .sc-tip').textContent=(DOC.sections.length>1&&s?`${i+1}. ${s.title} · `:'')+Math.round(Math.min(1,scrollY/room)*100)+'%';
+}
+thumb.addEventListener('pointerdown',e=>{
+  if(!DOC||e.button) return;
+  scDrag={id:e.pointerId,dy:e.clientY-thumb.getBoundingClientRect().top};
+  thumb.setPointerCapture(e.pointerId);scrub.classList.add('drag');clearTimeout(scT);scrubTip();e.preventDefault();
+});
+thumb.addEventListener('pointermove',e=>{
+  if(!scDrag||e.pointerId!==scDrag.id) return;
+  const tr=scrub.getBoundingClientRect(),p=Math.min(1,Math.max(0,(e.clientY-scDrag.dy-tr.top)/Math.max(1,tr.height-thumb.offsetHeight)));
+  window.scrollTo(0,p*(document.documentElement.scrollHeight-innerHeight));scrubTip();
+});
+const endScrub=()=>{if(!scDrag) return;scDrag=null;scrub.classList.remove('drag');showScrub();};
+thumb.addEventListener('pointerup',endScrub);thumb.addEventListener('pointercancel',endScrub);
 
 /* bar actions */
 $('#bFocus').onclick=e=>{const on=document.body.classList.toggle('focus');e.currentTarget.setAttribute('aria-pressed',on);onScroll();};
@@ -846,7 +875,7 @@ async function unjoin(id,h,was){
   const open=!!(DOC&&DOC.id===id),st=open?ST:await DB.get('state:'+id),hl=open?HL:st&&st.hl,i=hl?hl.findIndex(x=>x.id===h.id):-1;
   if(i<0) return;
   hl.splice(i,1,...was);
-  if(open){commit();rerender(h.segs.map(s=>s.pid));if(noteTarget===h) $('#noteBox').classList.add('hidden');}
+  if(open){commit();rerender(h.segs.map(s=>s.pid));if(noteTarget===h) closeNote();}
   else{DB.put('state:'+id,st);const m=META.find(x=>x.id===id);if(m){m.hl=hl.length;DB.put('meta:'+id,m);}}
   toast('Undone');
 }
@@ -889,7 +918,7 @@ document.addEventListener('selectionchange',()=>{clearTimeout(selT);selT=setTime
 document.addEventListener('mousedown',e=>{if(!tool.contains(e.target)&&!e.target.closest('mark.hl')&&!$('#noteBox').contains(e.target)){editing=null;if(getSelection().isCollapsed)hideTool();}});
 addEventListener('scroll',()=>{if(tool.classList.contains('hidden')||coarse)return;if(editing){hideTool();return;}const sel=getSelection();if(pendingSegs&&sel.rangeCount&&!sel.isCollapsed){const s=pendingSegs;showTool(sel.getRangeAt(0).getBoundingClientRect(),null);pendingSegs=s;}},{passive:true});
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){hideTool();closeDrawers();$('#noteBox').classList.add('hidden');$('#lightbox').classList.add('hidden');document.querySelectorAll('.modal:not(.hidden)').forEach(dismiss);return;}
+  if(e.key==='Escape'){hideTool();closeDrawers();saveNote();$('#lightbox').classList.add('hidden');document.querySelectorAll('.modal:not(.hidden)').forEach(dismiss);return;}
   if(e.target.matches('textarea,input,[contenteditable]'))return;
   if(/^[1-9]$/.test(e.key)&&COLORS[+e.key-1]&&pendingSegs&&!tool.classList.contains('hidden')){addHighlight(pendingSegs,COLORS[+e.key-1][0]);getSelection().removeAllRanges();hideTool();}
 });
@@ -912,22 +941,37 @@ function placeCard(box,at){
   Object.assign(s,{left:x+'px',top:y+'px',maxHeight:vt+vh-y-12+'px'});
   return {x,y};
 }
-let noteTarget=null,noteAt=null;
+// On a phone (a coarse pointer or a narrow screen) the note box is a sheet across the screen, docked above the
+// keyboard, whose field grows with the note up to the visible area (the box's max-height) and then scrolls inside
+// itself: a fixed-height field showed three lines of a long note, and an iPhone has no grip to make it taller.
+let noteTarget=null,noteAt=null; // the highlight whose note is open
 function openNote(h,rect){
-  noteTarget=h;const nb=$('#noteBox');nb.classList.remove('hidden');$('#noteTa').value=h.note||'';
-  noteAt=placeCard(nb,coarse||!rect?null:{x:rect.left,y:Math.min(innerHeight-220,Math.max(70,rect.top))});
+  saveCards(); // another note or the word card open: saved first
+  noteTarget=h;const nb=$('#noteBox'),sheet=coarse||innerWidth<600;
+  nb.classList.toggle('sheet',sheet);nb.classList.remove('hidden');$('#noteTa').value=h.note||'';growNote();
+  noteAt=placeCard(nb,sheet||!rect?null:{x:rect.left,y:Math.min(innerHeight-220,Math.max(70,rect.top))});
   setTimeout(()=>$('#noteTa').focus(),30);
 }
-$('#noteCancel').onclick=()=>$('#noteBox').classList.add('hidden');
-$('#noteSave').onclick=()=>{
-  const h=noteTarget;
-  if(h){
-    const old=h.note||'';h.note=$('#noteTa').value.trim();
-    const tr=old&&!h.note&&DOC?toTrash('note',{bookId:DOC.id,title:DOC.title,hlId:h.id,text:old,quote:quoteOf(h),color:h.color}):null; // a cleared note goes to the Trash
-    commit();rerender(h.segs.map(s=>s.pid));if(tr)movedToTrash(tr);else toast(h.note?'Note saved':'Note cleared');
-  }
-  $('#noteBox').classList.add('hidden');
-};
+// Also run when the visible area changes; a caret at the end (where it is on opening) stays in view as the field shrinks.
+function growNote(){
+  if(!$('#noteBox').classList.contains('sheet')) return;
+  const ta=$('#noteTa'),st=ta.scrollTop;
+  ta.style.height='auto';ta.style.height=ta.scrollHeight+ta.offsetHeight-ta.clientHeight+'px';
+  ta.scrollTop=ta.selectionEnd===ta.value.length?ta.scrollHeight:st;
+}
+$('#noteTa').addEventListener('input',growNote);
+function closeNote(){$('#noteBox').classList.add('hidden');noteTarget=null;}
+$('#noteCancel').onclick=closeNote;
+// Save, a tap outside and Escape save the note; a cleared one goes to the Trash. Nothing changed: it just closes.
+function saveNote(){
+  const h=noteTarget;if(!h) return;
+  const old=h.note||'',v=$('#noteTa').value.trim();closeNote();
+  if(v===old) return;
+  h.note=v;
+  const tr=old&&!v&&DOC?toTrash('note',{bookId:DOC.id,title:DOC.title,hlId:h.id,text:old,quote:quoteOf(h),color:h.color}):null;
+  commit();rerender(h.segs.map(s=>s.pid));if(tr)movedToTrash(tr);else toast(v?'Note saved':'Note cleared');
+}
+$('#noteSave').onclick=saveNote;
 
 /* highlights drawer & export */
 let filter='all';
@@ -1540,6 +1584,7 @@ let CARD=null; // {id, at: where placeCard put it} while open
 function openWordCard(id,at,rect){
   const w=WORDS&&WORDS.get(id);if(!w) return;
   const exs=w.examples||[],ex=(at&&exs.find(x=>x.bookId===at.bookId&&x.pid===at.pid&&x.ws===at.ws))||exs[exs.length-1];
+  saveCards(); // the note box or another card open: saved first
   CARD={id};
   const box=$('#wordBox');
   $('#wbTerm').textContent=w.term;$('#wbDef').value=w.def||'';$('#wbEx').innerHTML=ex?exampleHTML(ex):'';$('#wbRead').classList.toggle('hidden',!ex);
@@ -1570,24 +1615,40 @@ wbHead.addEventListener('pointerup',endWbDrag);wbHead.addEventListener('pointerc
 // Both cards follow the visible area: the keyboard opening or closing, iOS panning to the field, a resize.
 function keepCardsInView(){
   const nb=$('#noteBox');
-  if(!nb.classList.contains('hidden')) noteAt=placeCard(nb,noteAt);
+  if(!nb.classList.contains('hidden')){noteAt=placeCard(nb,noteAt);growNote();}
   if(CARD) CARD.at=placeCard($('#wordBox'),CARD.at);
 }
 window.visualViewport?.addEventListener('resize',keepCardsInView);window.visualViewport?.addEventListener('scroll',keepCardsInView);
 addEventListener('resize',keepCardsInView);
 $('#wbClose').onclick=closeWordCard;
-// Save keeps what was typed (Close drops it); pictures are kept as soon as they're added or removed
-$('#wbSave').onclick=()=>{
+// Save, a tap outside and Escape keep what was typed (Cancel drops it); pictures are kept as soon as they're added or removed
+function saveWordCard(){
   const w=CARD&&WORDS&&WORDS.get(CARD.id);
   if(w){
     const d=setDef(w,$('#wbDef').value),x=[...document.querySelectorAll('#wordBox .wx-f')].filter(f=>setExtra(w,f.dataset.k,f.innerText)).length;
     if(d||x) toast(x?'Saved':'Meaning saved');
   }
   closeWordCard();
-};
+}
+$('#wbSave').onclick=saveWordCard;
 $('#wordBox').addEventListener('click',e=>{if(CARD) extrasClick(e,$('#wordBox'),CARD.id);});
-document.addEventListener('keydown',e=>{if(e.key==='Escape') closeWordCard();});
-$('#bHome').addEventListener('click',closeWordCard);
+document.addEventListener('keydown',e=>{if(e.key==='Escape') saveWordCard();});
+// A tap outside the note box or the word card saves it, as Save does, once the tap has done what it does there (its
+// click, or 0.4 s when a tap makes none): saving redraws the drawer and the passage, which would swallow a tap on
+// another note's Edit note. Only a tap: a press that moves (scrolling, a drag) or that selects text doesn't count, nor
+// one on the toast (its Undo) or the picture viewer.
+let outTap=null,tapped=0; // tapped: the timer of a tap outside, until it's saved
+function saveCards(){clearTimeout(tapped);tapped=0;saveNote();saveWordCard();}
+const far=(e,o)=>Math.hypot(e.clientX-o.x,e.clientY-o.y)>8;
+const inCards=n=>{const el=n&&(n.nodeType===1?n:n.parentElement);return !!el&&!!el.closest('#noteBox,#wordBox');};
+document.addEventListener('pointerdown',e=>{outTap=(noteTarget||CARD)&&!e.target.closest('#noteBox,#wordBox,#toast,#lightbox')?{id:e.pointerId,x:e.clientX,y:e.clientY}:null;},true);
+document.addEventListener('pointermove',e=>{if(outTap&&e.pointerId===outTap.id&&far(e,outTap)) outTap=null;},true);
+document.addEventListener('pointercancel',()=>{outTap=null;},true);
+document.addEventListener('pointerup',e=>{
+  const o=outTap,s=getSelection();outTap=null;
+  if(o&&e.pointerId===o.id&&!far(e,o)&&(s.isCollapsed||inCards(s.anchorNode))){clearTimeout(tapped);tapped=setTimeout(saveCards,400);}
+},true);
+addEventListener('click',()=>{if(tapped) saveCards();}); // on window, after the click's own handlers (opening a card saves too)
 // Tapping a saved word in the text opens its card. Capture: a word inside a highlight opens its card, not the toolbar.
 $('#col').addEventListener('click',e=>{
   const u=e.target.closest('.wd');if(!u||!DOC||!getSelection().isCollapsed||e.target.closest('a')) return;
