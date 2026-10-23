@@ -374,6 +374,8 @@ body.focus .fn-card .hp{opacity:1}
 /* above the phone's docked toolbar (#tool.docked) and the home indicator; hidden, its Undo can't take focus */
 #toast{position:fixed;z-index:140;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);transform:translate(-50%,20px);width:max-content;max-width:calc(100vw - 2rem - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px));box-sizing:border-box;text-align:center;background:var(--ink);color:var(--sheet);font:650 .95rem var(--display);padding:.7rem 1.2rem;border-radius:999px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s,transform .25s,visibility 0s .25s}
 #toast.on{opacity:1;transform:translate(-50%,0);visibility:visible;transition-delay:0s}
+/* while the note box or word card is open (docked at the bottom on phones), toasts show at the top instead */
+body:has(#noteBox:not(.hidden),#wordBox:not(.hidden)) #toast{top:calc(env(safe-area-inset-top,0px) + 14px);bottom:auto}
 #toast.act{display:flex;align-items:center;padding-right:.6rem;box-shadow:0 10px 30px rgba(40,24,12,.28)}
 #toast.on.act{pointer-events:auto}
 /* a flex item, so the spaces around the dot collapse: the margin and the button's padding space it evenly */
