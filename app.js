@@ -62,9 +62,11 @@ let SETTINGS={}; // settings:app, e.g. {workerUrl}
 let META=[];           // shelf entries
 let DOC=null, ST=null; // open document + its reading state
 let HL=[];
-let prefs=Object.assign({size:1,theme:'auto',fmt:'md',group:'added',view:'shelves',sort:'added',dir:-1},ls.get('prefs',{}));
+let prefs=Object.assign({size:1,theme:'auto',fmt:'md',group:'shelf',view:'shelves',sort:'added',dir:-1},ls.get('prefs',{}));
 const SIZES=['1.08rem','1.22rem','1.38rem'];
 function savePrefs(){ls.set('prefs',prefs);}
+// Arrange by Shelf came after the others: everyone is switched to it once, then their choice is kept
+if(!prefs.byShelf){prefs.byShelf=1;prefs.group='shelf';if(prefs.view==='list'){prefs.sort='shelf';prefs.dir=1;}savePrefs();}
 function applyPrefs(){
   document.documentElement.style.setProperty('--fs',SIZES[prefs.size]);
   if(prefs.theme==='auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',prefs.theme);
@@ -76,7 +78,7 @@ function applyPrefs(){
 applyPrefs();
 function metaFor(doc,st){
   return {id:doc.id,title:doc.title,author:doc.author||'',written:doc.written||'',writtenSort:doc.writtenSort||'',source:doc.source||'',added:doc.added,
-    color:doc.color,words:doc.words,secs:doc.sections.length,opened:st.opened||0,progress:st.finished?1:Math.min(1,st.maxP||0),finished:!!st.finished,hl:(st.hl||[]).length};
+    color:doc.color,shelf:doc.shelf||'',words:doc.words,secs:doc.sections.length,opened:st.opened||0,progress:st.finished?1:Math.min(1,st.maxP||0),finished:!!st.finished,hl:(st.hl||[]).length};
 }
 async function saveMeta(){ if(!DOC) return; const m=metaFor(DOC,ST); META=META.filter(x=>x.id!==m.id).concat(m); await DB.put('meta:'+m.id,m); }
 let stT;function saveState(now){clearTimeout(stT);const f=async()=>{if(!DOC)return;ST.hl=HL;await DB.put('state:'+DOC.id,ST);await saveMeta();};if(now) return f(); stT=setTimeout(f,500);}
@@ -99,6 +101,13 @@ async function goShelf(){
 $('#bHome').onclick=goShelf;
 
 /* ================= shelf ================= */
+// Category shelves (Arrange by Shelf), one per book. The list ([{id, name}] in order) is settings:app's `shelves`; until
+// it's first changed, the starting six. A book's shelf id is on its doc and shelf entry; none, or a deleted shelf's: Unsorted ('').
+const SHELVES=['Travel','Adventure','History','Finance','Fantasy','Philosophy'].map(name=>({id:name.toLowerCase(),name}));
+const shelves=()=>Array.isArray(SETTINGS.shelves)?SETTINGS.shelves:SHELVES;
+const shelfOf=m=>m.shelf&&shelves().some(s=>s.id===m.shelf)?m.shelf:'';
+const shelfName=id=>(shelves().find(s=>s.id===id)||{name:'Unsorted'}).name;
+const shelfIdx=m=>{const i=shelves().findIndex(s=>s.id===shelfOf(m));return i<0?shelves().length:i;};
 // Arranged by title: shelved under the first letter, ignoring a leading "The", "A" or "An" and accents; the rest under "#".
 const sortTitle=m=>nbFold(m.title).replace(/^(the|an?)\s+/,'');
 function groupKey(m){
@@ -140,30 +149,149 @@ function renderShelf(){
   const list=filtered();
   if(!list.length){body.innerHTML=`<div class="empty">Nothing on the shelf matches “${esc($('#q').value)}”.</div>`;return;}
   if(prefs.view==='list'){
-    const cols=[['title','Title'],['author','Author'],['written','Written'],['words','Length'],['added','Added'],['progress','Progress'],['hl','Highlights']];
-    const val=(m,c)=>c==='written'?(m.writtenSort||''):c==='title'?sortTitle(m):c==='author'?(m.author||'￿').toLowerCase():c==='words'?(m.words||0):m[c];
-    const rows=[...list].sort((a,b)=>{const A=val(a,prefs.sort),B=val(b,prefs.sort);return (A<B?-1:A>B?1:0)*prefs.dir;});
-    body.innerHTML=`<table class="tbl"><thead><tr>${cols.map(([c,l])=>`<th class="c-${c}"><button data-sort="${c}" aria-sort="${prefs.sort===c?(prefs.dir>0?'ascending':'descending'):'none'}">${l}${prefs.sort===c?(prefs.dir>0?' ↑':' ↓'):''}</button></th>`).join('')}</tr></thead><tbody>${
-      rows.map(m=>`<tr data-open="${m.id}" tabindex="0"><td><span class="tt">${isKindleId(m.id)?'<i class="nb"></i>':`<i style="background:${cover(m.id)[0]}"></i>`}${esc(m.title)}</span></td><td class="mut">${esc(m.author||'—')}</td><td class="mut">${esc(m.written||'—')}</td><td class="mut c-words">${fmtWords(m.words)||'—'}</td><td class="mut c-added">${fmtDay(m.added)}</td><td>${m.finished?'Finished':`<span class="pbar"><i style="width:${Math.round(m.progress*100)}%"></i></span>${Math.round(m.progress*100)}%`}</td><td class="mut c-hl">${m.hl}</td></tr>`).join('')}</tbody></table>`;
+    const cols=[['title','Title'],['author','Author'],['shelf','Shelf'],['written','Written'],['words','Length'],['added','Added'],['progress','Progress'],['hl','Highlights']];
+    const val=(m,c)=>c==='written'?(m.writtenSort||''):c==='title'?sortTitle(m):c==='author'?(m.author||'￿').toLowerCase():c==='words'?(m.words||0):c==='shelf'?shelfIdx(m):m[c];
+    // by shelf: in shelf order, Unsorted last, newest added first within a shelf
+    const rows=[...list].sort((a,b)=>{const A=val(a,prefs.sort),B=val(b,prefs.sort);return (A<B?-1:A>B?1:0)*prefs.dir||(prefs.sort==='shelf'?b.added-a.added:0);});
+    body.innerHTML=`<table class="tbl${prefs.sort==='shelf'?' by-shelf':''}"><thead><tr>${cols.map(([c,l])=>`<th class="c-${c}"><button data-sort="${c}" aria-sort="${prefs.sort===c?(prefs.dir>0?'ascending':'descending'):'none'}">${l}${prefs.sort===c?(prefs.dir>0?' ↑':' ↓'):''}</button></th>`).join('')}</tr></thead><tbody>${
+      rows.map(m=>`<tr data-open="${m.id}" tabindex="0"><td><span class="tt">${isKindleId(m.id)?'<i class="nb"></i>':`<i style="background:${cover(m.id)[0]}"></i>`}${esc(m.title)}</span></td><td class="mut">${esc(m.author||'—')}</td><td class="mut c-shelf">${esc(shelfName(shelfOf(m)))}</td><td class="mut c-written">${esc(m.written||'—')}</td><td class="mut c-words">${fmtWords(m.words)||'—'}</td><td class="mut c-added">${fmtDay(m.added)}</td><td>${m.finished?'Finished':`<span class="pbar"><i style="width:${Math.round(m.progress*100)}%"></i></span>${Math.round(m.progress*100)}%`}</td><td class="mut c-hl">${m.hl}</td></tr>`).join('')}</tbody></table>`;
     return;
   }
+  if(prefs.group==='shelf'){body.innerHTML=shelfRows(list);return;}
   const groups=new Map();
   list.forEach(m=>{const g=groupKey(m);if(!groups.has(g.label))groups.set(g.label,{k:g.k,items:[]});groups.get(g.label).items.push(m);});
   const ord=[...groups.entries()].sort((a,b)=>{const A=a[1].k,B=b[1].k;if(prefs.group==='author'||prefs.group==='title') return A<B?-1:A>B?1:0; return B-A;});
   const inner=m=>prefs.group==='added'?-m.added:prefs.group==='written'?-(+(m.writtenSort||'0').replace(/-/g,'')):-(+(m.writtenSort||'0').replace(/-/g,''));
   body.innerHTML=ord.map(([label,g])=>`<section class="shelf-row"><h3 class="shelf-label">${esc(label)}<small>${g.items.length}</small></h3><div class="books">${g.items.sort(prefs.group==='title'?(a,b)=>sortTitle(a).localeCompare(sortTitle(b)):(a,b)=>inner(a)-inner(b)).map(bookHTML).join('')}</div><div class="plank"></div></section>`).join('');
 }
+// Arranged by shelf: every shelf in order, then Unsorted (only when it has books). While searching, only shelves with a match.
+function shelfRows(list){
+  const q=!!$('#q').value.trim(),all=[...shelves(),{id:'',name:'Unsorted'}],by=new Map(all.map(s=>[s.id,[]]));
+  list.forEach(m=>by.get(shelfOf(m)).push(m));
+  return all.map(s=>{const l=by.get(s.id).sort((a,b)=>b.added-a.added);if(!l.length&&(q||!s.id)) return '';
+    return `<section class="shelf-row${l.length?'':' bare'}" data-shelf="${esc(s.id)}"><h3 class="shelf-label">${s.id?`<button class="sl-name" data-shelf-edit="${esc(s.id)}" aria-label="${esc(s.name)}: rename, move or delete">${esc(s.name)}</button>`:'Unsorted'}${l.length?`<small>${l.length}</small>`:''}</h3>`+
+      `<div class="books">${l.length?l.map(bookHTML).join(''):'<p class="sl-hint">Drag books here</p>'}</div><div class="plank"></div></section>`;}).join('')+
+    (q?'':'<button class="btn ghost sl-new" data-shelf-new>+ New shelf</button>');
+}
 $('#shelf').addEventListener('click',e=>{
   const o=e.target.closest('[data-open]'); if(o){openBook(o.dataset.open);return;}
   const ed=e.target.closest('[data-edit]'); if(ed){openDetails(ed.dataset.edit);return;}
   if(e.target.closest('[data-add]')){openImport();return;}
-  const s=e.target.closest('[data-sort]'); if(s){const c=s.dataset.sort;if(prefs.sort===c) prefs.dir*=-1; else {prefs.sort=c;prefs.dir=(c==='title'||c==='author')?1:-1;}savePrefs();renderShelf();}
+  const se=e.target.closest('[data-shelf-edit]'); if(se){openShelf(se.dataset.shelfEdit);return;}
+  if(e.target.closest('[data-shelf-new]')){openShelf(null);return;}
+  const s=e.target.closest('[data-sort]'); if(s){const c=s.dataset.sort;if(prefs.sort===c) prefs.dir*=-1; else {prefs.sort=c;prefs.dir=['title','author','shelf'].includes(c)?1:-1;}savePrefs();renderShelf();}
 });
 $('#shelf').addEventListener('keydown',e=>{if(e.key==='Enter'){const r=e.target.closest('tr[data-open]');if(r) openBook(r.dataset.open);}});
-$('#segGroup').onclick=e=>{const b=e.target.closest('button');if(!b)return;prefs.group=b.dataset.g;if(prefs.view==='list'){prefs.sort=prefs.group;prefs.dir=prefs.group==='author'||prefs.group==='title'?1:-1;}savePrefs();applyPrefs();renderShelf();};
+$('#segGroup').onclick=e=>{const b=e.target.closest('button');if(!b)return;prefs.group=b.dataset.g;if(prefs.view==='list'){prefs.sort=prefs.group;prefs.dir=['author','title','shelf'].includes(prefs.group)?1:-1;}savePrefs();applyPrefs();renderShelf();};
 $('#segView').onclick=e=>{const b=e.target.closest('button');if(!b)return;prefs.view=b.dataset.v;savePrefs();applyPrefs();renderShelf();};
 $('#q').oninput=renderShelf;
 $('#addBtn').onclick=()=>openImport();
+
+/* ================= shelves: moving books, managing the list ================= */
+// A book onto another shelf: its shelf entry at once, then its doc, in a queue so quick moves land in order.
+let shelfQ=Promise.resolve();
+function moveBook(id,shelf){
+  const m=META.find(x=>x.id===id);if(!m||shelfOf(m)===shelf) return;
+  const nm={...m,shelf};META=META.map(x=>x===m?nm:x);DB.put('meta:'+id,nm);renderShelf();toast(`Moved to ${shelfName(shelf)}`);
+  shelfQ=shelfQ.then(async()=>{const d=DOC&&DOC.id===id?DOC:await DB.get('doc:'+id);if(d){d.shelf=shelf;await DB.put('doc:'+id,d);}}).catch(e=>console.error(e));
+}
+// The list changes on this device and is written once (settings:app goes straight to Firestore). Books keep their
+// shelf ids: a deleted shelf's books show under Unsorted without a write each.
+function saveShelves(l){SETTINGS={...SETTINGS,shelves:l};DB.put('settings:app',SETTINGS);renderShelf();}
+// The shelf dialog: a new shelf (id null), or rename, move or delete one
+let shId=null;
+const shErr=m=>{$('#shErr').textContent=m||'';$('#shErr').classList.toggle('hidden',!m);};
+function openShelf(id){
+  const s=shelves().find(x=>x.id===id);shId=s?id:null;
+  $('#shH').textContent=s?'Shelf':'New shelf';$('#shName').value=s?s.name:'';$('#shSave').textContent=s?'Save':'Add shelf';
+  ['#shSub','#shMove','#shDel'].forEach(x=>$(x).classList.toggle('hidden',!s));shErr('');shMoves();openModal('#shelfM');
+  if(!s) $('#shName').focus();
+}
+function shMoves(){const l=shelves(),i=l.findIndex(s=>s.id===shId);$('#shUp').disabled=i<=0;$('#shDown').disabled=i<0||i===l.length-1;}
+const shMove=by=>{const l=[...shelves()],i=l.findIndex(s=>s.id===shId),j=i+by;if(i<0||j<0||j>=l.length) return;[l[i],l[j]]=[l[j],l[i]];saveShelves(l);shMoves();};
+$('#shUp').onclick=()=>shMove(-1);
+$('#shDown').onclick=()=>shMove(1);
+$('#shSave').onclick=()=>{
+  const name=$('#shName').value.trim().replace(/\s+/g,' '),l=shelves(),s=l.find(x=>x.id===shId);
+  if(!name){shErr('Give the shelf a name.');return;}
+  if(name.toLowerCase()==='unsorted'||l.some(x=>x.id!==shId&&x.name.toLowerCase()===name.toLowerCase())){shErr(`There’s already a shelf called ${name}.`);return;}
+  closeModal('#shelfM');if(s&&s.name===name) return;
+  if(s){saveShelves(l.map(x=>x===s?{...x,name}:x));return;}
+  const id='s'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);saveShelves([...l,{id,name}]);
+  const row=document.querySelector(`#shelfBody [data-shelf="${id}"]`);if(row) row.scrollIntoView({block:'nearest',behavior:'smooth'});
+};
+$('#shName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#shSave').click();}});
+// nothing is lost (the books go to Unsorted), so a second tap instead of a typed "yes"
+$('#shDel').onclick=e=>{
+  const s=shelves().find(x=>x.id===shId);if(!s||!armed(e.currentTarget,'Tap again to delete')) return;
+  const n=META.filter(m=>m.shelf===s.id).length;saveShelves(shelves().filter(x=>x!==s));closeModal('#shelfM');
+  toast(n?`Deleted ${s.name} · ${plural(n,'book')} in Unsorted`:`Deleted ${s.name}`);
+};
+
+// Dragging a cover onto another shelf (Arrange by Shelf, Shelves view). Mouse: press and drag. Touch: hold ~400 ms,
+// then drag; moving sooner is a scroll, and a tap still opens the book. The shelf under the pointer lights up; near the
+// window's top or bottom edge the page scrolls. Touch uses touch events: preventing touchmove is what stops iOS scrolling.
+let DRAG=null,dragClick=false;
+const dragOn=()=>prefs.group==='shelf'&&prefs.view==='shelves';
+function dragStart(c,x,y,touch,pid){
+  const m=META.find(b=>b.id===c.dataset.open);if(!m) return;
+  DRAG={id:m.id,from:shelfOf(m),book:c.parentElement,touch,pid,x,y,cx:x,cy:y};
+  if(touch) DRAG.hold=setTimeout(liftBook,400);
+}
+// → true while a book is lifted (then the move is the drag's, not the page's)
+function dragTo(x,y){
+  const d=DRAG;d.cx=x;d.cy=y;
+  if(d.ghost){placeGhost();return true;}
+  if(Math.hypot(x-d.x,y-d.y)>8){if(d.touch) dragStop(false); else liftBook();}
+  return !!(DRAG&&DRAG.ghost);
+}
+function liftBook(){
+  const d=DRAG;if(!d||d.ghost) return;clearTimeout(d.hold);
+  const r=d.book.getBoundingClientRect(),g=d.ghost=d.book.cloneNode(true);d.dx=d.x-r.left;d.dy=d.y-r.top;
+  g.querySelectorAll('.c-more').forEach(x=>x.remove());g.querySelectorAll('[data-open]').forEach(x=>x.removeAttribute('data-open'));
+  g.classList.add('drag-ghost');g.setAttribute('aria-hidden','true');document.body.appendChild(g);
+  d.book.classList.add('lifted');document.body.classList.add('dragging');getSelection().removeAllRanges();
+  placeGhost();d.raf=requestAnimationFrame(dragScroll);
+}
+function placeGhost(){
+  const d=DRAG;d.ghost.style.transform=`translate(${d.cx-d.dx}px,${d.cy-d.dy}px) rotate(-2deg)`;
+  const el=document.elementFromPoint(d.cx,d.cy),row=el&&el.closest('#shelfBody .shelf-row'),to=row&&row.dataset.shelf!==d.from?row:null;
+  if(to!==d.over){if(d.over) d.over.classList.remove('drop');d.over=to;if(to) to.classList.add('drop');}
+}
+// up to 16 px a frame, faster the closer to the edge
+function dragScroll(){
+  const d=DRAG;if(!d||!d.ghost) return;
+  const E=70,v=d.cy<E?d.cy-E:d.cy>innerHeight-E?d.cy-innerHeight+E:0;
+  if(v){scrollBy(0,Math.round(16*Math.max(-1,Math.min(1,v/E))));placeGhost();}
+  d.raf=requestAnimationFrame(dragScroll);
+}
+function dragStop(drop){
+  const d=DRAG;DRAG=null;if(!d) return;clearTimeout(d.hold);if(!d.ghost) return;
+  cancelAnimationFrame(d.raf);d.ghost.remove();d.book.classList.remove('lifted');document.body.classList.remove('dragging');dragClick=true;
+  if(d.over){d.over.classList.remove('drop');if(drop) moveBook(d.id,d.over.dataset.shelf);}
+}
+const shelfBody=$('#shelfBody');
+shelfBody.addEventListener('pointerdown',e=>{const c=e.target.closest('.cover');if(c&&e.pointerType==='mouse'&&!e.button&&!DRAG&&dragOn()) dragStart(c,e.clientX,e.clientY,false);});
+addEventListener('pointermove',e=>{if(DRAG&&!DRAG.touch&&e.pointerType==='mouse'){if(e.buttons&1) dragTo(e.clientX,e.clientY); else dragStop(false);}}); // released outside the window: no drop
+addEventListener('pointerup',e=>{if(DRAG&&!DRAG.touch&&e.pointerType==='mouse') dragStop(true);});
+shelfBody.addEventListener('touchstart',e=>{
+  if(DRAG){dragStop(false);return;} // a second finger: a pinch, not a drag
+  const c=e.target.closest('.cover'),p=e.changedTouches[0];if(c&&e.touches.length===1&&dragOn()) dragStart(c,p.clientX,p.clientY,true,p.identifier);
+},{passive:true});
+const myTouch=e=>DRAG&&DRAG.touch&&[...e.changedTouches].find(p=>p.identifier===DRAG.pid);
+document.addEventListener('touchmove',e=>{
+  const p=myTouch(e);if(!p) return;
+  if(!e.cancelable&&!DRAG.ghost){dragStop(false);return;} // the browser is already scrolling
+  if(dragTo(p.clientX,p.clientY)) e.preventDefault();
+},{passive:false});
+document.addEventListener('touchend',e=>{if(myTouch(e)) dragStop(true);});
+document.addEventListener('touchcancel',e=>{if(myTouch(e)) dragStop(false);});
+addEventListener('keydown',e=>{if(e.key==='Escape'&&DRAG) dragStop(false);});
+addEventListener('blur',()=>{if(DRAG) dragStop(false);});
+shelfBody.addEventListener('contextmenu',e=>{if(DRAG) e.preventDefault();}); // Android's long-press menu
+// the click that ends a drag doesn't open the book; the next press or key starts afresh
+['pointerdown','keydown'].forEach(t=>addEventListener(t,()=>{dragClick=false;},true));
+$('#shelf').addEventListener('click',e=>{if(dragClick){dragClick=false;e.stopPropagation();e.preventDefault();}},true);
 
 /* ================= import ================= */
 let pending=null; // {name, blocks, hint, author, source}
@@ -329,7 +457,7 @@ async function mergeInto(d,hl,quiet){
   const old=open?DOC:await DB.get('doc:'+id),st=(open?ST:await DB.get('state:'+id))||{hl:[],pos:0,maxP:0,done:[]};
   const r=old?mergeKindle(old,st.hl||[],d,hl):{hl,added:hl.length,dropped:0,recoloured:{}};
   if(r.same) return null;
-  if(old) ['added','color','title','author','written','writtenSort','source'].forEach(k=>{d[k]=old[k];}); else d.added=Date.now();
+  if(old) ['added','color','shelf','title','author','written','writtenSort','source'].forEach(k=>{d[k]=old[k];}); else d.added=Date.now();
   st.hl=r.hl;
   await DB.put('doc:'+id,d);await DB.put('state:'+id,st);const m=metaFor(d,st);META=META.filter(x=>x.id!==id).concat(m);await DB.put('meta:'+id,m);
   if(open&&quiet) await openBook(id);
@@ -357,6 +485,7 @@ async function openDetails(id){
   // a Kindle notebook keeps its ruled-paper cover, so it has no binding to pick
   $('#dCoverRow').classList.toggle('hidden',isKindleId(id));
   $('#dCover').innerHTML=COVERS.map(([bc],i)=>`<button type="button" class="cv-sw" data-c="${i}" aria-pressed="${i===coverIdx(m)}" aria-label="${COVER_NAMES[i]}" title="${COVER_NAMES[i]}" style="--c:${bc}"></button>`).join('');
+  $('#dShelf').innerHTML=[...shelves(),{id:'',name:'Unsorted'}].map(s=>`<option value="${esc(s.id)}"${s.id===shelfOf(m)?' selected':''}>${esc(s.name)}</option>`).join('');
   openModal('#detM');
 }
 $('#dCover').onclick=e=>{const b=e.target.closest('[data-c]');if(b) $('#dCover').querySelectorAll('[data-c]').forEach(x=>x.setAttribute('aria-pressed',x===b));};
@@ -380,6 +509,7 @@ $('#dSave').onclick=async()=>{
   d.title=$('#dTitle').value.trim()||d.title;d.author=$('#dAuthor').value.trim();d.written=$('#dWritten').value.trim();d.writtenSort=parseDate(d.written);
   const src=$('#dSource').value.trim();d.source=/^https?:\/\//i.test(src)?src:'';
   const pick=$('#dCover [aria-pressed="true"]');if(pick&&!isKindleId(d.id)) d.color=+pick.dataset.c;
+  d.shelf=$('#dShelf').value;
   await DB.put('doc:'+d.id,d);
   const st=DOC&&DOC.id===d.id?ST:(await DB.get('state:'+d.id))||{hl:[]};
   const m=metaFor(d,st);META=META.filter(x=>x.id!==m.id).concat(m);await DB.put('meta:'+m.id,m);
@@ -1736,7 +1866,7 @@ $('#sSave').onclick=async()=>{
 $('#backupBtn').onclick=async e=>{
   const b=e.currentTarget,label=b.textContent;b.disabled=true;b.textContent='Backing up…';
   try{
-    await DB.flush();const data=await exportShelf(DB,META);
+    await DB.flush();const data=await exportShelf(DB,META,shelves());
     download(`own-shelf-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(data),'application/json');
     toast(`Backed up ${data.books.length} book${data.books.length===1?'':'s'}`);
   }catch(err){console.error(err);setErr('The backup failed. Try again.');}
@@ -1748,7 +1878,7 @@ $('#restoreFile').onchange=async e=>{
   $('#setErr').classList.add('hidden');
   let data;try{data=JSON.parse(await f.text());}catch(err){setErr('That file isn’t an own-shelf backup.');return;}
   try{
-    const r=await importShelf(DB,data,META,metaFor);
+    const r=await importShelf(DB,data,META,metaFor,shelves());if(r.shelves) SETTINGS={...SETTINGS,shelves:r.shelves};
     r.metas.forEach(m=>{META=META.filter(x=>x.id!==m.id).concat(m);untrashBook(m.id);});
     closeModal('#setM');renderShelf();
     toast(r.added||r.merged?`Restored ${r.added} book${r.added===1?'':'s'}${r.highlights?` and ${r.highlights} highlight${r.highlights===1?'':'s'}`:''}`:'Everything in that backup is already here');

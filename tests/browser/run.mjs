@@ -15,6 +15,9 @@
 //   length.mjs      each book's length on the shelf: the cover's word count, the page block, the list's Length column
 //   finish.mjs      finishing a book: real reading time needed, the cover's ✓ Finished, the manual override in Details
 //   shelf.mjs       arranging the shelf by title (shelves and List view), picking a cover colour in Details
+//   shelves.mjs     Arrange by Shelf: the starting shelves and Unsorted, chosen once; dragging covers between shelves
+//                   with a mouse and a finger (hold, swipe, tap, the page scrolling at the edges), the Shelf picker in
+//                   Details, new, rename, move and delete, search, the List view's Shelf column, a backup round trip
 //   kindle.mjs      Kindle notebook exports: review step, highlights and notes, merging, several files at once, the notebook cover
 //   words.mjs       vocabulary: Word in the toolbar, the word card and its looked-up meaning (dictionaries mocked), the
 //                   underline in the text, the Notebook's Words tab (search, book filter, open at the word), the Trash
@@ -51,7 +54,7 @@ import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','kindle.mjs','words.mjs','wordbox.mjs','wordcard.mjs','study.mjs','sort.mjs','migrate.mjs','linkimport.mjs','setup.mjs','colours.mjs','signin.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','shelves.mjs','kindle.mjs','words.mjs','wordbox.mjs','wordcard.mjs','study.mjs','sort.mjs','migrate.mjs','linkimport.mjs','setup.mjs','colours.mjs','signin.mjs'];
 
 // Run one file, echo its output and count its PASS/FAIL lines.
 const runOne=f=>new Promise(res=>{

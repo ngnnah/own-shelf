@@ -181,9 +181,10 @@ export function makeCloud(fs, db, uid, { onError = () => {}, delay = 2500 } = {}
 }
 
 /* ---------------- backup and restore ---------------- */
-// Format: { app: 'upwind', version: 1, exported, books: [{ meta, doc, state }] }.
-// The artifact's "Back up shelf" button writes the same format.
-export async function exportShelf(db, metas) {
+// Format: { app: 'upwind', version: 1, exported, books: [{ meta, doc, state }], words, shelves }.
+// The artifact's "Back up shelf" button writes the same format, without words and shelves.
+// shelves: the shelf list ([{ id, name }] in order); each book's shelf id is on its doc.
+export async function exportShelf(db, metas, shelves) {
   metas = metas || await db.all('meta:');
   const books = [];
   for (const meta of metas) {
@@ -191,17 +192,27 @@ export async function exportShelf(db, metas) {
     if (doc) books.push({ meta, doc, state: state || null });
   }
   const words = await db.all('word:');
-  return { app: 'upwind', version: 1, exported: new Date().toISOString(), books, words };
+  return { app: 'upwind', version: 1, exported: new Date().toISOString(), books, words, ...(shelves ? { shelves } : {}) };
 }
 
 // Adds books that aren't on the shelf yet. For books already there, adds the
 // backup's highlights whose ids are missing and leaves everything else alone.
 // metaFor(doc, state) builds the shelf entry, so it always matches the content.
-export async function importShelf(db, data, existing, metaFor) {
+// shelves: this shelf's current list. The backup's shelves missing by id join its end. A shelf never arranged (no
+// list in settings:app) takes the backup's names and order instead, plus those of its own shelves that hold books
+// (so a starting shelf deleted in the backup stays deleted). → res.shelves when the stored list changed.
+export async function importShelf(db, data, existing, metaFor, shelves = []) {
   if (!data || data.app !== 'upwind' || !Array.isArray(data.books)) throw new Error('not_backup');
   if (data.version > 1) throw new Error('newer_version');
   const have = new Set(existing.map(m => m.id));
   const res = { added: 0, merged: 0, highlights: 0, metas: [], words: 0 };
+  if (Array.isArray(data.shelves)) {
+    const set = (await db.get('settings:app')) || {}, mine = Array.isArray(set.shelves);
+    const theirs = data.shelves.filter(s => s && s.id && s.name).map(({ id, name }) => ({ id, name }));
+    const [a, b] = mine ? [set.shelves, theirs] : [theirs, shelves.filter(s => existing.some(m => m.shelf === s.id))];
+    const add = b.filter(s => !a.some(x => x.id === s.id));
+    if (!mine || add.length) { res.shelves = [...a, ...add]; await db.put('settings:app', { ...set, shelves: res.shelves }); }
+  }
   for (const b of data.books) {
     const id = b && b.doc && (b.doc.id || (b.meta && b.meta.id));
     if (!id || !Array.isArray(b.doc.blocks)) continue;
