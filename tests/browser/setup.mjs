@@ -14,7 +14,7 @@ const project=readFileSync(join(t.repo,'config.js'),'utf8').match(/projectId:\s*
 const FAKE={
   app:`export const initializeApp=c=>({options:c});`,
   auth:`const user=()=>sessionStorage.getItem('fake-user')?{uid:'u1',email:'me@example.com'}:null;
-export const getAuth=()=>({});export class GoogleAuthProvider{}
+export const getAuth=()=>({});export class GoogleAuthProvider{setCustomParameters(){}}
 export const getRedirectResult=()=>Promise.resolve(null);
 export const onAuthStateChanged=(a,cb)=>{setTimeout(()=>cb(user()));return()=>{};};
 export const signInWithPopup=()=>Promise.reject(Object.assign(new Error('fake'),{code:window.__code,fake:true}));
