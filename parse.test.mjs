@@ -4,7 +4,7 @@ import {ok,done} from './test-util.mjs';
 
 // parse.js is a classic browser script; run it in a sandbox and pick up its globals.
 const P={};vm.runInNewContext(readFileSync(new URL('./parse.js',import.meta.url),'utf8'),Object.assign(P,{TextDecoder,module:{}}));
-const {firstUrl,isLoneUrl,decodeBody,mdToBlocks,finalize,parseDate,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle}=P.module.exports;
+const {firstUrl,isLoneUrl,decodeBody,mdToBlocks,finalize,parseDate,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights}=P.module.exports;
 
 ok('firstUrl: bare link',firstUrl('https://example.com/a?b=1')==='https://example.com/a?b=1');
 ok('firstUrl: from shared text',firstUrl('Read this: “Great essay” https://example.com/x/y.html.')==='https://example.com/x/y.html');
@@ -98,5 +98,43 @@ const ra=mergeKindle(kdoc,wasMint,kdoc,khl);
 ok('mergeKindle: a mint highlight on an aqua passage becomes sky, and says so',ra.hl.find(h=>h.segs[0].pid===aquaB.id).color==='sky'&&ra.recoloured.sky===1&&!ra.recoloured.amber&&!ra.same);
 const mintOnSun=JSON.parse(JSON.stringify(khl)).map(h=>h.segs[0].pid===sunB.id?Object.assign(h,{color:'mint'}):h);
 ok('mergeKindle: mint the owner chose on a yellow passage stays mint',mergeKindle(kdoc,mintOnSun,kdoc,khl).hl.find(h=>h.segs[0].pid===sunB.id).color==='mint');
+
+/* ---------- joining highlights ---------- */
+// three blocks; b1 (47 characters): "Alpha beta, gamma delta epsilon zeta eta theta."
+const TX={b0:'The first paragraph is short.',b1:'Alpha beta, gamma delta epsilon zeta eta theta.',b2:'Second paragraph starts here and goes on.'};
+const ORD={b0:0,b1:1,b2:2};
+const H=(id,at,segs,more)=>Object.assign({id,color:'sky',note:'',segs:segs.map(([pid,s,e])=>({pid,s,e})),at},more);
+const fresh=(segs,color='mint',note='')=>H('hnew',100,segs,{color,note});
+const textsOf=f=>Object.fromEntries(f.segs.map(s=>[s.pid,TX[s.pid]]));
+const join=(hl,f,linked)=>joinHighlights(hl,f,textsOf(f),ORD,linked);
+const segsOf=h=>h.segs.map(s=>`${s.pid}:${s.s}-${s.e}`).join(' ');
+
+const lone=fresh([['b1',12,17]]);
+ok('join: nothing near, a new highlight',(r=>r.h===lone&&!r.hit.length&&r.n===0)(join([H('ha',1,[['b1',0,5]])],lone)));
+ok('join: overlap at its start',(r=>r.h.id==='ha'&&segsOf(r.h)==='b1:12-27'&&r.n===2&&r.h.color==='mint')(join([H('ha',1,[['b1',18,27]])],fresh([['b1',12,22]]))));
+ok('join: overlap at its end',(r=>r.h.id==='ha'&&segsOf(r.h)==='b1:12-33')(join([H('ha',1,[['b1',12,22]])],fresh([['b1',18,33]]))));
+const two=[H('hb',5,[['b1',24,33]]),H('ha',2,[['b1',0,5]]),H('hc',3,[['b2',0,6]])];
+const br=join(two,fresh([['b1',3,28]]));
+ok('join: one highlight bridging two takes in both, keeps the earlier id, leaves the rest',br.h.id==='ha'&&br.h.at===2&&segsOf(br.h)==='b1:0-33'&&br.n===3&&br.hit.map(h=>h.id).join()==='hb,ha');
+ok('join: touching with only a space between',(r=>r.n===2&&segsOf(r.h)==='b1:0-10')(join([H('ha',1,[['b1',0,5]])],fresh([['b1',6,10]]))));
+ok('join: touching end to end, nothing between',(r=>r.n===2&&segsOf(r.h)==='b1:0-10')(join([H('ha',1,[['b1',0,6]])],fresh([['b1',6,10]]))));
+ok('join: punctuation between is not touching',join([H('ha',1,[['b1',6,10]])],fresh([['b1',12,17]])).n===0);
+ok('join: touching across blocks is not touching',join([H('ha',1,[['b1',0,47]])],fresh([['b2',0,6]])).n===0);
+const across=join([H('ha',1,[['b1',41,47]]),H('hb',2,[['b2',0,6]])],fresh([['b2',0,3],['b1',35,47]]));
+ok('join: across two paragraphs, one seg per block in reading order',across.h.id==='ha'&&segsOf(across.h)==='b1:35-47 b2:0-6'&&across.n===3);
+const multi=join([H('ha',1,[['b0',20,28],['b1',0,10]])],fresh([['b1',5,17]]));
+ok('join: a highlight over two blocks grows in the block touched',segsOf(multi.h)==='b0:20-28 b1:0-17');
+const inner=H('ha',1,[['b1',0,31]],{note:'mine',study:{as:'skip',at:1}});
+ok('join: inside one (though touching another), recolours it and nothing else',(r=>r.n===0&&r.hit.length===1&&r.h.id==='ha'&&r.h.color==='mint'&&r.h.segs===inner.segs&&r.h.note==='mine'&&r.h.study.as==='skip')(join([inner,H('hz',2,[['b1',32,40]])],fresh([['b1',12,31]]))));
+ok('join: inside one, Note (no colour) keeps its colour',join([inner],fresh([['b1',12,17]],null)).h.color==='sky');
+ok('join: Note (no colour) on an overlap keeps the colour of the one kept',join([H('ha',1,[['b1',0,5]],{color:'coral'})],fresh([['b1',3,10]],null)).h.color==='coral');
+const noted=join([H('hb',1,[['b1',24,33]],{note:'second'}),H('ha',2,[['b1',0,5]],{note:'first'}),H('hc',3,[['b1',41,47]],{note:'first'})],fresh([['b1',3,45]],'mint','middle'));
+ok('join: notes in reading order, a blank line apart, no repeats',noted.h.note==='first\n\nmiddle\n\nsecond');
+ok('join: a sorted highlight keeps its id, though made later',(r=>r.h.id==='hb'&&r.h.at===5&&r.h.study.as==='fact')(join([H('ha',2,[['b1',0,5]]),H('hb',5,[['b1',24,33]],{study:{as:'fact',at:6}})],fresh([['b1',3,28]]))));
+ok('join: so does one with a fact card',join([H('ha',2,[['b1',0,5]]),H('hb',5,[['b1',24,33]])],fresh([['b1',3,28]]),new Set(['hb'])).h.id==='hb');
+ok('join: of several sorted or with a card, the earliest-made',join([H('ha',2,[['b1',0,5]]),H('hb',5,[['b1',24,33]],{study:{as:'words',at:6}}),H('hc',4,[['b1',41,47]])],fresh([['b1',3,45]]),new Set(['hc'])).h.id==='hc');
+const orig=[H('ha',1,[['b1',18,27]],{note:'a'})],copy=JSON.stringify(orig),f1=fresh([['b1',12,22]]),fcopy=JSON.stringify(f1);
+join(orig,f1);
+ok('join: changes neither the highlights nor the new one',JSON.stringify(orig)===copy&&JSON.stringify(f1)===fcopy);
 
 done();
