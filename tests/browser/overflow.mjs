@@ -2,7 +2,8 @@
 // at 320 px for the shelf and the reader), nothing in the page is wider than the screen, no drawer or dialog scrolls
 // sideways inside, and the fixed bar, toolbar, cards, toast, drawers and dialogs stay inside the screen (with the
 // Date written quick picks in Add and Book details, the byline's pencil, every arrangement including by Shelf, the shelf
-// dialog and a shelf name without spaces, at both widths). The books:
+// dialog, a shelf name without spaces, every shelf collapsed and the New shelf and Collapse all buttons, at both widths).
+// The books:
 // the rich paste; a stress paste (a 300-character unbroken link in a paragraph, a list item, a quote, a caption, a
 // footnote and a note; long words in headings; a wide table; a long code line; a wide picture; a pull quote); a
 // Kindle notebook (its contents list chapters); a book whose title and author have no spaces.
@@ -94,7 +95,7 @@ const measure=()=>page.evaluate(()=>{
   // the culprits: elements in the page whose box or content passes the right edge, innermost first
   const wide=sw>cw?[...document.body.querySelectorAll('*')].filter(e=>shows(e)&&getComputedStyle(e).position!=='fixed'&&!e.closest('.drawer,.modal,#tool,#noteBox,#wordBox,#toast,#bar')&&
     (past(e)||e.getBoundingClientRect().left+e.scrollWidth>cw+.5)&&!e.querySelector('*:not(br)')).slice(0,4).map(name):[];
-  const inner=[...document.querySelectorAll('.dr-list,.dlg,#noteBox,#wordBox,#wbMore')].filter(e=>shows(e)&&e.scrollWidth>e.clientWidth+1).map(name);
+  const inner=[...document.querySelectorAll('.dr-list,.dlg,#noteBox,#wordBox,#wbBody,#wbMore')].filter(e=>shows(e)&&e.scrollWidth>e.clientWidth+1).map(name);
   const fixed=[...document.querySelectorAll('#bar .bar-in>*,#tool,#noteBox,#wordBox,#toast.on,.drawer.open,.modal .dlg')].filter(e=>shows(e)&&past(e)).map(name);
   off.remove();
   return {cw,sw,wide,inner,fixed};
@@ -121,9 +122,14 @@ async function shelf(){
   }
   // Arrange by Shelf: the shelf dialog, and a shelf whose name has no spaces (40 characters, the most a name takes)
   await clk('#segView [data-v="shelves"]');await clk('#segGroup [data-g="shelf"]');
-  await clk('#shelfBody [data-shelf-new]');await shown('#shelfM');await fits('the New shelf dialog');
+  await clk('#shTools [data-shelf-new]');await shown('#shelfM');await fits('the New shelf dialog');
   await page.$eval('#shName',(e,v)=>{e.value=v;},SHELFNAME);await clk('#shSave');await hidden('#shelfM');
   await fits('shelf, a shelf named without spaces');
+  // every shelf collapsed to a strip, that one too; New shelf and Expand all at the top
+  const w=await page.evaluate(()=>document.documentElement.clientWidth);
+  await clk('#foldAll');await fits('shelf, every shelf collapsed');
+  await inside(`${w} px, shelf: New shelf and Expand all`,'#shTools button');
+  await clk('#foldAll');
   const sid=await page.$$eval('#shelfBody .sl-name',(bs,n)=>bs.find(b=>b.textContent===n).dataset.shelfEdit,SHELFNAME);
   await clk(`#shelfBody [data-shelf-edit="${sid}"]`);await shown('#shelfM');await fits('the shelf dialog (rename, move or delete)');
   await clk('#shDel');await clk('#shDel');await hidden('#shelfM');

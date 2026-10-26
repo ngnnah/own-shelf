@@ -2,6 +2,8 @@
 // multi-line meaning, the field dragged taller by its grip, a keyboard-height window (resized, as on Android) and an
 // iPhone keyboard (visualViewport shrunk and panned over a full-height page, faked). Then dragging the word card by its
 // head: it moves, stays inside, typing doesn't drag it, its buttons still work, and it reopens where it used to.
+// Under 600 px both are sheets whose fields grow instead of having a grip, and the word card doesn't drag
+// (wordsheet.mjs and notesheet.mjs test the sheets on a touch screen).
 // Dictionaries are mocked (none has the word). Usage: node tests/browser/wordbox.mjs [repo dir]
 // Screenshots (390×844, 1280×900, the keyboard sizes, after a drag) go to tests/browser/out/wordbox/.
 import {start,enterLocalMode,addMarkdown,sleep} from './lib.mjs';
@@ -107,32 +109,37 @@ await t.run(async()=>{
   for(const [vw,vh,size] of [[390,844,'phone'],[1280,900,'desktop']]){
     await page.setViewport({width:vw,height:vh,deviceScaleFactor:size==='phone'?2:1});await sleep(150);
 
-    // 1. a pasted multi-line meaning, then a long typed one: the card keeps its height, the field scrolls
-    await openCard(P1,size==='phone'?'ledger':'harbour',size==='desktop'?250:null);
+    // 1. a pasted multi-line meaning, then a long typed one: the card keeps its height (a sheet grows with the
+    // meaning instead), the field scrolls
+    const sheet=size==='phone';
+    await openCard(P1,sheet?'ledger':'harbour',sheet?null:250);
     const before=await cardFit();
     ok(`${size}: the card opens inside the window, buttons in view`,inView(before));
     await page.focus('#wbDef');await page.keyboard.sendCharacter(PASTED);
     let f=await cardFit();
     ok(`${size}: a pasted meaning keeps its line breaks and tabs while editing`,(await page.$eval('#wbDef',e=>e.value))===PASTED);
-    ok(`${size}: after pasting, the card keeps its height and its buttons are in view`,inView(f)&&f.h===before.h);
+    ok(sheet?`${size}: after pasting, the sheet grows with the meaning and its buttons are in view`:`${size}: after pasting, the card keeps its height and its buttons are in view`,inView(f)&&(sheet?f.h>before.h:f.h===before.h));
     await page.keyboard.sendCharacter(LONG);await page.keyboard.type(' The end.');
     f=await cardFit();
-    ok(`${size}: after 1,100+ characters, the buttons are in view`,inView(f)&&f.h===before.h);
+    ok(`${size}: after 1,100+ characters, the buttons are in view`,inView(f)&&(sheet||f.h===before.h));
     ok(`${size}: the long text scrolls inside the field, to its end`,await scrolls('#wbDef'));
     await shot(`${size}-long`);
 
-    // 2. the field dragged far taller by its grip: it grows, the card stops at the window's edge
-    const h0=await fieldHeight('#wbDef');
-    await dragGrip('#wbDef',1200);
-    f=await cardFit();
-    ok(`${size}: the grip makes the field taller`,(await fieldHeight('#wbDef'))>h0+100);
-    ok(`${size}: dragged taller, the card stays inside the window with its buttons in view`,inView(f));
-    ok(`${size}: and the text still scrolls`,await scrolls('#wbDef'));
-    ok(`${size}: the field gives way, the sentence below it stays whole`,await page.$eval('#wbMore',e=>e.scrollHeight<=e.clientHeight));
-    await shot(`${size}-grip`);
-    const h1=await fieldHeight('#wbDef');await dragGrip('#wbDef',-150);
-    ok(`${size}: the grip shrinks the field again at once`,Math.abs((await fieldHeight('#wbDef'))-(h1-150))<=4);
-    await dragGrip('#wbDef',1200);
+    // 2. the field dragged far taller by its grip: it grows, the card stops at the window's edge. A sheet has no grip.
+    if(sheet) ok(`${size}: a sheet’s field has no grip`,await page.$eval('#wbDef',e=>getComputedStyle(e).resize)==='none');
+    else{
+      const h0=await fieldHeight('#wbDef');
+      await dragGrip('#wbDef',1200);
+      f=await cardFit();
+      ok(`${size}: the grip makes the field taller`,(await fieldHeight('#wbDef'))>h0+100);
+      ok(`${size}: dragged taller, the card stays inside the window with its buttons in view`,inView(f));
+      ok(`${size}: and the text still scrolls`,await scrolls('#wbDef'));
+      ok(`${size}: the field gives way, the sentence below it stays whole`,await page.$eval('#wbMore',e=>e.scrollHeight<=e.clientHeight));
+      await shot(`${size}-grip`);
+      const h1=await fieldHeight('#wbDef');await dragGrip('#wbDef',-150);
+      ok(`${size}: the grip shrinks the field again at once`,Math.abs((await fieldHeight('#wbDef'))-(h1-150))<=4);
+      await dragGrip('#wbDef',1200);
+    }
 
     // 3. a keyboard-height window (Android resizes the page), the field focused
     await page.focus('#wbDef');
@@ -190,18 +197,15 @@ await t.run(async()=>{
   await page.keyboard.press('Escape');await hidden('#wordBox');
   ok('Escape closes it',!(await vis('#wordBox')));
 
-  // 7. on a phone, with a finger: the docked card leaves its dock and stays inside
+  // 7. on a phone, a sheet: no grip on its head, and a finger there doesn't move it from its dock
   await page.setViewport({width:390,height:844,deviceScaleFactor:2,hasTouch:true});await sleep(150);
   await openCard(P1,'lanterns');
   const dock=await cardFit();
-  ok('phones show a grip on the head',await page.$eval('#wordBox .wb-head',e=>getComputedStyle(e,'::before').content)==='""');
+  ok('a phone shows the word card as a sheet without a grip',await page.$eval('#wordBox',e=>e.classList.contains('sheet')&&getComputedStyle(e.querySelector('.wb-head'),'::before').content==='none'));
   await dragHead(0,-300,true);f=await cardFit();
-  ok('a finger drags the card up from its dock',Math.abs(f.top-(dock.top-300))<=1&&inView(f));
-  await shot('phone-dragged');
-  await dragHead(0,-2000,true);f=await cardFit();
-  ok('and it stops at the top of the screen',inView(f)&&f.top===12);
+  ok('a finger on its head doesn’t move the sheet',f.top===dock.top&&f.left===dock.left&&inView(f));
   await page.click('#wbClose');await hidden('#wordBox');
-  ok('after a drag, Close works',!(await vis('#wordBox')));
+  ok('then Cancel works',!(await vis('#wordBox')));
   await page.setViewport({width:390,height:844,deviceScaleFactor:2});await sleep(150);
 
   // 8. the note box: the same, on a phone and on a desktop
