@@ -941,24 +941,31 @@ function placeCard(box,at){
   Object.assign(s,{left:x+'px',top:y+'px',maxHeight:vt+vh-y-12+'px'});
   return {x,y};
 }
-// On a phone (a coarse pointer or a narrow screen) the note box is a sheet across the screen, docked above the
-// keyboard, whose field grows with the note up to the visible area (the box's max-height) and then scrolls inside
-// itself: a fixed-height field showed three lines of a long note, and an iPhone has no grip to make it taller.
+// On a phone (a coarse pointer or a narrow screen) the note box and the word card are sheets across the screen, docked
+// above the keyboard, whose fields grow with their text up to the visible area (the box's max-height) and then scroll
+// inside themselves: a fixed-height field showed three lines of a long note, and an iPhone has no grip to make it taller.
+// → whether box opens as a sheet; a field grown there (ta) goes back to its usual height when it doesn't.
+function asSheet(box,ta){
+  const s=coarse||innerWidth<600;
+  if(!s&&box.classList.contains('sheet')) ta.style.height='';
+  box.classList.toggle('sheet',s);return s;
+}
+// A sheet's text field grown to its text, at most max px. Also run when the visible area changes; a caret at the end
+// (where it is on opening) stays in view as the field shrinks (end: scrolled to its end, else where it was).
+function growTa(ta,max=Infinity,end=ta.selectionEnd===ta.value.length){
+  const st=ta.scrollTop;
+  ta.style.height='auto';ta.style.height=Math.min(max,ta.scrollHeight+ta.offsetHeight-ta.clientHeight)+'px';
+  ta.scrollTop=end?ta.scrollHeight:st;
+}
 let noteTarget=null,noteAt=null; // the highlight whose note is open
 function openNote(h,rect){
   saveCards(); // another note or the word card open: saved first
-  noteTarget=h;const nb=$('#noteBox'),sheet=coarse||innerWidth<600;
-  nb.classList.toggle('sheet',sheet);nb.classList.remove('hidden');$('#noteTa').value=h.note||'';growNote();
+  noteTarget=h;const nb=$('#noteBox'),sheet=asSheet(nb,$('#noteTa'));
+  nb.classList.remove('hidden');$('#noteTa').value=h.note||'';growNote();
   noteAt=placeCard(nb,sheet||!rect?null:{x:rect.left,y:Math.min(innerHeight-220,Math.max(70,rect.top))});
   setTimeout(()=>$('#noteTa').focus(),30);
 }
-// Also run when the visible area changes; a caret at the end (where it is on opening) stays in view as the field shrinks.
-function growNote(){
-  if(!$('#noteBox').classList.contains('sheet')) return;
-  const ta=$('#noteTa'),st=ta.scrollTop;
-  ta.style.height='auto';ta.style.height=ta.scrollHeight+ta.offsetHeight-ta.clientHeight+'px';
-  ta.scrollTop=ta.selectionEnd===ta.value.length?ta.scrollHeight:st;
-}
+function growNote(){if($('#noteBox').classList.contains('sheet')) growTa($('#noteTa'));}
 $('#noteTa').addEventListener('input',growNote);
 function closeNote(){$('#noteBox').classList.add('hidden');noteTarget=null;}
 $('#noteCancel').onclick=closeNote;
@@ -1417,7 +1424,7 @@ function setDef(w,v){v=cleanText(v);if(v===(w.def||'')) return false;w.def=v;w.d
 function showDef(w){
   if(CARD&&CARD.id===w.id){
     const ta=$('#wbDef');if(!ta.value.trim()&&w.def) ta.value=w.def;
-    ta.placeholder=defPh(w);$('#wbPos').textContent=w.pos||'';$('#wbSrc').textContent=srcText(w);
+    ta.placeholder=defPh(w);$('#wbPos').textContent=w.pos||'';$('#wbSrc').textContent=srcText(w);growCard();
   }
   const c=document.querySelector(`#wdList .wcard[data-id="${w.id}"]`);if(!c) return;
   const d=c.querySelector('.w-def');if(!d.textContent.trim()&&w.def) d.textContent=w.def;
@@ -1543,7 +1550,7 @@ function showExtras(w,only){
     el.outerHTML=extraHTML(w,k);
     if(k==='pics') setPics(r.querySelector('[data-x="pics"]'),w);
   }));
-  if(box) CARD.at=placeCard(box,CARD.at); // grown: still inside the visible area
+  if(box){CARD.at=placeCard(box,CARD.at);growCard();} // grown: still inside the visible area
 }
 // Add: shows an empty section to type in.
 function revealExtra(root,k){
@@ -1579,33 +1586,56 @@ function extrasClick(e,root,id){
 });
 
 // The word card: term, part of speech, the meaning to edit, the dictionary's examples, synonyms and antonyms, the
-// pictures, and the sentence from your reading (the one at `at`, else the newest).
+// pictures, and the sentence from your reading (the one at `at`, else the newest). Delete sits in its head, away
+// from Save.
 let CARD=null; // {id, at: where placeCard put it} while open
 function openWordCard(id,at,rect){
   const w=WORDS&&WORDS.get(id);if(!w) return;
   const exs=w.examples||[],ex=(at&&exs.find(x=>x.bookId===at.bookId&&x.pid===at.pid&&x.ws===at.ws))||exs[exs.length-1];
   saveCards(); // the note box or another card open: saved first
   CARD={id};
-  const box=$('#wordBox');
-  $('#wbTerm').textContent=w.term;$('#wbDef').value=w.def||'';$('#wbEx').innerHTML=ex?exampleHTML(ex):'';$('#wbRead').classList.toggle('hidden',!ex);
-  box.querySelectorAll('[data-x]').forEach(el=>{el.outerHTML=extraHTML(w,el.dataset.x);});setPics(box,w);$('#wbMore').scrollTop=0;
+  const box=$('#wordBox'),sheet=asSheet(box,$('#wbDef'));
+  $('#wbTerm').textContent=w.term;$('#wbDel').setAttribute('aria-label',`Delete “${w.term}”`);
+  $('#wbDef').value=w.def||'';$('#wbEx').innerHTML=ex?exampleHTML(ex):'';$('#wbRead').classList.toggle('hidden',!ex);
+  box.querySelectorAll('[data-x]').forEach(el=>{el.outerHTML=extraHTML(w,el.dataset.x);});setPics(box,w);
   showDef(w);fillDef(w);
-  box.classList.remove('hidden');box.style.maxHeight='';
-  // docked at the bottom on phones, like the toolbar; elsewhere under the word, or above it near the bottom
+  box.classList.remove('hidden');box.style.maxHeight='';$('#wbMore').scrollTop=$('#wbBody').scrollTop=0;
+  // a sheet on phones; elsewhere under the word, or above it near the bottom (docked without a word to go by)
   let to=null;
-  if(!(coarse||!rect||innerWidth<600)){
+  if(!(sheet||!rect)){
     const bw=box.offsetWidth,bh=box.offsetHeight;let top=rect.bottom+12;if(top+bh>innerHeight-12) top=Math.max(70,rect.top-bh-12);
     to={x:rect.left+rect.width/2-bw/2,y:top};
   }
-  CARD.at=placeCard(box,to);
+  CARD.at=placeCard(box,to);growCard();
   queueFill(w,true);
 }
 function closeWordCard(){$('#wordBox').classList.add('hidden');CARD=null;}
-// Dragging the card by its head moves it anywhere inside the visible area, until it closes.
+// The word card as a sheet: the meaning grows with its text up to the room between the head and the buttons, then
+// scrolls inside itself (to its end only while you type there), and so do the other fields (--room); the middle
+// scrolls so the field being edited stays in view at its caret. Run on opening, typing, focusing a field and whenever
+// the visible area changes.
+function growCard(){
+  const box=$('#wordBox'),body=$('#wbBody'),ta=$('#wbDef');if(!CARD||box.classList.contains('hidden')||!box.classList.contains('sheet')) return;
+  const cs=getComputedStyle(body),st=body.scrollTop,f=document.activeElement;
+  const room=Math.max(80,(parseFloat(getComputedStyle(box).maxHeight)||innerHeight)-(box.offsetHeight-body.clientHeight)-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom));
+  box.style.setProperty('--room',room+'px');
+  growTa(ta,room,f===ta&&ta.selectionEnd===ta.value.length);body.scrollTop=st; // the field's moment at no height mustn't scroll the middle
+  if(!f||!body.contains(f)) return;
+  let r=f.getBoundingClientRect();const s=getSelection();
+  if(f.isContentEditable&&s.rangeCount&&f.contains(s.focusNode)){const c=s.getRangeAt(0).cloneRange();c.collapse(false);r=c.getClientRects()[0]||r;}
+  const b=body.getBoundingClientRect(),pad=8;
+  if(r.bottom>b.bottom-pad) body.scrollTop+=r.bottom-b.bottom+pad;
+  else if(r.top<b.top+pad) body.scrollTop-=b.top+pad-r.top;
+}
+$('#wordBox').addEventListener('input',growCard);
+$('#wordBox').addEventListener('focusin',()=>requestAnimationFrame(growCard));
+// Delete: the word goes to the Trash, with what was typed into the card left out; Undo brings it back.
+$('#wbDel').onclick=()=>{const id=CARD&&CARD.id;closeWordCard();if(id) deleteWord(id);};
+// Dragging the card by its head moves it anywhere inside the visible area, until it closes. Not a sheet.
 let wbDrag=null;
 const wbHead=$('#wordBox .wb-head'),endWbDrag=()=>{wbDrag=null;$('#wordBox').classList.remove('drag');};
 wbHead.addEventListener('pointerdown',e=>{
-  if(!CARD||e.button) return;
+  if(!CARD||e.button||e.target.closest('button')||$('#wordBox').classList.contains('sheet')) return;
   const r=$('#wordBox').getBoundingClientRect();
   wbDrag={id:e.pointerId,dx:e.clientX-r.left,dy:e.clientY-r.top};
   wbHead.setPointerCapture(e.pointerId);$('#wordBox').classList.add('drag');e.preventDefault(); // the field keeps focus
@@ -1616,7 +1646,7 @@ wbHead.addEventListener('pointerup',endWbDrag);wbHead.addEventListener('pointerc
 function keepCardsInView(){
   const nb=$('#noteBox');
   if(!nb.classList.contains('hidden')){noteAt=placeCard(nb,noteAt);growNote();}
-  if(CARD) CARD.at=placeCard($('#wordBox'),CARD.at);
+  if(CARD){CARD.at=placeCard($('#wordBox'),CARD.at);growCard();}
 }
 window.visualViewport?.addEventListener('resize',keepCardsInView);window.visualViewport?.addEventListener('scroll',keepCardsInView);
 addEventListener('resize',keepCardsInView);
@@ -1725,12 +1755,14 @@ function listWords(){
   list.forEach(fillDef);
 }
 // Deleting asks nothing: the whole word or fact card goes to the Trash, and Restore puts it back. A fact card's
-// highlight stays sorted.
-function deleteWord(id){
-  const w=WORDS&&WORDS.get(id);if(!w) return;
+// highlight stays sorted. From the Words tab, the word card and Study (w: Study's copy, when the words aren't loaded).
+function deleteWord(id,w=WORDS&&WORDS.get(id)){
+  if(!w) return;
   const tr=toTrash('word',{title:isFact(w)?wordBook(w):w.term,word:w});
-  WORDS.delete(id);WIDX=null;DB.del('word:'+id);movedToTrash(tr);
+  if(WORDS){WORDS.delete(id);WIDX=null;}DB.del('word:'+id);movedToTrash(tr);underline(w);
 }
+// The open book's blocks where a word was saved, drawn again: its underline goes with a delete and comes back with Undo.
+function underline(w){if(DOC) rerender((w.examples||[]).filter(x=>x.bookId===DOC.id).map(x=>x.pid));}
 // A word back from the Trash. Saved again meanwhile: its examples are merged in, and the newer copy keeps its meaning
 // and flashcard schedule unless it has none, and its pictures, synonyms, antonyms and dictionary examples unless it
 // lacks them. A fact card made again meanwhile is the newer one and stays, with the old one's pictures if it has none.
@@ -2026,6 +2058,7 @@ function afterRestore(e){
   if(onShelf()) renderShelf();
   else if(nb&&words&&e.kind==='word') renderWords();
   else if(nb&&!words&&e.kind!=='word') openNotebook(); // the Highlights tab reads the books again
+  if(e.kind==='word'){underline(e.word);syRestored(e.word);}
 }
 // Puts an entry back. Returns '' or why it can't.
 async function restoreEntry(e){
@@ -2113,9 +2146,9 @@ $('#trashEmpty').onclick=async()=>{
 // (prefs.studyMode): 'word' shows the word and asks for its meaning; 'cloze' shows a sentence with the word blanked
 // out and the meaning as a hint, and asks for the word. srs.seen counts reviews; each one starts the examples one
 // further along, so the front sentence changes. Fact cards (vocab.js) share the queue, the schedule and the day's new
-// allowance; the card type doesn't apply to them.
+// allowance; the card type doesn't apply to them. SY.gone: the cards deleted in this session, which Undo puts back.
 const STUDY_NEW=20,STUDY_AGAIN=5,RATINGS=['again','good','easy'];
-let SY={words:[],queue:[],i:0,shown:false,done:new Set()},syRun=0;
+let SY={words:[],queue:[],i:0,shown:false,done:new Set(),gone:new Set()},syRun=0;
 const syDay=()=>{const d=new Date();return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;};
 const syNewToday=()=>{const c=ls.get('studyNew',null);return c&&c.day===syDay()?c.n:0;};
 const syMidnight=(t,days=0)=>{const d=new Date(t);d.setHours(24*days,0,0,0);return d.getTime();}; // local, so DST-safe
@@ -2137,7 +2170,7 @@ function sySentence(x,blank){
   return esc(c.slice(0,x.s))+`<span class="sy-gap" aria-label="blank">${esc(c.slice(x.s,x.s+gap))}</span>`+esc(c.slice(x.s+gap));
 }
 async function openStudy(){
-  const run=++syRun;SY={words:[],queue:[],i:0,shown:false,done:new Set()};
+  const run=++syRun;SY={words:[],queue:[],i:0,shown:false,done:new Set(),gone:new Set()};
   show('study');window.scrollTo(0,0);syHead(false);
   $('#syCard').innerHTML='<div class="empty">Gathering your words…</div>';$('#syActs').innerHTML='';
   let words=[];try{words=await DB.all('word:');}catch(e){console.warn('Study',e);}
@@ -2192,10 +2225,10 @@ function syFact(f,now){
   const back=syPic(f)+(f.note?`<p class="sy-note">${esc(f.note)}</p>`:'')+`<p class="sy-book"><b>${esc(wordBook(f))}</b>${f.section?`<span>${esc(f.section)}</span>`:''}</p>`;
   syCard(f,now,front,back,c?'Show answer':f.note?'Show note':'Show source');
 }
-// the card, its back once shown, and the button that shows it or the three ratings
+// the card, its back once shown (with Delete in the top corner), and the button that shows it or the three ratings
 function syCard(w,now,front,back,show){
-  const open=SY.shown;
-  $('#syCard').innerHTML=`<article class="sy-card">${front}${open?`<div class="sy-back"><div class="sy-rule" aria-hidden="true">❦</div>${back}</div>`:''}</article>`;
+  const open=SY.shown,del=`<button class="w-del sy-del" data-sy="del" aria-label="${isFact(w)?'Delete this fact card':`Delete “${esc(w.term)}”`}">Delete</button>`;
+  $('#syCard').innerHTML=`<article class="sy-card">${front}${open?`<div class="sy-back"><div class="sy-rule" aria-hidden="true">❦</div>${back}</div>${del}`:''}</article>`;
   $('#syActs').innerHTML=open?`<div class="sy-rate">${RATINGS.map((r,i)=>`<button class="sy-r ${r}" data-r="${r}" aria-keyshortcuts="${i+1}"><b>${r[0].toUpperCase()+r.slice(1)}</b><small>${nextLabel(w.srs,r,now)}</small></button>`).join('')}</div>`
     :`<button class="btn sy-big" data-sy="show" aria-keyshortcuts="Space Enter">${show}</button>`;
 }
@@ -2209,6 +2242,20 @@ function syRate(r){
   if(r==='again') SY.queue.splice(Math.min(SY.queue.length,SY.i+1+STUDY_AGAIN),0,w);
   SY.i++;SY.shown=false;syRender();window.scrollTo(0,0);
 }
+// Delete, on the back: the card goes to the Trash like any word and the next one shows. Undo puts it back next in
+// the deck while this session is open (syRestored).
+function syDelete(){
+  const w=SY.queue[SY.i];if(!w||!SY.shown) return;
+  deleteWord(w.id,(wordsDb===DB&&WORDS&&WORDS.get(w.id))||w);
+  SY.queue=SY.queue.filter((x,i)=>i<SY.i||x.id!==w.id);SY.words=SY.words.filter(x=>x.id!==w.id);SY.gone.add(w.id);
+  SY.shown=false;syRender();window.scrollTo(0,0);
+}
+function syRestored(w){
+  if(!SY.gone.delete(w.id)||$('#study').classList.contains('hidden')) return;
+  const c=(wordsDb===DB&&WORDS&&WORDS.get(w.id))||w;
+  SY.queue.splice(SY.i,0,c);SY.words.push(c);SY.shown=false;syRender();window.scrollTo(0,0);
+}
+$('#syCard').onclick=e=>{if(e.target.closest('[data-sy="del"]')) syDelete();};
 $('#syBack').onclick=goShelf;
 // a pointer click lets go of the focus, so Space goes back to the card instead of this button
 $('#syMode').onclick=e=>{const b=e.target.closest('[data-m]');if(!b)return;if(e.detail)b.blur();prefs.studyMode=b.dataset.m;savePrefs();SY.shown=false;syRender();};
