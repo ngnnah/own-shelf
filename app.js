@@ -1,7 +1,7 @@
 // own-shelf app (formerly Upwind). Ported from legacy/app-script.js; all data goes through the store.js adapters.
 import {makeLocal,makeCloud,exportShelf,importShelf} from './store.js';
 import {firebaseConfig,WORKER_URL} from './config.js';
-import {wordId,normTerm,termKey,sentenceAround,isDue,schedule,nextLabel,cloze,datamuseUrl,parseDatamuse,wiktionaryUrl,parseWiktionary,baseForms,isFact,factId,factCloze,wordsIn,snapWords,
+import {wordId,normTerm,termKey,sentenceAround,isDue,schedule,nextLabel,dayStart,progress,dueByDay,cloze,datamuseUrl,parseDatamuse,wiktionaryUrl,parseWiktionary,baseForms,isFact,factId,factCloze,wordsIn,snapWords,
   wikiSummaryUrl,parseWikiSummary,datamuseRelUrl,parseDatamuseWords,wikitextUrl,parseWikitext,cleanText,parseList,parseExamples,mergeExtras} from './vocab.js';
 /* ================= utils ================= */
 const $=s=>document.querySelector(s);
@@ -1667,14 +1667,13 @@ const wordsSig=()=>JSON.stringify([...WORDS.values()].sort((a,b)=>a.id<b.id?-1:1
 async function openWords(fresh){
   const run=++WD.run,ready=!!WORDS&&wordsDb===DB,shown=ready?wordsSig():null;
   if(ready) renderWords();
-  else{$('#wdStats').innerHTML='';$('#wdCtrl').classList.add('hidden');$('#wdList').innerHTML='<div class="empty">Gathering your words…</div>';}
+  else{$('#wdStats').innerHTML='';$('#wdProg').classList.add('hidden');$('#wdCtrl').classList.add('hidden');$('#wdList').innerHTML='<div class="empty">Gathering your words…</div>';}
   if(ready&&!fresh) return;
   await loadWords(fresh);
   if(run===WD.run&&prefs.nbTab==='wd'&&WORDS&&wordsSig()!==shown&&!$('#wdList').contains(document.activeElement)) renderWords();
 }
 function renderWords(){
-  const all=WORDS?[...WORDS.values()]:[],now=Date.now(),nf=all.filter(isFact).length;
-  $('#wdStats').innerHTML=all.length?[all.length>nf&&nbCount(all.length-nf,'word'),nf&&nbCount(nf,'fact'),`<b>${all.filter(w=>isDue(w.srs,now)).length}</b> due`].filter(Boolean).join(' · '):'';
+  const all=WORDS?[...WORDS.values()]:[];
   $('#wdStudy').classList.toggle('hidden',typeof openStudy!=='function'); // the Study screen defines openStudy
   // the book filter lists the books of what the chip shows
   const books=new Map(),add=(id,t)=>{if(!books.has(id)) books.set(id,t);};
@@ -1689,10 +1688,49 @@ function renderWords(){
 // are words, fact cards or coral highlights.
 const WD_CHIPS=[['all','All'],['words','Words'],['facts','Facts'],['sort','To sort']];
 function wdChips(){
+  wdProgress(); // To sort's Fact and Undo change the cards too
   const n=SORT.items?sortBase().filter(it=>!it.h.study).length:null;
   $('#wdCtrl').classList.toggle('hidden',!(WORDS&&WORDS.size)&&!(SORT.items&&SORT.items.length));
   $('#wdChips').innerHTML=WD_CHIPS.map(([f,l])=>`<button class="chip" aria-pressed="${WD.f===f}" data-f="${f}">${l}${f==='sort'&&n!==null?` (${n})`:''}</button>`).join('');
 }
+// The Progress panel at the top of the tab, over every card whatever the chips, search and book filter show: the
+// counts line under the title, the figures (vocab.js progress(), which says what each counts), Study, and under "Reviews
+// by day" the cards coming up in the next two weeks. Shown once there's a card.
+function wdProgress(){
+  const all=WORDS?[...WORDS.values()]:[],nf=all.filter(isFact).length,now=Date.now();
+  $('#wdStats').innerHTML=all.length?[all.length>nf&&nbCount(all.length-nf,'word'),nf&&nbCount(nf,'fact')].filter(Boolean).join(' · '):'';
+  $('#wdProg').classList.toggle('hidden',!all.length);
+  if(!all.length) return;
+  const p=progress(all,now,syNewToday(),STUDY_NEW);
+  $('#wpFigs').innerHTML=[['due','Due today','Cards to review by midnight, overdue ones included'],['newLeft','New left',`New cards Study still takes today (${STUDY_NEW} a day)`],
+    ['learning','Learning','Cards whose next review is under three weeks after the last'],['learned','Learned','Cards whose next review is three weeks or more after the last'],['total','Total','Every word and fact card']]
+    .map(([k,label,tip])=>`<div class="wp-fig" data-k="${k}" title="${tip}"><dt>${label}</dt><dd>${p[k]}</dd></div>`).join('');
+  const due=dueByDay(all,now,14);
+  $('#wpCharts').innerHTML=wpChart('Coming up',due,dayStart(now),0,'card',`${plural(due.reduce((a,b)=>a+b,0),'card')} in 14 days`,'Nothing due in the next two weeks.');
+}
+// A bar per day, the first on the day starting at `from`, in one colour; today's bar (index `today`) carries its count.
+// Hovering or tapping a bar reads its day and count beside the title, and each bar says it to screen readers.
+function wpChart(title,vals,from,today,unit,sum,empty){
+  const max=Math.max(0,...vals),n=vals.length,day=i=>dayStart(from,i);
+  const name=i=>i===today?'Today':new Date(day(i)).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+  const end=i=>i===today?'Today':new Date(day(i)).toLocaleDateString(undefined,{month:'short',day:'numeric'});
+  const bars=vals.map((v,i)=>{const tip=`${name(i)}: ${plural(v,unit)}`;
+    return `<li data-tip="${esc(tip)}" style="--h:${max?(v/max*100).toFixed(1):0}%">${v?`<i>${i===today?`<em aria-hidden="true">${v}</em>`:''}</i>`:''}<span class="vh">${esc(tip)}</span></li>`;}).join('');
+  return `<figure class="wp-chart"><figcaption class="wp-cap"><b>${title}</b><span class="wp-read" data-def="${esc(sum)}">${esc(sum)}</span></figcaption>`+
+    (max?`<ol class="wp-bars" style="--n:${n}">${bars}</ol><div class="wp-axis" aria-hidden="true"><span>${end(0)}</span><span>${end(n-1)}</span></div>`:`<p class="wp-none">${empty}</p>`)+'</figure>';
+}
+// a bar under the pointer or a finger: its day and count beside the chart's title, until the mouse leaves the bars
+function wpRead(ol,li){
+  const r=ol.closest('.wp-chart').querySelector('.wp-read');
+  ol.querySelectorAll('li.on').forEach(x=>x.classList.remove('on'));
+  if(li) li.classList.add('on');
+  r.textContent=li?li.dataset.tip:r.dataset.def;
+}
+$('#wpCharts').addEventListener('pointerover',e=>{const li=e.target.closest('.wp-bars li');if(li) wpRead(li.parentElement,li);});
+$('#wpCharts').addEventListener('pointerout',e=>{const ol=e.target.closest('.wp-bars');if(ol&&e.pointerType==='mouse'&&!ol.contains(e.relatedTarget)) wpRead(ol,null);});
+// The charts fold away: open at first on screens wider than a phone, then as last left (a tap on the summary).
+$('#wpMore').open=prefs.wpOpen??matchMedia('(min-width:601px)').matches;
+$('#wpMore>summary').addEventListener('click',()=>{prefs.wpOpen=!$('#wpMore').open;savePrefs();});
 // A fact card in the list: its text with the blanked phrase marked, where it's from (opens the highlight), its note,
 // its pictures. A card takes focus (tabindex -1), so a picture can be pasted into it.
 const factQ=f=>{const c=factCloze(f);return c?esc(c.before)+`<span class="f-gap">${esc(c.phrase)}</span>`+esc(c.after):esc(f.text||'');};

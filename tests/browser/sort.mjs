@@ -275,7 +275,7 @@ await t.run(async()=>{
   const fsq=fs.find(x=>x.q===SQUALL);
   ok('a cloze card shows its blanked phrase marked; its book and section open the highlight',fsq.gap==='sudden, violent gust'&&fsq.bk==='The Salt Almanac · 1. Part One');
   ok('a re-read card shows its note',fs.find(x=>x.q===BARO).note==='Grandpa’s rule.'&&fs.find(x=>x.q===WALL).bk==='Harbour Notes');
-  ok('the count line: words, facts, due',(await text('#wdStats'))==='2 words · 5 facts · 7 due');
+  ok('the count line: words and facts; the Progress panel counts all 7 cards',(await text('#wdStats'))==='2 words · 5 facts'&&(await text('#wpFigs [data-k="total"] dd'))==='7');
   await chip('Words');
   ok('Words lists only the words',same(await page.$$eval('#wdList .wcard .w-term',e=>e.map(x=>x.textContent)),['ledger','pilots'])&&!(await page.$('#wdList .fcard')));
   await chip('All');

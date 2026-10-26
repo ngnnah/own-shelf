@@ -85,6 +85,44 @@ export function nextLabel(srs, rating, now) {
   return days < 45 ? `${days} day${days === 1 ? '' : 's'}` : `${Math.round(days / 30)} mo`;
 }
 
+/* ---------- progress: the Words tab's panel ---------- */
+// Local midnight `days` days after the day of t (negative: before). Set through local fields, so a day with a DST
+// change still starts at midnight.
+export const dayStart = (t, days = 0) => { const d = new Date(t); d.setHours(24 * days, 0, 0, 0); return d.getTime(); };
+export const LEARNED_DAYS = 21;
+// The panel's figures over every card, words and fact cards alike (Study takes both). Each card is new (never rated:
+// no srs), learning or learned, so those three add up to the total:
+//   due       cards rated before whose next review falls before tomorrow's local midnight, overdue ones included.
+//             Study shows the ones whose time has come (srs.due ≤ now); the rest come up later today
+//   newLeft   new cards Study still takes today: at most `limit` a day, less the `newToday` already rated today
+//   learning  rated cards whose interval is under three weeks: seen once or twice, or sent back by Again
+//   learned   rated cards whose interval is three weeks or more: the next review is at least 21 days after the last
+//   total     every card
+export function progress(cards, now, newToday = 0, limit = 20) {
+  const end = dayStart(now, 1), f = { due: 0, newLeft: 0, learning: 0, learned: 0, total: 0 };
+  let fresh = 0;
+  for (const c of cards || []) {
+    if (!c) continue;
+    f.total++;
+    const s = c.srs;
+    if (!s) { fresh++; continue; }
+    if ((s.due || 0) < end) f.due++;
+    if ((s.interval || 0) >= LEARNED_DAYS) f.learned++; else f.learning++;
+  }
+  f.newLeft = Math.min(fresh, Math.max(0, limit - newToday));
+  return f;
+}
+// Rated cards due on each of the `days` days from today, by local date: today first, with every overdue card in it
+// (so it matches progress().due). New cards aren't scheduled yet, so they're in none.
+export function dueByDay(cards, now, days = 14) {
+  const out = new Array(days).fill(0), ends = out.map((_, i) => dayStart(now, i + 1));
+  for (const c of cards || []) {
+    const s = c && c.srs; if (!s) continue;
+    const i = ends.findIndex(e => (s.due || 0) < e); if (i >= 0) out[i]++;
+  }
+  return out;
+}
+
 /* ---------- dictionaries (free, no key, CORS-enabled) ---------- */
 // Datamuse first: plain-text definitions with a part of speech.
 export const datamuseUrl = term => `https://api.datamuse.com/words?sp=${encodeURIComponent(termKey(term))}&md=d&max=1`;

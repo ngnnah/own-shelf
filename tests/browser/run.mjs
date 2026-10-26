@@ -36,6 +36,9 @@
 //   migrate.mjs     the artifact's "Back up shelf" (legacy/app-artifact.html) → the app's "Restore from backup"
 //   study.mjs       Study flashcards: the queue (due first, the daily new-word cap), front and back, ratings and
 //                   their saved schedule, Again, keys, Sentence → word, done and empty states, ?study=1
+//   progress.mjs    the Words tab's Progress panel: its figures for cards with known schedules (due today, new left,
+//                   learning, learned, total), the two-week chart of reviews coming up (the bars, today's count, hover
+//                   and tap, folded on a phone and remembered), Study from the panel, compact at 320 px, light and dark
 //   linkimport.mjs  link import's article extraction: a summary in the article's <header> survives Readability
 //   sort.mjs        To sort: Coral highlights (Kindle red and pink) become words (tap) or fact cards (a
 //                   selected phrase as the blank), Skip and Show skipped, Make the rest facts, the sorting surviving
@@ -66,7 +69,7 @@ import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','shelves.mjs','kindle.mjs','words.mjs','wordbox.mjs','notesheet.mjs','fastscroll.mjs','wordcard.mjs','study.mjs','sort.mjs','migrate.mjs','linkimport.mjs','setup.mjs','colours.mjs','signin.mjs','dialogs.mjs','overflow.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','shelves.mjs','kindle.mjs','words.mjs','wordbox.mjs','notesheet.mjs','fastscroll.mjs','wordcard.mjs','study.mjs','progress.mjs','sort.mjs','migrate.mjs','linkimport.mjs','setup.mjs','colours.mjs','signin.mjs','dialogs.mjs','overflow.mjs'];
 
 // Run one file, echo its output and count its PASS/FAIL lines.
 const runOne=f=>new Promise(res=>{

@@ -592,7 +592,31 @@ body:has(#noteBox:not(.hidden),#wordBox:not(.hidden)) #toast{top:calc(env(safe-a
 #wdList{max-width:46rem}
 #wdBook{flex:0 1 20rem;min-width:0;width:auto;appearance:none;-webkit-appearance:none;border:2px solid var(--rule);border-radius:999px;color:var(--ink);font:500 .92rem var(--ui);padding:.5rem 2.2rem .5rem 1rem;text-overflow:ellipsis;
   background:var(--sheet) no-repeat;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 1.2rem) 52%,calc(100% - .85rem) 52%;background-size:.35rem .35rem}
-#wdStudy{margin-left:auto;flex:none}
+/* the Progress panel: Study, five figures in a row (number over label; labels may wrap at 320 px), and the reviews by
+   day folded under a summary: one bar per day in the accent, rounded at the top, 2 px apart, today's bar labelled */
+.wp{max-width:46rem;background:var(--sheet);border:1.5px solid var(--rule);border-radius:18px;padding:.75rem 1rem .55rem;margin:0 0 1.3rem}
+.wp-head{display:flex;align-items:center;flex-wrap:wrap;gap:.3rem .8rem}
+.wp-head h2{font:600 1.3rem/1.2 var(--display);margin:0}
+#wdStudy{margin-left:auto;flex:none;padding:.48rem 1.15rem;font-size:1rem}
+.wp-figs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.5rem;margin:.6rem 0 0}
+.wp-fig{display:flex;flex-direction:column-reverse;justify-content:flex-end;min-width:0}
+.wp-fig dd{margin:0;font:600 1.4rem/1.15 var(--ui);color:var(--ink)}
+.wp-fig dt{font:500 .74rem/1.25 var(--ui);color:var(--muted);margin-top:.1rem;hyphens:auto}
+@media (max-width:380px){.wp{padding-inline:.85rem}.wp-figs{gap:.3rem}.wp-fig dd{font-size:1.25rem}.wp-fig dt{font-size:.68rem}}
+.wp-more{border-top:1px solid var(--rule);margin-top:.65rem;padding-top:.15rem}
+.wp-more>summary{cursor:pointer;width:max-content;max-width:100%;padding:.4rem 0;font:600 .84rem var(--ui);color:var(--sea)}
+.wp-chart{margin:.35rem 0 .7rem}
+.wp-cap{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:.1rem .8rem;font:500 .8rem/1.35 var(--ui);color:var(--muted)}
+.wp-cap b{font-weight:600;color:var(--ink)}
+.wp-read{font-variant-numeric:tabular-nums}
+.wp-bars{list-style:none;margin:.3rem 0 0;padding:1.05rem 0 0;height:5.2rem;display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:2px;border-bottom:1px solid var(--rule)}
+.wp-bars li{position:relative;height:100%;display:flex;align-items:flex-end;justify-content:center}
+.wp-bars i{position:relative;display:block;width:100%;max-width:24px;height:max(3px,var(--h));background:var(--sea);border-radius:4px 4px 0 0}
+.wp-bars li.on i{background:color-mix(in srgb,var(--sea) 72%,var(--ink))}
+.wp-bars em{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:3px;font:600 .72rem/1 var(--ui);font-style:normal;color:var(--ink);white-space:nowrap}
+.wp-axis{display:flex;justify-content:space-between;gap:1rem;margin-top:.25rem;font:500 .72rem var(--ui);color:var(--muted)}
+.wp-none{margin:.3rem 0 0;font:italic 1rem/1.4 var(--display);color:var(--muted)}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 /* iOS zooms into a focused field under 16 px and leaves the page zoomed, so it pans sideways */
 @media (pointer:coarse){#nbBook,#wdBook{font-size:1rem}}
 .wcard{background:var(--sheet);border:1.5px solid var(--rule);border-radius:18px;padding:.8rem 1.1rem .95rem;margin-bottom:.8rem}

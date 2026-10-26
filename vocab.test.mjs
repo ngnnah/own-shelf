@@ -1,4 +1,4 @@
-import {normTerm,termKey,wordId,sentenceAround,cloze,newSrs,isDue,schedule,nextLabel,parseDatamuse,parseWiktionary,baseForms,isFact,factId,factBlank,factCloze,wordsIn,snapWords,
+import {normTerm,termKey,wordId,sentenceAround,cloze,newSrs,isDue,schedule,nextLabel,dayStart,progress,dueByDay,parseDatamuse,parseWiktionary,baseForms,isFact,factId,factBlank,factCloze,wordsIn,snapWords,
   wikiSummaryUrl,parseWikiSummary,datamuseRelUrl,parseDatamuseWords,wikitextUrl,parseWikitext,stripWiki,findWord,cleanText,parseList,exampleLine,parseExamples,mergeExtras} from './vocab.js';
 import {ok,done} from './test-util.mjs';
 
@@ -26,6 +26,29 @@ const e1=schedule(c,'easy',now);ok('easy on a new card: 4 days, ease up',e1.inte
 const a1=schedule(g3,'again',now);ok('again: 10 minutes, back to the start, ease down, a lapse',a1.due===now+600000&&a1.reps===0&&a1.ease<g3.ease&&a1.lapses===1);
 ok('ease never drops below 1.3',[...Array(10)].reduce(s=>schedule(s,'again',now),g3).ease===1.3);
 ok('nextLabel: 10 min / 1 day / 4 days',nextLabel(c,'again',now)==='10 min'&&nextLabel(c,'good',now)==='1 day'&&nextLabel(c,'easy',now)==='4 days');
+
+// progress: local days, so the fixture is built from a local date (noon), and days are local midnights
+const noon=new Date(2026,9,26,12).getTime(),mid=k=>new Date(2026,9,26+k).getTime(),HOUR=36e5;
+ok('dayStart: local midnight k days on, or back',dayStart(noon)===mid(0)&&dayStart(noon,1)===mid(1)&&dayStart(noon,-3)===mid(-3)&&dayStart(mid(1)-1,0)===mid(0));
+const card=(due,interval,extra)=>({id:'w'+Math.random(),srs:{due,interval,ease:2.5,reps:interval?2:0,lapses:0},...extra});
+const deck=[
+  card(noon-5*DAY,3),                  // overdue: due today, learning
+  card(noon-HOUR,0),                   // sent back by Again, due now: due today, learning
+  card(mid(1)-60000,8),                // due tonight at 23:59: due today, learning
+  card(mid(1),21),                     // due at tomorrow's midnight: tomorrow, learned (21 days)
+  card(mid(3)+9*HOUR,40,{kind:'fact'}),// a fact card in 3 days, learned
+  card(mid(13)+HOUR,20),               // the last day of the two weeks, learning (20 days)
+  card(mid(14)+HOUR,60),               // past the two weeks, learned
+  {id:'n1'},{id:'n2',kind:'fact'},{id:'n3'},{id:'n4'},null // new: no srs (a fact card too); a hole is skipped
+];
+const pg=progress(deck,noon,0,20);
+ok('progress: due today counts overdue cards and the rest of today, not tomorrow',pg.due===3);
+ok('progress: learning under 21 days, learned from 21 (fact cards too), total every card',pg.learning===4&&pg.learned===3&&pg.total===11&&pg.learning+pg.learned+4===pg.total);
+ok('progress: new left is the day’s allowance left, at most the new cards there are',pg.newLeft===4&&progress(deck,noon,18,20).newLeft===2&&progress(deck,noon,20,20).newLeft===0&&progress(deck,noon,25,20).newLeft===0);
+ok('progress: nothing at all is all zeros',JSON.stringify(progress([],noon))==='{"due":0,"newLeft":0,"learning":0,"learned":0,"total":0}'&&progress(null,noon).total===0);
+const dd=dueByDay(deck,noon,14);
+ok('dueByDay: 14 local days from today, today with the overdue cards (matches due today)',dd.length===14&&dd[0]===3&&dd[0]===pg.due&&dd[1]===1&&dd[3]===1&&dd[13]===1&&dd.reduce((a,b)=>a+b)===6);
+ok('dueByDay: new cards and cards past the last day are left out; a shorter window',JSON.stringify(dueByDay(deck,noon,2))==='[3,1]'&&dueByDay([{id:'x'}],noon,3).join()==='0,0,0');
 
 const dm=parseDatamuse([{word:'ephemeral',defs:['adj\tLasting for a short period of time. ','n\tSomething which lasts for a short period of time. ']}]);
 ok('parseDatamuse: first definition and its part of speech',dm.def==='Lasting for a short period of time.'&&dm.pos==='adjective'&&dm.more.length===1&&dm.defSource==='Datamuse');
