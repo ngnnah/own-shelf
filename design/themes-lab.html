@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<!--
+  own-shelf themes lab: the shelf and the reader drawn in candidate looks, to pick one before the app's look changes.
+  Open it from a static server in the repo root (python3 -m http.server 8000, then
+  http://localhost:8000/design/themes-lab.html) or straight from disk in Chrome (file://); both work.
+  Each mock is an iframe that loads the app's own ../styles.css and ../icons, with the app's markup and class names,
+  then layers a look on top: values for the app's CSS custom properties, a few new ones, and the look's own rules.
+  "Copy settings" gives JSON to paste back to Claude. #solo=leather/night/reader[/text] renders one mock alone
+  (used for screenshots); #dir=ukiyoe opens a direction on its defaults.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>own-shelf themes lab</title>
+<style>
+:root {
+  --bg: #f3f2ee; --panel: #ffffff; --ink: #1d1d1f; --muted: #6e6e73; --line: #e2e0da;
+  --soft: #f7f6f3; --accent: #1f3a2e; --accent-ink: #ffffff; --focus: #3b82f6;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #141514; --panel: #1c1d1c; --ink: #ececea; --muted: #9b9b97; --line: #2e2f2d;
+          --soft: #222322; --accent: #8fd1ad; --accent-ink: #10231a; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font: 13px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+.app { display: grid; grid-template-columns: 330px minmax(0, 1fr); height: 100vh; }
+aside { overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line); padding: 14px 16px 120px; }
+main { overflow-y: auto; padding: 22px 28px 80px; }
+@media (max-width: 860px) { .app { grid-template-columns: 1fr; height: auto; } aside { border-right: 0; border-bottom: 1px solid var(--line); } main { padding: 18px 16px 60px; } }
+h1 { font-size: 18px; margin: 0 0 2px; letter-spacing: -0.01em; }
+h2 { font-size: 13px; margin: 30px 0 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.sub { color: var(--muted); margin: 0 0 14px; max-width: 78ch; }
+.presets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 8px 0 6px; }
+button { font: inherit; color: var(--ink); background: var(--soft); border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.row-buttons { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.sec { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 10px; }
+.sec-title { font-weight: 650; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 6px; }
+.ctl { display: grid; grid-template-columns: 118px 1fr 44px; align-items: center; gap: 8px; margin: 5px 0; }
+.ctl label { font-size: 12px; }
+.ctl .val { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 11px; text-align: right; }
+.ctl input[type=range] { width: 100%; accent-color: var(--accent); }
+.ctl select { grid-column: 2 / 4; font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--soft); color: var(--ink); width: 100%; }
+.ctl.check input { justify-self: start; accent-color: var(--accent); }
+.ctl .colorwrap { grid-column: 2 / 4; display: flex; gap: 6px; align-items: center; }
+.ctl input[type=color] { width: 30px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: none; }
+.ctl .hex { font: 11px ui-monospace, Menlo, monospace; color: var(--muted); }
+.ctl .hint { grid-column: 1 / 4; margin: -3px 0 2px; color: var(--muted); font-size: 11px; }
+.note-today { color: var(--muted); margin: 14px 0 0; font-size: 12px; }
+textarea { width: 100%; min-height: 54px; font: inherit; padding: 6px 8px; border-radius: 7px; border: 1px solid var(--line); background: var(--soft); color: var(--ink); resize: vertical; }
+.toolbar { display: flex; gap: 8px 14px; flex-wrap: wrap; align-items: center; margin: 8px 0 4px; }
+.toolbar .lbl { color: var(--muted); font-size: 12px; margin-right: -6px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: transparent; padding: 5px 10px; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--accent); color: var(--accent-ink); }
+.warn { color: #c2410c; }
+@media (prefers-color-scheme: dark) { .warn { color: #fb923c; } }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #111; color: #fff; padding: 8px 14px; border-radius: 8px; font-size: 12px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10; }
+.toast.on { opacity: 1; }
+.conn { font-size: 11px; color: var(--muted); }
+.empty { color: var(--muted); font-style: italic; }
+
+/* ═══ the mocks ═══ */
+.mode-row { margin: 14px 0 6px; }
+.mode-row > .mlbl { font-weight: 650; margin: 0 0 6px; }
+.frames { display: flex; flex-wrap: wrap; gap: 18px 16px; align-items: flex-start; }
+.fcol { display: grid; gap: 5px; }
+.fcap { font-size: 11px; color: var(--muted); }
+.fwrap { position: relative; overflow: hidden; border-radius: 12px; border: 1px solid var(--line); background: #fff; box-shadow: 0 6px 24px -14px rgba(0,0,0,.35); }
+.fwrap iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; background: transparent; }
+.fwrap.thumb { border-radius: 8px; box-shadow: none; cursor: pointer; }
+.fwrap.thumb iframe { pointer-events: none; }
+.dgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(500px, 1fr)); gap: 12px; }
+.dcard { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 10px 12px 12px; }
+.dcard.cur { outline: 2px solid var(--accent); outline-offset: -1px; }
+.dcard .dname { font-weight: 650; margin-bottom: 2px; }
+.dcard .dname small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+.dcard .strip { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.dcard .strip .fcap { text-align: center; }
+table.chk, table.tok { border-collapse: collapse; font-size: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+table.chk th, table.chk td, table.tok th, table.tok td { padding: 5px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+table.chk td.n, table.chk th.n { text-align: right; font-variant-numeric: tabular-nums; }
+table.chk th, table.tok th { color: var(--muted); font-weight: 600; }
+table.tok code { font: 11px ui-monospace, Menlo, monospace; }
+table.tok .sw { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(0,0,0,.2); vertical-align: -3px; margin-right: 6px; }
+table.tok .new { font-size: 10px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .05em; margin-left: 6px; }
+.tables { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.pins { display: grid; gap: 8px; }
+.pin { display: grid; grid-template-columns: 150px 1fr auto; gap: 12px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.pin .name { font-weight: 600; }
+.pin .name small { display: block; color: var(--muted); font-weight: 400; }
+.pin .strip { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#jsonOut { display: none; margin-top: 8px; min-height: 160px; font: 11px/1.4 ui-monospace, Menlo, monospace; }
+#jsonOut.on { display: block; }
+</style>
+</head>
+<body>
+<div class="app">
+<aside>
+  <h1>own-shelf themes</h1>
+  <p class="sub" style="margin-bottom:6px">Pick a direction, then tune it. Every mock updates live; your changes are kept per direction in this browser.</p>
+  <div class="presets" id="presets"></div>
+  <div class="row-buttons"><button id="surprise">Surprise me</button><button id="reset">Reset direction</button></div>
+  <div id="controls"></div>
+</aside>
+<main>
+  <h1 id="mainTitle"></h1>
+  <p class="sub" id="blurb"></p>
+  <div class="toolbar">
+    <span class="lbl">Mode</span><div class="seg" id="segMode"></div>
+    <span class="lbl">Screen</span><div class="seg" id="segScreen"></div>
+    <span class="lbl">Width</span><div class="seg" id="segWidth"></div>
+    <span class="lbl">Reader at</span><div class="seg" id="segPos"></div>
+  </div>
+  <div id="frames"></div>
+
+  <h2>Contrast and highlights</h2>
+  <p class="sub">Body text needs 4.5:1 on its page, day and night. "With grain" is the page at the texture's darkest speck. Highlights: ink on each of the five tints over the page, and how far apart the tints are (CIEDE2000; today's look is the bar to match).</p>
+  <div id="checks"></div>
+
+  <h2>Every direction, day and night</h2>
+  <p class="sub">Phone width, with your current settings. Click one to open it.</p>
+  <div class="dgrid" id="grid"></div>
+
+  <h2>Tokens</h2>
+  <p class="sub" id="tokSub"></p>
+  <div class="tables" id="tokens"></div>
+
+  <h2>Pinned variants</h2>
+  <div class="toolbar"><button id="pinBtn">Pin this variant</button></div>
+  <div class="pins" id="pins"></div>
+
+  <h2>Send your pick</h2>
+  <textarea id="note" placeholder="Which direction, day or night, what to change…"></textarea>
+  <div class="toolbar"><button class="primary" id="copyBtn">Copy settings</button><button id="sendBtn" hidden>Send to Claude</button><span class="conn" id="conn"></span></div>
+  <textarea id="jsonOut" readonly aria-label="Settings JSON"></textarea>
+</main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+// ═════════════════════════════════════════════════════════════════════════════
+// THE SUBJECT: directions, their tokens and look CSS, and the mock screens.
+// ═════════════════════════════════════════════════════════════════════════════
+
+const LAB = { key: 'own-shelf-themes-lab' };
+
+// Heading fonts (Google Fonts). `full`: has the weights and italics the app asks for, so the browser needn't fake them.
+const FONTS = [
+  ['EB Garamond', true], ['Cormorant Garamond', true], ['IM Fell English', false], ['Uncial Antiqua', false],
+  ['Shippori Mincho', false], ['Zen Old Mincho', false], ['Zen Antique', false],
+];
+const FONT_LINK = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
+  '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..700;1,400..700&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..500&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=IM+Fell+English:ital@0;1&family=Shippori+Mincho:wght@400;500;600;700;800&family=Zen+Old+Mincho:wght@400;500;600;700;900&family=Zen+Antique&family=Uncial+Antiqua&display=swap">';
+
+// Today's look, exactly as styles.css has it. The baseline: nothing to tune.
+const TODAY = {
+  day:   { paper: '#F3EAD7', sheet: '#FBF6EA', ink: '#2E2119', muted: '#6B5A48', sea: '#2F5A43', buoy: '#8E2F2A', rule: '#DCCBA8', wave: '#C9B48A', plank: '#5C3B24', leaf: '#ECDFC0', gilt: '#D9B864' },
+  night: { paper: '#1E1A16', sheet: '#29221C', ink: '#EFE4CC', muted: '#B5A68C', sea: '#9CC8A8', buoy: '#E2826F', rule: '#3D332A', wave: '#6E5B3C', plank: '#4A3020', leaf: '#C9BB9A', gilt: '#D9B864' },
+};
+// The five highlight tints and their solid swatches, from styles.css (light and dark). Every look keeps them.
+const TINTS = {
+  day:   { sky: 'rgba(110,170,255,.45)', coral: 'rgba(255,120,150,.45)', amber: 'rgba(255,146,43,.45)', sun: 'rgba(255,212,59,.6)', mint: 'rgba(70,214,160,.5)' },
+  night: { sky: 'rgba(110,170,255,.35)', coral: 'rgba(255,120,150,.33)', amber: 'rgba(255,146,43,.36)', sun: 'rgba(255,212,59,.38)', mint: 'rgba(70,214,160,.33)' },
+};
+const SOLIDS = { sun: '#F4C21B', mint: '#2FBF8A', coral: '#F2668A', sky: '#4E8FF0', amber: '#F28C28' };
+const MEANINGS = { sky: 'Important', coral: 'Facts & words', amber: 'Quotes', sun: 'Lesser', mint: 'Other' };
+const TOOL_ORDER = ['sun', 'mint', 'coral', 'sky', 'amber']; // keys 1–5
+
+const DIRS = {
+  today: {
+    name: 'Today', short: 'Light and Dark as shipped',
+    blurb: "Today's Light and Dark, exactly as styles.css has them: parchment, walnut, library green and oxblood, EB Garamond headings. The baseline to beat.",
+    d: { font: 'EB Garamond' },
+  },
+  leather: {
+    name: 'Leather & vellum', short: 'proposed default',
+    blurb: 'A bound book. Tooled leather for the chrome (the bars, the shelf band, the toolbar, the finish card) with gilt fillets; a warm vellum page; leather shelf edging, scalloped and gilt-tooled; leather-grained covers; a silk ribbon that hangs from the bar; an illuminated first letter. Night is the same book under a lamp, in oxblood leather.',
+    d: { font: 'Cormorant Garamond', grain: 0.5, chromeGrain: 0.7, orn: true, covers: true, edging: true,
+      d_paper: '#F1E3C4', d_ink: '#2A1B10', d_accent: '#2C5236', d_mark: '#8E1B2B', d_chrome: '#5A301C', d_gilt: '#C49A45', d_plank: '#4B2C19',
+      n_paper: '#1A1310', n_ink: '#EBDCBB', n_accent: '#A9CBA2', n_mark: '#C4524F', n_chrome: '#4A1E16', n_gilt: '#B98F45', n_plank: '#3A2416' },
+  },
+  ukiyoe: {
+    name: 'Ukiyo-e', short: 'washi, indigo, vermilion',
+    blurb: 'A woodblock print. Washi paper with fibres, indigo chrome with a woodblock grain and a bokashi gradient (dark at the top, as in a Hiroshige sky), vermilion for the ribbon, the Shelf button and seals on the section numbers; a seigaiha wave band; covers with a title slip and stitched spines; mincho headings. Night is a Hiroshige night: deep indigo.',
+    d: { font: 'Shippori Mincho', grain: 0.55, chromeGrain: 0.6, orn: true, covers: true, waves: true, bokashi: 0.55,
+      d_paper: '#F2EDE1', d_ink: '#1D1B19', d_accent: '#23466F', d_mark: '#B5381F', d_chrome: '#1A3152', d_gilt: '#C9A55A', d_plank: '#2E2A26',
+      n_paper: '#121826', n_ink: '#EAE3D2', n_accent: '#9CB9DE', n_mark: '#EF7F64', n_chrome: '#13284A', n_gilt: '#C8A862', n_plank: '#2E2924' },
+  },
+  scroll: {
+    name: 'Scroll', short: 'maybe',
+    blurb: 'An unrolled scroll. Mottled parchment that curls at both side edges, the bars drawn as the rolled top with wooden rod ends, rubric red and lapis blue as in a manuscript, a rubric first letter, a wax seal on "The end.", IM Fell headings. Night is the same scroll by candlelight.',
+    d: { font: 'IM Fell English', grain: 0.6, chromeGrain: 0.5, orn: true, roll: 18,
+      d_paper: '#EEDFBD', d_ink: '#2A1C10', d_accent: '#2A4A7E', d_mark: '#A3261B', d_chrome: '#E2CB9C', d_gilt: '#B4882F', d_plank: '#5A3A22',
+      n_paper: '#1F1812', n_ink: '#F2E4C4', n_accent: '#A3B9E2', n_mark: '#E98C6C', n_chrome: '#3B2E20', n_gilt: '#C49B4B', n_plank: '#3A2416' },
+  },
+};
+const DIR_IDS = Object.keys(DIRS);
+const BASE = { font: 'EB Garamond', grain: 0.5, chromeGrain: 0.6, orn: true, covers: true, edging: true, waves: true, bokashi: 0.5, roll: 18,
+  d_paper: '#F3EAD7', d_ink: '#2E2119', d_accent: '#2F5A43', d_mark: '#8E2F2A', d_chrome: '#5C3B24', d_gilt: '#D9B864', d_plank: '#5C3B24',
+  n_paper: '#1E1A16', n_ink: '#EFE4CC', n_accent: '#9CC8A8', n_mark: '#E2826F', n_chrome: '#4A3020', n_gilt: '#D9B864', n_plank: '#4A3020' };
+const defaults = dir => Object.assign({ dir }, BASE, DIRS[dir].d);
+
+const CHROME_NAME = { leather: 'Leather', ukiyoe: 'Indigo (bars)', scroll: 'Roll (bars)' };
+const COLOR_KEYS = [['paper', 'Page'], ['ink', 'Text'], ['accent', 'Accent'], ['mark', 'Ribbon, initials'], ['chrome', c => CHROME_NAME[c.dir]], ['gilt', 'Gilt'], ['plank', 'Shelf boards']];
+const notToday = c => c.dir !== 'today';
+const SCHEMA = [
+  ['Type'],
+  { k: 'font', t: 'select', l: 'Heading font', o: FONTS.map(f => [f[0], f[0]]), when: notToday },
+  ['Texture and ornament'],
+  { k: 'grain', t: 'range', l: 'Paper grain', min: 0, max: 1, step: 0.05, when: notToday,
+    hint: c => ({ leather: 'Vellum: soft mottling and a fine grain.', ukiyoe: 'Washi: fibres and a fine grain.', scroll: 'Parchment: blotchy mottling.' })[c.dir] },
+  { k: 'chromeGrain', t: 'range', l: c => ({ leather: 'Leather grain', ukiyoe: 'Woodblock grain', scroll: 'Roll mottling' })[c.dir], min: 0, max: 1, step: 0.05, when: notToday },
+  { k: 'bokashi', t: 'range', l: 'Bokashi', min: 0, max: 1, step: 0.05, when: c => c.dir === 'ukiyoe', hint: 'How much the indigo lightens toward the foot of each bar.' },
+  { k: 'roll', t: 'range', l: 'Rolled edges', min: 0, max: 32, step: 1, u: ' px', when: c => c.dir === 'scroll', hint: 'Width of the curl at each side (narrower on phones).' },
+  { k: 'orn', t: 'check', l: 'Ornament', when: notToday,
+    hint: c => ({ leather: 'Illuminated first letter, gilt fillets on the bars, double gilt rules and fleuron, double ring on section numbers, the spine rail with raised bands.',
+      ukiyoe: 'Seals on section numbers, a wave fan for the fleuron, the 終 (end) seal on "The end."',
+      scroll: 'Wooden rod ends on the bars, a large rubric first letter, a wax seal on "The end."' })[c.dir] },
+  { k: 'covers', t: 'check', l: c => ({ leather: 'Leather covers', ukiyoe: 'Bound covers' })[c.dir], when: c => c.dir === 'leather' || c.dir === 'ukiyoe',
+    hint: c => ({ leather: 'Leather grain on every cloth binding.', ukiyoe: 'A paper title slip and stitches on the spine, instead of gilt rules.' })[c.dir] },
+  { k: 'edging', t: 'check', l: 'Shelf edging', when: c => c.dir === 'leather', hint: 'A scalloped leather strip, gilt-tooled, under each shelf board.' },
+  { k: 'waves', t: 'check', l: 'Wave band', when: c => c.dir === 'ukiyoe', hint: 'Seigaiha waves under the shelf band and along the foot of "The end."' },
+  ['Day colours'],
+  ...COLOR_KEYS.map(([k, l]) => ({ k: 'd_' + k, t: 'color', l, when: notToday })),
+  ['Night colours'],
+  ...COLOR_KEYS.map(([k, l]) => ({ k: 'n_' + k, t: 'color', l, when: notToday })),
+];
+
+// ── colour maths ──
+function rgb(h) { if (h.startsWith('rgba')) return h.match(/[\d.]+/g).slice(0, 3).map(Number); h = h.replace('#', ''); if (h.length === 3) h = [...h].map(x => x + x).join(''); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function hex(a) { return '#' + a.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('').toUpperCase(); }
+function mix(a, b, t) { const A = rgb(a), B = rgb(b); return hex(A.map((v, i) => v + (B[i] - v) * t)); }
+function lum(h) { const c = rgb(h).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; }
+function contrast(a, b) { const A = lum(a), B = lum(b); return (Math.max(A, B) + 0.05) / (Math.min(A, B) + 0.05); }
+function over(rgba, bg) { const m = rgba.match(/[\d.]+/g).map(Number); return mix(bg, hex(m.slice(0, 3)), m[3]); }
+function toLab(h) {
+  const [r, g, b] = rgb(h).map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+  const f = t => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+  const x = f((r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047), y = f(r * 0.2126 + g * 0.7152 + b * 0.0722), z = f((r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+// CIEDE2000 colour difference
+function dE(c1, c2) {
+  const [L1, a1, b1] = toLab(c1), [L2, a2, b2] = toLab(c2), rad = Math.PI / 180, p7 = v => Math.pow(v, 7);
+  const Cb = (Math.hypot(a1, b1) + Math.hypot(a2, b2)) / 2, G = 0.5 * (1 - Math.sqrt(p7(Cb) / (p7(Cb) + p7(25))));
+  const a1p = (1 + G) * a1, a2p = (1 + G) * a2, C1 = Math.hypot(a1p, b1), C2 = Math.hypot(a2p, b2);
+  const hh = (b, a) => { if (!a && !b) return 0; const t = Math.atan2(b, a) / rad; return t < 0 ? t + 360 : t; };
+  const h1 = hh(b1, a1p), h2 = hh(b2, a2p);
+  let dh = 0; if (C1 * C2) { dh = h2 - h1; if (dh > 180) dh -= 360; else if (dh < -180) dh += 360; }
+  const dL = L2 - L1, dC = C2 - C1, dH = 2 * Math.sqrt(C1 * C2) * Math.sin(dh * rad / 2);
+  const Lb = (L1 + L2) / 2, Cp = (C1 + C2) / 2;
+  let hb = h1 + h2; if (C1 * C2) hb = Math.abs(h1 - h2) > 180 ? (h1 + h2 + (h1 + h2 < 360 ? 360 : -360)) / 2 : (h1 + h2) / 2;
+  const T = 1 - 0.17 * Math.cos((hb - 30) * rad) + 0.24 * Math.cos(2 * hb * rad) + 0.32 * Math.cos((3 * hb + 6) * rad) - 0.2 * Math.cos((4 * hb - 63) * rad);
+  const Sl = 1 + 0.015 * (Lb - 50) ** 2 / Math.sqrt(20 + (Lb - 50) ** 2), Sc = 1 + 0.045 * Cp, Sh = 1 + 0.015 * Cp * T;
+  const Rt = -Math.sin(2 * 30 * Math.exp(-(((hb - 275) / 25) ** 2)) * rad) * 2 * Math.sqrt(p7(Cp) / (p7(Cp) + p7(25)));
+  return Math.sqrt((dL / Sl) ** 2 + (dC / Sc) ** 2 + (dH / Sh) ** 2 + Rt * (dC / Sc) * (dH / Sh));
+}
+
+// ── textures: small inline SVGs (feTurbulence noise, lighting, fibres), as data URIs ──
+const svgURL = s => `url("data:image/svg+xml,${encodeURIComponent(s)}")`;
+const f3 = n => (Math.round(n * 1000) / 1000).toString();
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+// One noise layer: alpha = a·(s·noise + o), in `color`.
+function noise(id, { freq, oct = 2, seed = 2, color, a, s = 2.4, o = -0.9, type = 'fractalNoise' }) {
+  const [r, g, b] = rgb(color).map(v => f3(v / 255));
+  return { def: `<filter id='${id}' x='0' y='0' width='100%' height='100%'><feTurbulence type='${type}' baseFrequency='${freq}' numOctaves='${oct}' seed='${seed}' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 ${r} 0 0 0 0 ${g} 0 0 0 0 ${b} ${f3(s * a)} 0 0 0 ${f3(o * a)}'/></filter>`,
+           use: `<rect width='100%' height='100%' filter='url(#${id})'/>`, peak: a * (0.72 * s + o), color };
+}
+// Washi fibres: thin curved strokes, drawn again across the tile's edges so it repeats without seams.
+function fibres(size, seed, colors, k) {
+  const r = rng(seed); let s = '';
+  for (let i = 0; i < 54; i++) {
+    const x = r() * size, y = r() * size, ang = r() * Math.PI * 2, len = 14 + r() * 60, bend = (r() - 0.5) * 26;
+    const ex = x + Math.cos(ang) * len, ey = y + Math.sin(ang) * len, cx = (x + ex) / 2 - Math.sin(ang) * bend, cy = (y + ey) / 2 + Math.cos(ang) * bend;
+    const col = colors[i % 2], op = f3((i % 2 ? 0.22 : 0.42) * k * (0.6 + r() * 0.6)), w = f3(0.5 + r() * 0.9);
+    for (const dx of [-size, 0, size]) for (const dy of [-size, 0, size]) {
+      const xs = [x, ex, cx].map(v => v + dx), ys = [y, ey, cy].map(v => v + dy);
+      if (Math.max(...xs) < 0 || Math.min(...xs) > size || Math.max(...ys) < 0 || Math.min(...ys) > size) continue;
+      s += `<path d='M${f3(xs[0])} ${f3(ys[0])}Q${f3(xs[2])} ${f3(ys[2])} ${f3(xs[1])} ${f3(ys[1])}' stroke='${col}' stroke-opacity='${op}' stroke-width='${w}' fill='none' stroke-linecap='round'/>`;
+    }
+  }
+  return s;
+}
+// A texture by kind and strength k (0–1) → { css: url(…) or none, peak: [colour, alpha] of its darkest speck }.
+function texture(kind, k, mode, col) {
+  if (!(k > 0)) return { css: 'none', peaks: [] };
+  const day = mode === 'day', L = []; let size = 240, extra = '', fibrePeaks = [];
+  if (kind === 'vellum') {
+    size = 320;
+    L.push(noise('m', { freq: 0.006, oct: 4, seed: 5, color: day ? mix(col.gilt, col.ink, 0.45) : '#000000', a: (day ? 0.2 : 0.4) * k, s: 4, o: -1.7 }));
+    L.push(noise('g', { freq: 0.9, seed: 9, color: day ? col.ink : '#FFFFFF', a: (day ? 0.09 : 0.05) * k }));
+  } else if (kind === 'washi') {
+    size = 300;
+    L.push(noise('m', { freq: 0.02, oct: 3, seed: 11, color: day ? mix(col.paper, col.ink, 0.5) : '#000000', a: (day ? 0.09 : 0.3) * k, s: 4, o: -1.7 }));
+    L.push(noise('g', { freq: 0.75, seed: 4, color: day ? col.ink : '#FFFFFF', a: (day ? 0.06 : 0.04) * k }));
+    const fc = day ? ['#FFFFFF', mix(col.paper, col.ink, 0.35)] : [mix(col.paper, col.ink, 0.2), '#000000'], fk = day ? k : k * 0.35;
+    extra = fibres(size, 7, fc, fk);
+    fibrePeaks = [[fc[0], 0.42 * 1.2 * fk], [fc[1], 0.22 * 1.2 * fk]];
+  } else if (kind === 'parchment') {
+    size = 360;
+    L.push(noise('m', { freq: 0.008, oct: 4, seed: 3, color: day ? mix(col.gilt, col.ink, 0.25) : '#000000', a: (day ? 0.17 : 0.4) * k, s: 4, o: -1.65 }));
+    L.push(noise('s', { freq: 0.05, oct: 2, seed: 8, color: day ? mix(col.gilt, col.ink, 0.45) : '#000000', a: (day ? 0.1 : 0.22) * k, s: 5, o: -2.7 }));
+    L.push(noise('g', { freq: 0.85, seed: 6, color: day ? col.ink : '#FFFFFF', a: (day ? 0.08 : 0.05) * k }));
+  } else if (kind === 'roll') {
+    size = 300;
+    L.push(noise('m', { freq: 0.01, oct: 4, seed: 13, color: '#3A2410', a: 0.3 * k, s: 4, o: -1.6 }));
+  } else if (kind === 'woodblock') {
+    size = 360;
+    L.push(noise('w', { freq: '0.006 0.14', oct: 3, seed: 21, color: '#000000', a: 0.42 * k, s: 4, o: -1.75 }));
+    L.push(noise('b', { freq: 0.6, seed: 2, color: '#FFFFFF', a: 0.06 * k }));
+  } else if (kind === 'wood') {
+    size = 300;
+    L.push(noise('w', { freq: '0.004 0.32', oct: 3, seed: 17, color: '#000000', a: 0.5 * k, s: 4, o: -1.7 }));
+  } else if (kind === 'leather') {
+    // pebble grain: noise lit from the top left, recentred on mid-grey, to overlay the leather colour
+    size = 200;
+    const a = f3(0.85 * k);
+    return { css: svgURL(`<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'><filter id='l' x='0' y='0' width='100%' height='100%'><feTurbulence type='turbulence' baseFrequency='0.62' numOctaves='2' seed='3' stitchTiles='stitch'/><feDiffuseLighting surfaceScale='1.8' lighting-color='#fff'><feDistantLight azimuth='225' elevation='58'/></feDiffuseLighting><feColorMatrix values='1.3 0 0 0 -0.6 1.3 0 0 0 -0.6 1.3 0 0 0 -0.6 0 0 0 0 ${a}'/></filter><rect width='100%' height='100%' filter='url(#l)'/></svg>`), peaks: [] };
+  }
+  return { css: svgURL(`<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'><defs>${L.map(l => l.def).join('')}</defs>${L.map(l => l.use).join('')}${extra}</svg>`),
+           peaks: L.map(l => [l.color, Math.max(0, Math.min(1, l.peak))]).concat(fibrePeaks) };
+}
+// The page at its darkest speck: every noise layer at its peak alpha, laid over the page.
+// The page at its worst speck for the text: every texture layer that moves the page toward the ink, at its peak alpha.
+const grainedPaper = (paper, ink, peaks) => peaks.filter(([c, a]) => contrast(ink, mix(paper, c, a)) < contrast(ink, paper)).reduce((p, [c, a]) => mix(p, c, a), paper);
+
+// Seigaiha: rows of concentric arcs, each row overlapping the one above. One tile is 24 × 12.
+function seigaiha(line, bg) {
+  let s = '';
+  for (let j = -1; j <= 3; j++) for (let i = -1; i <= 2; i++) {
+    const cx = i * 24 + (((j % 2) + 2) % 2 ? 12 : 0), cy = j * 6;
+    for (const r of [12, 9, 6, 3]) s += `<circle cx='${cx}' cy='${cy}' r='${r}' fill='${bg}' stroke='${line}' stroke-width='1.1'/>`;
+  }
+  return svgURL(`<svg xmlns='http://www.w3.org/2000/svg' width='24' height='12' viewBox='0 0 24 12'>${s}</svg>`);
+}
+const waveFan = line => svgURL(`<svg xmlns='http://www.w3.org/2000/svg' width='38' height='22' viewBox='0 0 38 22'><g fill='none' stroke='${line}' stroke-width='1.5' stroke-linecap='round'>${[17, 12.5, 8, 3.5].map(r => `<path d='M${19 - r} 20a${r} ${r} 0 0 1 ${2 * r} 0'/>`).join('')}</g></svg>`);
+
+// ── tokens: every direction's values for the app's custom properties, day and night ──
+const FONT_STACK = f => `"${f}",${f === 'EB Garamond' ? '' : '"EB Garamond",'}Georgia,serif`;
+// The ink that reads best on a colour (and on its light end): the light or the dark candidate.
+function inkOn(bgs, light, dark) { const score = c => Math.min(...bgs.map(b => contrast(c, b))); return score(light) >= score(dark) ? light : dark; }
+function tokens(dir, c) {
+  const out = {};
+  for (const mode of ['day', 'night']) {
+    const day = mode === 'day', t = {};
+    if (dir === 'today') {
+      Object.assign(t, TODAY[mode]);
+      t.chrome = t.paper; t.chromeHi = t.paper; t.chromeInk = t.ink; t.display = FONT_STACK('EB Garamond');
+      t.paperTex = t.chromeTex = t.plankTex = { css: 'none', peaks: [] };
+      t.home = [t.ink, t.sheet]; t.add = [t.sea, t.sheet];
+    } else {
+      const p = k => c[(day ? 'd_' : 'n_') + k];
+      t.paper = p('paper'); t.ink = p('ink'); t.sea = p('accent'); t.buoy = p('mark'); t.chrome = p('chrome'); t.gilt = p('gilt'); t.plank = p('plank');
+      t.sheet = day ? mix(t.paper, '#FFFFFF', 0.55) : mix(t.paper, t.ink, 0.055);
+      // secondary text: 30% of the way to the page, darkened (lightened) until it reads on the page and on cards
+      let m = 0.3; t.muted = mix(t.ink, t.paper, m);
+      while ((contrast(t.muted, t.paper) < 4.8 || contrast(t.muted, t.sheet) < 4.6) && m > 0.04) { m -= 0.02; t.muted = mix(t.ink, t.paper, m); }
+      t.rule = mix(t.paper, t.gilt, day ? 0.38 : 0.2);
+      t.wave = mix(t.paper, t.gilt, day ? 0.62 : 0.42);
+      t.leaf = day ? mix(t.paper, t.gilt, 0.14) : mix(t.ink, t.paper, 0.22);
+      t.chromeHi = dir === 'leather' ? mix(t.chrome, '#FFFFFF', day ? 0.1 : 0.07)
+        : dir === 'ukiyoe' ? mix(t.chrome, day ? '#FFFFFF' : t.sea, (day ? 0.38 : 0.3) * c.bokashi)
+        : mix(t.chrome, '#FFFFFF', day ? 0.4 : 0.1);
+      t.chromeInk = inkOn([t.chrome, t.chromeHi], day ? mix(t.paper, '#FFFFFF', 0.5) : t.ink, day ? t.ink : t.paper);
+      t.display = FONT_STACK(c.font);
+      const kinds = { leather: ['vellum', 'leather'], ukiyoe: ['washi', 'woodblock'], scroll: ['parchment', 'roll'] }[dir];
+      t.paperTex = texture(kinds[0], c.grain, mode, t); t.paperTex.desc = c.grain > 0 ? `${kinds[0]} ${c.grain}` : 'none';
+      t.chromeTex = texture(kinds[1], c.chromeGrain, mode, t); t.chromeTex.desc = c.chromeGrain > 0 ? `${kinds[1]} ${c.chromeGrain}` : 'none';
+      t.plankTex = texture('wood', 0.8, mode, t); t.plankTex.desc = 'wood 0.8';
+      t.home = dir === 'leather' ? [t.chrome, t.chromeInk] : [t.buoy, t.sheet];
+      t.add = dir === 'ukiyoe' ? [t.buoy, t.sheet] : [t.sea, t.sheet];
+    }
+    out[mode] = t;
+  }
+  return out;
+}
+// The app's token names → values, as CSS (textures as data URIs) or as JSON (textures as their descriptions).
+const APP_KEYS = [['--paper', 'paper'], ['--sheet', 'sheet'], ['--ink', 'ink'], ['--muted', 'muted'], ['--sea', 'sea'], ['--buoy', 'buoy'], ['--rule', 'rule'], ['--wave', 'wave'], ['--plank', 'plank'], ['--display', 'display']];
+const NEW_KEYS = [['--chrome', 'chrome'], ['--chrome-hi', 'chromeHi'], ['--chrome-ink', 'chromeInk'], ['--gilt', 'gilt'], ['--paper-tex', 'paperTex'], ['--chrome-tex', 'chromeTex'], ['--plank-tex', 'plankTex']];
+const NEW_NOTES = {
+  '--chrome': 'the bars, the shelf band, the toolbar, the finish card: leather, indigo or the roll',
+  '--chrome-hi': "chrome's light end: leather sheen, the bokashi foot, the roll's highlight",
+  '--chrome-ink': 'text and icons on chrome',
+  '--gilt': 'gilt and brass; replaces #D8B25C, #D9B864 and rgba(217,184,100,.5) now hard-coded',
+  '--paper-tex': 'the page texture (an inline SVG, or none)',
+  '--chrome-tex': 'the chrome texture',
+  '--plank-tex': 'the shelf-board texture',
+  '--leaf': 'existing, set on .book: the page edges',
+};
+function tokenJSON(dir, T) {
+  const o = {};
+  for (const mode of ['day', 'night']) {
+    const t = T[mode], m = {};
+    for (const [k, f] of APP_KEYS) m[k] = t[f];
+    m['--leaf'] = t.leaf;
+    if (dir !== 'today') for (const [k, f] of NEW_KEYS) m[k] = t[f] && t[f].desc !== undefined ? t[f].desc : t[f];
+    o[mode] = m;
+  }
+  return o;
+}
+
+// ── the look's CSS: tokens for both modes, then the look's own rules (shared by both modes through the tokens) ──
+function lookCSS(dir, c, T) {
+  if (dir === 'today') return '';
+  const L = `:root[data-look="${dir}"]`;
+  let s = '';
+  for (const [mode, theme] of [['day', 'light'], ['night', 'dark']]) {
+    const t = T[mode];
+    const vars = APP_KEYS.map(([k, f]) => `${k}:${t[f]}`).concat(NEW_KEYS.map(([k, f]) => `${k}:${typeof t[f] === 'object' ? t[f].css : t[f]}`));
+    if (dir === 'ukiyoe') vars.push(`--orn-img:${waveFan(t.sea)}`, `--wave-img:${seigaiha(mode === 'day' ? mix(t.chrome, t.paper, 0.15) : mix(t.sea, t.paper, 0.5), t.paper)}`, `--wave-land:${seigaiha(mix(t.chromeInk, t.chrome, 0.55), t.chrome)}`);
+    s += `${L}[data-theme="${theme}"]{${vars.join(';')}}\n${L}[data-theme="${theme}"] .book{--leaf:${t.leaf}}\n`;
+  }
+  const band = (bg, blend, shadow) => `${L}{--band:${bg};--band-blend:${blend};--band-shadow:${shadow}}`;
+  // shared by the three new looks
+  s += `
+${L}{font-synthesis:none}
+${L} body{background:var(--paper-tex),var(--paper)}
+${L} .cover::before,${L} .cover::after{border-block-color:color-mix(in srgb,var(--gilt) 62%,var(--bt))}
+${L} .land::before{border-color:color-mix(in srgb,var(--gilt) 60%,transparent)}
+${L} .plank{background:var(--plank-tex),linear-gradient(rgba(255,255,255,.05),rgba(0,0,0,.24)),var(--plank)}
+${L} .sh-top{position:relative;isolation:isolate;padding:.1rem 0 .15rem}
+${L} .sh-top::before{content:"";position:absolute;z-index:-1;left:calc(50% - 50vw);right:calc(50% - 50vw);top:calc(-1.2rem - env(safe-area-inset-top,0px));bottom:-.8rem;background:var(--band);background-blend-mode:var(--band-blend);box-shadow:var(--band-shadow)}
+${L} .sh-top .brand,${L} .sh-top .ib{color:var(--chrome-ink)}
+${L} .sh-top .ib:hover,${L} #bar .ib:hover,${L} .bar-title:hover{background:color-mix(in srgb,var(--chrome-ink) 14%,transparent)}
+${L} .sh-top .btn.ghost{color:var(--chrome-ink);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--gilt) 80%,transparent)}
+${L} .sh-top .search input{background:var(--sheet);border-color:color-mix(in srgb,var(--gilt) 55%,var(--rule))}
+${L} .brand img{width:36px;height:36px;margin:-3px 3px -3px 0;border-radius:50%;background:var(--sheet);box-shadow:0 0 0 1.5px var(--gilt)}
+${L} #bar{background:var(--band);background-blend-mode:var(--band-blend);-webkit-backdrop-filter:none;backdrop-filter:none;border-bottom:0;box-shadow:var(--band-shadow);color:var(--chrome-ink)}
+${L} #bar .ib,${L} .bar-title{color:var(--chrome-ink)}
+${L} .bar-title small{color:color-mix(in srgb,var(--chrome-ink) 72%,var(--chrome))}
+${L} #tool{background:var(--band);background-blend-mode:var(--band-blend);color:var(--chrome-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gilt) 55%,transparent),0 10px 30px rgba(20,10,4,.35)}
+${L} #tool .tb{color:var(--chrome-ink)}
+${L} #tool .sw.on{border-color:var(--chrome-ink)}
+${L} #tool .sep{background:color-mix(in srgb,var(--chrome-ink) 30%,transparent)}
+${L} .land{background:var(--band);background-blend-mode:var(--band-blend);color:var(--chrome-ink)}
+${L} .land .btn{background:var(--chrome-ink);color:var(--chrome)}
+${L} .land .btn.ghost{background:transparent;color:var(--chrome-ink);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--chrome-ink) 40%,transparent)}
+`;
+  if (dir === 'leather') {
+    s += band('var(--chrome-tex),linear-gradient(180deg,var(--chrome-hi),var(--chrome) 55%,color-mix(in srgb,var(--chrome) 80%,#000))', 'overlay,normal',
+      '0 1px 0 color-mix(in srgb,var(--gilt) 50%,transparent),0 6px 14px -6px rgba(20,8,2,.5)') + `
+${L} .home{background:transparent;color:var(--chrome-ink);box-shadow:inset 0 0 0 1.5px var(--gilt)}
+${L} .sh-top .btn.sea{box-shadow:inset 0 0 0 1.5px var(--gilt)}
+${L} #bar .badge{background:var(--gilt);color:#1A0F08}
+${L} #hbar{background:color-mix(in srgb,var(--chrome) 65%,#000)}
+${L} #hbar .fill{background:linear-gradient(90deg,color-mix(in srgb,var(--gilt) 75%,#000),var(--gilt))}
+${L} #hbar .bookmark{width:12px;height:24px;top:-2px}
+${L} .cp{border-style:solid;border-color:var(--rule)}
+`;
+    if (c.orn) s += `
+${L} .bar-in{padding-bottom:.8rem}
+${L} #bar::after{content:"";position:absolute;left:0;right:0;bottom:8px;height:3px;border-block:1px solid var(--gilt);opacity:.55;pointer-events:none}
+${L} .sh-top::after{content:"";position:absolute;z-index:-1;left:calc(50% - 50vw);right:calc(50% - 50vw);bottom:calc(-.8rem + 5px);height:3px;border-block:1px solid var(--gilt);opacity:.7}
+${L} p.hp.first::first-letter{color:var(--gilt);background:var(--chrome-tex),var(--chrome);background-blend-mode:overlay;border:1px solid var(--gilt);font-size:3.1em;line-height:.9;padding:.1em .13em .04em;margin:.12em .16em 0 0}
+${L} .leg .n{border-color:var(--gilt);box-shadow:inset 0 0 0 2.5px var(--paper),inset 0 0 0 3.5px color-mix(in srgb,var(--gilt) 75%,transparent)}
+${L} .leg .orn{color:color-mix(in srgb,var(--gilt) 70%,var(--ink))}
+${L} .leg .orn::before,${L} .leg .orn::after{height:3px;background:none;border-block:1px solid var(--gilt)}
+${L} #rail::before{content:"";position:absolute;left:23px;width:14px;top:-8px;bottom:-8px;border-radius:3px;background:var(--chrome-tex),linear-gradient(90deg,color-mix(in srgb,var(--chrome) 70%,#000),var(--chrome-hi) 45%,color-mix(in srgb,var(--chrome) 72%,#000));background-blend-mode:overlay,normal}
+${L} #routeBg{stroke:transparent}
+${L} #routeFg{stroke:var(--gilt);stroke-width:2px}
+${L} #rail .wp::before{left:3px;top:8px;width:16px;height:6px;transform:none;border-radius:2px;border:1px solid var(--gilt);background:var(--chrome)}
+${L} #rail .wp.done::before{background:var(--gilt)}
+${L} #rail .wp:hover::before{transform:scaleX(1.2)}
+`;
+    if (c.covers) s += `${L} .cover:not(.nb){background:var(--chrome-tex),var(--bc);background-blend-mode:soft-light}\n`;
+    if (c.edging) s += `
+${L} .plank::before{content:"";position:absolute;left:0;right:0;top:calc(100% - 1px);height:12px;
+  background:radial-gradient(circle at 8px 7.5px,var(--gilt) 1.1px,transparent 1.6px) 0 0/16px 12px repeat-x,linear-gradient(var(--gilt),var(--gilt)) 0 2px/100% 1px no-repeat,var(--chrome-tex),var(--chrome);
+  background-blend-mode:normal,normal,overlay,normal;
+  -webkit-mask:linear-gradient(#000 0 0) 0 0/100% 4px no-repeat,radial-gradient(circle at 8px 4px,#000 6.5px,transparent 7px) 0 0/16px 12px repeat-x;
+  mask:linear-gradient(#000 0 0) 0 0/100% 4px no-repeat,radial-gradient(circle at 8px 4px,#000 6.5px,transparent 7px) 0 0/16px 12px repeat-x}
+`;
+  }
+  if (dir === 'ukiyoe') {
+    s += band('var(--chrome-tex),linear-gradient(180deg,var(--chrome) 0%,var(--chrome) 28%,var(--chrome-hi) 100%)', 'normal,normal', '0 4px 12px -6px rgba(8,14,30,.5)') + `
+${L} .home{background:var(--buoy);color:var(--sheet)}
+${L} .sh-top .btn.sea{background:var(--buoy);color:var(--sheet)}
+${L} #bar .badge{background:var(--chrome-ink);color:var(--chrome)}
+${L} #hbar{background:color-mix(in srgb,var(--chrome) 80%,#000)}
+${L} #hbar .fill{background:var(--buoy)}
+${L} .hero h1{letter-spacing:-.01em}
+${L} .leg .orn::before,${L} .leg .orn::after{background:color-mix(in srgb,var(--sea) 45%,transparent)}
+${L} .cp{border-style:solid;border-color:var(--rule);border-radius:4px}
+`;
+    if (c.orn) s += `
+${L} .leg .n{border:0;border-radius:5px;background:var(--buoy);color:var(--sheet);font-weight:600;box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--sheet) 40%,transparent);transform:rotate(-2deg)}
+${L} .leg .orn{color:transparent;background:var(--orn-img) center/38px 22px no-repeat}
+${L} .land::after{content:"終";position:absolute;right:1.3rem;top:1.3rem;width:2.5rem;height:2.5rem;display:grid;place-items:center;border-radius:5px;background:var(--buoy);color:var(--sheet);font:600 1.35rem/1 var(--display);transform:rotate(-3deg);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--sheet) 40%,transparent)}
+`;
+    if (c.waves) s += `
+${L} .sh-top::after{content:"";position:absolute;z-index:-1;left:calc(50% - 50vw);right:calc(50% - 50vw);top:calc(100% + .8rem);height:12px;background:var(--wave-img) 0 0/24px 12px repeat-x}
+${L} .sh-hero{margin-top:2.9rem}
+${L} .land{background:var(--wave-land) 0 100%/24px 12px repeat-x,var(--band);background-blend-mode:normal,var(--band-blend);padding-bottom:calc(2.2rem + 14px)}
+`;
+    if (c.covers) s += `
+${L} .cover:not(.nb){padding-left:1.55rem;border-radius:2px 5px 5px 2px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18),0 2px 0 rgba(0,0,0,.08)}
+${L} .cover:not(.nb)::before{top:0;bottom:0;left:3px;right:auto;width:11px;height:auto;border:0;opacity:.85;
+  background:linear-gradient(90deg,transparent 7px,color-mix(in srgb,var(--bt) 75%,transparent) 7px 8px,transparent 8px),repeating-linear-gradient(180deg,transparent 0 30px,color-mix(in srgb,var(--bt) 85%,transparent) 30px 32px) 0 6px/100% calc(100% - 12px) no-repeat}
+${L} .cover:not(.nb)::after{display:none}
+${L} .cover:not(.nb) .c-t{align-self:flex-start;max-width:100%;background:#F6F1E4;color:#1F1D1A;padding:.38rem .45rem .42rem;border:1px solid rgba(0,0,0,.22);font-size:1.02rem;line-height:1.15;-webkit-line-clamp:4}
+`;
+  }
+  if (dir === 'scroll') {
+    const ends = c.orn ? 'linear-gradient(90deg,#2E1C0E,#8A5E38 50%,#2E1C0E) 0 0/9px 100% no-repeat,linear-gradient(90deg,#2E1C0E,#8A5E38 50%,#2E1C0E) 100% 0/9px 100% no-repeat,' : '';
+    s += band(`${ends}var(--chrome-tex),linear-gradient(180deg,color-mix(in srgb,var(--chrome) 72%,#000) 0%,var(--chrome-hi) 26%,var(--chrome) 60%,color-mix(in srgb,var(--chrome) 70%,#000) 100%)`,
+      c.orn ? 'normal,normal,normal,normal' : 'normal,normal', '0 5px 10px -4px rgba(40,22,6,.45)') + `
+${L} body::before,${L} body::after{content:"";position:fixed;top:0;bottom:0;width:clamp(4px,1.6vw,${c.roll}px);z-index:39;pointer-events:none}
+${L} body::before{left:0;background:linear-gradient(90deg,rgba(50,28,8,.6),color-mix(in srgb,var(--chrome-hi) 80%,transparent) 40%,rgba(50,28,8,.22) 80%,transparent)}
+${L} body::after{right:0;background:linear-gradient(270deg,rgba(50,28,8,.6),color-mix(in srgb,var(--chrome-hi) 80%,transparent) 40%,rgba(50,28,8,.22) 80%,transparent)}
+${L} .home{background:var(--buoy);color:var(--sheet)}
+${L} #bar .badge{background:var(--buoy);color:var(--sheet)}
+${L} #hbar{background:color-mix(in srgb,var(--chrome) 70%,#000)}
+${L} #hbar .fill{background:var(--buoy)}
+${L} .sh-top .btn.ghost{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--chrome-ink) 35%,transparent)}
+${L} #tool{background:var(--ink);color:var(--sheet);box-shadow:0 10px 30px rgba(40,24,12,.3)}
+${L} #tool .tb{color:var(--sheet)}
+${L} #tool .sw.on{border-color:var(--sheet)}
+${L} #tool .sep{background:color-mix(in srgb,var(--sheet) 30%,transparent)}
+${L} .leg .n{border-color:var(--buoy);color:var(--buoy)}
+${L} .leg .orn{color:var(--buoy)}
+${L} .land{background:var(--chrome-tex),var(--chrome);color:var(--chrome-ink);box-shadow:inset 0 0 0 1px var(--wave),0 8px 18px -10px rgba(40,22,6,.5)}
+${L} .cp{border-style:solid;border-color:var(--rule)}
+`;
+    if (c.orn) s += `
+${L} #bar::before,${L} #bar::after{content:"";position:absolute;top:calc(env(safe-area-inset-top,0px) + 3px);bottom:3px;width:9px;border-radius:4px;background:linear-gradient(90deg,#2E1C0E,#8A5E38 50%,#2E1C0E);pointer-events:none}
+${L} #bar::before{left:0}
+${L} #bar::after{right:0}
+${L} p.hp.first::first-letter{color:var(--buoy);font-size:4.1em;line-height:.8;padding:.08em .12em 0 0}
+${L} .land::after{content:"";position:absolute;right:1.4rem;top:-1.2rem;width:3.1rem;height:3.1rem;border-radius:47% 53% 50% 50%/52% 48% 52% 48%;background:radial-gradient(circle at 38% 34%,color-mix(in srgb,var(--buoy) 70%,#fff),var(--buoy) 46%,color-mix(in srgb,var(--buoy) 68%,#000));box-shadow:0 2px 4px rgba(0,0,0,.35),inset 0 0 0 5px color-mix(in srgb,var(--buoy) 82%,#000),inset 0 0 0 6px color-mix(in srgb,var(--buoy) 70%,#fff)}
+`;
+  }
+  return s;
+}
+
+// ── the mock screens: the app's markup and class names (index.html, bookHTML and buildReader in app.js), made-up text ──
+const IC = {
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7c-2.6-1.8-5.6-2.3-9-1.6v12.8c3.4-.7 6.4-.2 9 1.6 2.6-1.8 5.6-2.3 9-1.6V5.4c-3.4-.7-6.4-.2-9 1.6zM12 7v12.8"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg>',
+  shelf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="M16.5 5.2l3.6-1 3.4 15.4-3.6 1z"/></svg>',
+  toc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor"/></svg>',
+  focus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/></svg>',
+  size: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19l5-14 5 14M6 14h6M15 19l3-8 3 8M16 16.5h4"/></svg>',
+  theme: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 13A9 9 0 1111 3a7 7 0 0010 10z"/></svg>',
+  hl: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l-5 5v3h3l5-5M14 6l4 4M12.5 7.5l5-5 4 4-5 5z"/></svg>',
+  pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+};
+const SPRITE = `<svg width="0" height="0" style="position:absolute"><symbol id="ribbonSym" viewBox="0 0 14 26"><path d="M1.5 .8H12.5V24.6L7 19.6 1.5 24.6Z" fill="var(--buoy)" stroke="var(--ink)" stroke-width="1.2" stroke-linejoin="round"/><path d="M3.7 1.6V21M10.3 1.6V21" stroke="var(--gilt,#D9B864)" stroke-width=".8" opacity=".85"/></symbol></svg>`;
+// [title, author, cover, text, height, words, page block px, % read, highlights, year, finished, Kindle notebook]
+const BOOKS = {
+  Travel: [
+    ['Margins of the Map', 'Ines Calder', '#23395B', '#EFE4CC', 204, '6.2k words', 17, 38, 5, '2025'],
+    ['Salt and Distance', 'Tomas Brell', '#2F5A43', '#F3EAD7', 192, '42k words', 25, 0, 0, '2019'],
+    ['A Field Guide to Small Harbours', 'Odile Marsh', '#B7802A', '#2E2119', 214, '2.1k words', 13, 100, 4, '2023', true],
+  ],
+  Philosophy: [
+    ['Letters on Patience', 'Aurelio Venn', '#8E2F2A', '#F8EEDD', 199, '18k words', 22, 12, 3, '1871'],
+    ['Notes on Stillness', 'Mara Quell', '#F5EFDF', '#23395B', 196, '900 words', 10, 0, 9, '', false, true],
+  ],
+};
+function bookHTML([title, author, bc, bt, h, len, pg, pct, hl, yr, fin, nb]) {
+  return `<div class="book" style="--pg:${pg}px"><button class="cover${nb ? ' nb' : ''}" style="--bc:${bc};--bt:${bt};--h:${h}px" aria-label="${title} by ${author}">` +
+    `<span class="c-t">${title}</span><span class="c-a">${author}</span>${fin ? '<span class="c-done">✓ Finished</span>' : ''}<span class="c-l">${len}</span>` +
+    `<span class="c-f"><span>${yr}</span><span>${hl ? `✎ ${hl}` : ''}${pct && !fin ? ` · ${pct}%` : ''}</span></span><span class="c-p"><i style="width:${pct}%"></i></span></button>` +
+    `<span class="pages" aria-hidden="true"></span><button class="c-more" aria-label="Details">⋯</button></div>`;
+}
+const SHELF_HTML = `<section id="shelf">
+  <div class="sh-top">
+    <div class="brand"><img src="../icons/mark-small.svg" alt="">own-shelf</div>
+    <label class="search">${IC.search}<input class="f" type="search" placeholder="Search titles and authors" aria-label="Search shelf"></label>
+    <button class="ib" title="Settings" aria-label="Settings">${IC.gear}</button>
+    <button class="btn ghost">${IC.book}Notebook</button>
+    <button class="btn sea">${IC.plus}Add to shelf</button>
+  </div>
+  <div class="sh-hero"><div><h1>Your shelf</h1><p class="motto sh-motto">Knowledge is power. Wisdom in the margins.</p><p class="sh-stats"><b>5</b> texts · <b>21</b> highlights · <b>1</b> finished</p></div></div>
+  <div id="contWrap"><div class="cont"><span class="cv" style="background:#23395B"></span><div class="ct"><small>Continue reading</small><b>Margins of the Map</b><span>38% · about 16 min left</span></div><button class="btn">Continue</button></div></div>
+  <div class="sh-ctrl">
+    <div><span>Arrange by</span><div class="seg"><button aria-pressed="true">Shelf</button><button>Date added</button><button>Date written</button><button>Author</button><button>Title</button></div></div>
+    <div><span>View</span><div class="seg"><button aria-pressed="true">Shelves</button><button>List</button></div></div>
+    <div class="sh-tools"><button>+ New shelf</button><button>Collapse all</button></div>
+  </div>
+  <div id="shelfBody">${Object.entries(BOOKS).map(([name, l]) =>
+    `<section class="shelf-row"><h3 class="shelf-label"><button class="sl-fold" aria-label="Collapse ${name}">▾</button><button class="sl-name">${name}</button><small>${l.length}</small></h3><div class="books">${l.map(bookHTML).join('')}</div><div class="plank"></div></section>`).join('')}
+    <section class="shelf-row bare"><h3 class="shelf-label"><button class="sl-fold" aria-label="Collapse History">▾</button><button class="sl-name">History</button></h3><div class="books"><p class="sl-hint">Drag books here</p></div><div class="plank"></div></section>
+    <section class="shelf-row shut"><h3 class="shelf-label"><button class="sl-fold" aria-label="Expand Finance">▸</button><button class="sl-name">Finance</button><small>4</small></h3><div class="plank"></div></section>
+  </div>
+</section>`;
+const WPS = [0, 7, 13, 21, 30, 36, 44, 52, 58, 66, 74, 81, 89, 96];
+const READER_HTML = (phone) => `<header id="bar"><div class="bar-in">
+  <button class="home" title="Back to your shelf">${IC.shelf}Shelf</button>
+  <button class="bar-title">Margins of the Map<small>26 min</small></button>
+  <button class="ib" title="Contents">${IC.toc}<span class="lbl">Contents</span></button>
+  <button class="ib" title="Search this text">${IC.search}<span class="lbl">Search</span></button>
+  <button class="ib" aria-pressed="false" title="Focus mode">${IC.focus}<span class="lbl">Focus</span></button>
+  <button class="ib" title="Text size">${IC.size}<span class="lbl">Size</span></button>
+  <button class="ib" title="Light or dark">${IC.theme}<span class="lbl">Theme</span></button>
+  <button class="ib" title="Your highlights">${IC.hl}<span class="lbl">Highlights</span><span class="badge">5</span></button>
+</div><div id="hbar"><div class="fill" style="width:38%"></div><svg class="bookmark" viewBox="0 0 14 26" aria-hidden="true" style="left:clamp(8px,38%,calc(100% - 8px))"><use href="#ribbonSym"/></svg></div></header>
+<nav id="rail" aria-label="Sections"><svg class="route" preserveAspectRatio="none" viewBox="0 0 60 1000" aria-hidden="true">
+  <path id="routeBg" d="M30 0V1000" fill="none" stroke="var(--wave)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+  <path id="routeFg" d="M30 0V1000" fill="none" stroke="var(--sea)" stroke-width="3" vector-effect="non-scaling-stroke" pathLength="1000" stroke-dasharray="380 1000"/></svg>
+  <div id="wps">${WPS.map((p, i) => `<button class="wp${p < 38 ? ' done' : ''}" style="top:${p}%"><span class="tip">${i + 1}. Section</span></button>`).join('')}</div>
+  <svg class="bookmark" id="railMark" viewBox="0 0 14 26" aria-hidden="true" style="top:38%"><use href="#ribbonSym"/></svg></nav>
+<main id="reader"><div class="col" id="col">
+  <header class="hero"><h1 title="Edit details"><span class="ln">Margins of</span><span class="ln">the Map</span></h1>
+    <p class="byline">by Ines Calder<a href="#">Original ↗</a><button class="ed" aria-label="Edit details">${IC.pencil}</button></p>
+    <div class="log"><span>Written <b>March 4, 2025</b></span><span><b>6,240</b> words</span><span><b>26</b> min</span><span><b>14</b> sections</span></div>
+    <div class="howto">Select text to highlight in ${TOOL_ORDER.map(k => `<span class="sw" style="background:var(--${k}S)" title="${MEANINGS[k]}"></span>`).join('')} · keys 1–5 work too</div>
+    <details class="toc-inline"><summary>Contents · 14 sections</summary></details></header>
+  <div class="leg" data-sec="0"><span class="n">1</span><span class="orn" aria-hidden="true">❦</span></div>
+  <p class="hp first">Every map begins with a decision about what to leave out. The cartographer who drew this coast in the winter of her fortieth year left out the roads entirely, <mark class="hl c-sky">trusting the reader to find a way between the harbours</mark>. What remained was a quiet sheet of tide lines and headland names, and <mark class="hl c-amber noted">soundings written in a hand so small it seemed meant for gulls</mark>.</p>
+  <p class="hp">She kept a second notebook for everything the map refused. It holds <mark class="hl c-coral">the fishermen's eleven words for fog</mark>, a list of birds by the month they arrive, and <mark class="hl c-sun">a bread that keeps for nine days at sea</mark>. On its last page is <mark class="hl c-mint">one line: the edge of the paper is not the edge of the world</mark>. Margins, she wrote, are where the reader talks back.</p>
+  <div class="cp reached"><span class="dot">${IC.check}</span><span><b>Checkpoint 1 of 13</b> · 7% · about 24 min left</span><button class="nx">Next: The Edge of the Map</button></div>
+  <div class="leg" data-sec="1"><span class="n">2</span><h2 class="hp">The Edge of the Map</h2></div>
+  <p class="hp">Read now, the notebook keeps returning to the margin as a place of argument. Beside a survey of the northern shoals she pencilled a correction, then a correction of the correction, and at last a small heron standing on the disputed sandbar, as if to settle the matter by witness.</p>
+  <section class="land" id="land"><h2>The end.</h2><p>You marked 5 highlights and wrote 1 note. Take them with you.</p><div class="acts"><button class="btn">Copy all highlights</button><button class="btn ghost">Review them</button><button class="btn ghost">Export</button><button class="btn ghost">Back to shelf</button></div></section>
+</div></main>
+<div id="tool" role="toolbar" aria-label="Highlight"${phone ? ' class="docked"' : ''}>${TOOL_ORDER.map((k, i) => `<button class="sw${k === 'amber' ? ' on' : ''}" style="background:var(--${k}S)" aria-label="${MEANINGS[k]} (${i + 1})" title="${MEANINGS[k]} (${i + 1})"></button>`).join('')}<span class="sep"></span><button class="tb">Edit note</button><button class="tb">Remove</button></div>`;
+// Mock-only: the toolbar for the tapped Amber highlight, placed over it as showTool() places it (docked on phones).
+const MOCK_CSS = '';
+const MOCK_JS = `function placeTool(){const t=document.getElementById('tool'),s=document.querySelector('mark.noted');
+  if(!t||!s||t.classList.contains('docked'))return;const r=s.getClientRects()[0],w=t.offsetWidth,hh=t.offsetHeight;
+  let top=r.top-hh-10;if(top<70)top=r.bottom+10;t.style.top=top+'px';t.style.left=Math.max(10,Math.min(innerWidth-w-10,r.left+r.width/2-w/2))+'px';t.style.transform='none';}
+  document.fonts.ready.then(placeTool);addEventListener('scroll',placeTool,{passive:true});`;
+function mockDoc(dir, mode, screen, width, css) {
+  return `<!doctype html><html lang="en" data-look="${dir}" data-theme="${mode === 'night' ? 'dark' : 'light'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
+    `${FONT_LINK}<link rel="stylesheet" href="../styles.css"><style>${MOCK_CSS}</style><style id="look">${css}</style></head><body>` +
+    `${screen === 'shelf' ? SHELF_HTML : READER_HTML(width === 'phone')}${SPRITE}<script>${MOCK_JS}<\/script></body></html>`;
+}
+
+// ── checks: contrast and highlight separation, per direction and mode ──
+function checks(dir, T) {
+  const rows = [];
+  for (const mode of ['day', 'night']) {
+    const t = T[mode], grained = grainedPaper(t.paper, t.ink, t.paperTex.peaks || []);
+    const tints = Object.entries(TINTS[mode]).map(([k, v]) => [k, over(v, t.paper)]);
+    let minPair = [99, ''];
+    for (let i = 0; i < tints.length; i++) for (let j = i + 1; j < tints.length; j++) { const d = dE(tints[i][1], tints[j][1]); if (d < minPair[0]) minPair = [d, `${tints[i][0]}/${tints[j][0]}`]; }
+    const onHl = tints.map(([k, v]) => [contrast(t.ink, v), k]).sort((a, b) => a[0] - b[0])[0];
+    const vsPage = tints.map(([k, v]) => [dE(v, t.paper), k]).sort((a, b) => a[0] - b[0])[0];
+    rows.push({ mode,
+      body: contrast(t.ink, t.paper), bodyGrain: contrast(t.ink, grained), muted: contrast(t.muted, t.paper), mutedSheet: contrast(t.muted, t.sheet),
+      accent: contrast(t.sea, t.paper), mark: contrast(t.buoy, t.paper), chrome: Math.min(contrast(t.chromeInk, t.chrome), contrast(t.chromeInk, t.chromeHi)),
+      home: contrast(t.home[0], t.home[1]), add: contrast(t.add[0], t.add[1]),
+      onHl: onHl[0], onHlWorst: onHl[1], hlApart: minPair[0], hlPair: minPair[1], hlPage: vsPage[0], hlPageWorst: vsPage[1] });
+  }
+  return rows;
+}
+const CHECK_ROWS = [
+  ['body', 'Body text on page', 4.5], ['bodyGrain', 'Body text, with grain', 4.5], ['muted', 'Secondary text on page', 4.5], ['mutedSheet', 'Secondary text on cards', 4.5],
+  ['accent', 'Accent (links, title line) on page', 4.5], ['mark', 'Ribbon red (drop cap) on page', 3], ['chrome', 'Bar text on chrome', 4.5],
+  ['home', 'Shelf button', 4.5], ['add', 'Add to shelf button', 4.5],
+  ['onHl', 'Text on highlights, worst', 4.5, 'onHlWorst'], ['hlApart', 'Highlights apart, closest pair (ΔE)', 0, 'hlPair'], ['hlPage', 'Highlight vs page, faintest (ΔE)', 0, 'hlPageWorst'],
+];
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ENGINE: controls, directions, frames, pins, persistence, copy.
+// ═════════════════════════════════════════════════════════════════════════════
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(LAB.key + ':' + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(LAB.key + ':' + k, JSON.stringify(v)); } catch {} },
+};
+const hashArgs = Object.fromEntries(location.hash.slice(1).split('&').filter(Boolean).map(p => p.split('=').map(decodeURIComponent)));
+
+// #solo=dir/mode/screen[/text]: this page becomes that one mock (screenshots), at the window's own width.
+if (hashArgs.solo) {
+  const [dir, mode, screen, pos] = hashArgs.solo.split('/');
+  const c = defaults(dir), T = tokens(dir, c);
+  const html = mockDoc(dir, mode, screen, innerWidth < 600 ? 'phone' : 'desktop', lookCSS(dir, c, T));
+  setTimeout(() => {
+    document.open(); document.write(html); document.close();
+    if (pos === 'text') document.fonts.ready.then(() => { const l = document.querySelector('.leg'); if (l) scrollTo(0, l.getBoundingClientRect().top + scrollY - 96); });
+  });
+  return;
+}
+// Every direction's numbers on its defaults, for the contrast script.
+window.themeLabReport = () => DIR_IDS.map(dir => ({ dir, name: DIRS[dir].name, rows: checks(dir, tokens(dir, defaults(dir))), tokens: tokenJSON(dir, tokens(dir, defaults(dir))) }));
+
+let cfgs = store.get('cfgs', {});
+for (const d of DIR_IDS) cfgs[d] = Object.assign(defaults(d), cfgs[d] || {}, { dir: d });
+let cur = DIRS[hashArgs.dir] ? hashArgs.dir : store.get('cur', 'leather');
+if (DIRS[hashArgs.dir]) cfgs[cur] = defaults(cur);
+let view = Object.assign({ mode: 'both', screen: 'both', width: 'phone', pos: 'text' }, store.get('view', {}));
+for (const k of ['mode', 'screen', 'width', 'pos']) if (hashArgs[k]) view[k] = hashArgs[k];
+let pins = store.get('pins', []);
+const cfg = () => cfgs[cur];
+const T = {}; const css = {};
+function compute(dir) { T[dir] = tokens(dir, cfgs[dir]); css[dir] = lookCSS(dir, cfgs[dir], T[dir]); }
+DIR_IDS.forEach(compute);
+
+// ── frames ──
+const frames = []; // { el (iframe), dir, mode, screen, width, pos, group, pin }
+function frame({ dir, mode, screen, width, pos, scale, group, pin, height }) {
+  const w = width === 'phone' ? 390 : 1280, h = height || (width === 'phone' ? 844 : 800);
+  const wrap = document.createElement('div');
+  wrap.className = 'fwrap' + (scale < 0.5 ? ' thumb' : '');
+  wrap.style.width = Math.round(w * scale) + 'px'; wrap.style.height = Math.round(h * scale) + 'px';
+  const el = document.createElement('iframe');
+  el.width = w; el.height = h; el.style.transform = `scale(${scale})`; if (group !== 'main') el.loading = 'lazy';
+  el.title = `${DIRS[dir].name}, ${mode}, ${screen}, ${w} px`;
+  if (scale < 0.5) el.tabIndex = -1;
+  const f = { el, dir, mode, screen, width, pos, group, pin };
+  const pc = pin ? Object.assign(defaults(dir), pin) : null, pT = pin ? tokens(dir, pc) : null;
+  el.srcdoc = mockDoc(dir, mode, screen, width, pin ? lookCSS(dir, pc, pT) : css[dir]);
+  el.addEventListener('load', () => {
+    const doc = el.contentDocument; if (!doc) return;
+    if (!pin) apply(f);
+    if (screen === 'reader' && pos === 'text') doc.fonts.ready.then(() => { const l = doc.querySelector('.leg'); if (l) el.contentWindow.scrollTo(0, l.getBoundingClientRect().top + el.contentWindow.scrollY - 96); });
+  });
+  wrap.appendChild(el);
+  frames.push(f);
+  return wrap;
+}
+function apply(f) { const st = f.el.contentDocument && f.el.contentDocument.getElementById('look'); if (st && st.textContent !== css[f.dir]) st.textContent = css[f.dir]; }
+function dropFrames(group) { for (let i = frames.length - 1; i >= 0; i--) if (frames[i].group === group) frames.splice(i, 1); }
+const capOf = (screen, width) => `${screen === 'shelf' ? 'Home shelf' : 'Reader'} · ${width === 'phone' ? 'phone 390' : 'desktop 1280'}`;
+
+function renderMain() {
+  dropFrames('main');
+  const box = $('#frames'); box.innerHTML = '';
+  const modes = view.mode === 'both' ? ['day', 'night'] : [view.mode];
+  const screens = view.screen === 'both' ? ['shelf', 'reader'] : [view.screen];
+  const widths = view.width === 'both' ? ['phone', 'desktop'] : [view.width];
+  const avail = Math.max(320, box.clientWidth || 900);
+  for (const mode of modes) {
+    const row = document.createElement('div'); row.className = 'mode-row';
+    row.innerHTML = `<div class="mlbl">${cur === 'today' ? (mode === 'day' ? 'Light' : 'Dark') : (mode === 'day' ? 'Day' : 'Night')}</div>`;
+    const fl = document.createElement('div'); fl.className = 'frames';
+    for (const width of widths) for (const screen of screens) {
+      // phones at real size when they fit side by side; desktops scaled so the screens fit one row
+      const n = screens.length;
+      const scale = width === 'phone' ? Math.min(1, (avail - 16 * (n - 1)) / (n * 390)) : Math.min(0.6, (avail - 16 * (n - 1)) / (n * 1280));
+      const col = document.createElement('div'); col.className = 'fcol';
+      col.innerHTML = `<div class="fcap">${capOf(screen, width)}${scale < 1 ? ` · shown at ${Math.round(scale * 100)}%` : ''}</div>`;
+      col.appendChild(frame({ dir: cur, mode, screen, width, pos: view.pos, scale, group: 'main' }));
+      fl.appendChild(col);
+    }
+    row.appendChild(fl); box.appendChild(row);
+  }
+}
+function renderGrid() {
+  dropFrames('grid');
+  const box = $('#grid'); box.innerHTML = '';
+  for (const dir of DIR_IDS) {
+    const card = document.createElement('div'); card.className = 'dcard' + (dir === cur ? ' cur' : '');
+    card.innerHTML = `<div class="dname">${DIRS[dir].name}<small>${DIRS[dir].short}</small></div>`;
+    const strip = document.createElement('div'); strip.className = 'strip';
+    for (const mode of ['day', 'night']) for (const screen of ['shelf', 'reader']) {
+      const col = document.createElement('div'); col.className = 'fcol';
+      const w = frame({ dir, mode, screen, width: 'phone', pos: 'text', scale: 0.29, group: 'grid' });
+      w.addEventListener('click', () => { select(dir); view.mode = mode; store.set('view', view); buildSegs(); renderMain(); $('main').scrollTo({ top: 0, behavior: 'smooth' }); });
+      col.appendChild(w);
+      const cap = document.createElement('div'); cap.className = 'fcap'; cap.textContent = `${dir === 'today' ? (mode === 'day' ? 'Light' : 'Dark') : mode === 'day' ? 'Day' : 'Night'} · ${screen}`;
+      col.appendChild(cap); strip.appendChild(col);
+    }
+    card.appendChild(strip); box.appendChild(card);
+  }
+}
+function renderPins() {
+  dropFrames('pin');
+  const box = $('#pins'); box.innerHTML = '';
+  if (!pins.length) { box.innerHTML = '<div class="empty">Nothing pinned yet. Pin variants to compare them side by side.</div>'; return; }
+  pins.forEach((p, i) => {
+    const row = document.createElement('div'); row.className = 'pin';
+    row.innerHTML = `<div class="name">${esc(p.name)}<small>${DIRS[p.cfg.dir].name}</small></div><div class="strip"></div><div class="row-buttons"><button data-load="${i}">Load</button><button data-del="${i}">Remove</button></div>`;
+    const strip = row.querySelector('.strip');
+    for (const [mode, screen] of [['day', 'shelf'], ['day', 'reader'], ['night', 'reader']]) strip.appendChild(frame({ dir: p.cfg.dir, mode, screen, width: 'phone', pos: 'text', scale: 0.26, group: 'pin', pin: p.cfg }));
+    box.appendChild(row);
+  });
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); }
+
+function renderChecks() {
+  const rows = checks(cur, T[cur]);
+  const fmt = (v, min, key) => key.startsWith('hl') && key !== 'onHl' ? v.toFixed(1) : v.toFixed(2) + ':1';
+  const base = checks('today', T.today);
+  let h = `<table class="chk"><tr><th>Check</th>${rows.map(r => `<th class="n">${cur === 'today' ? (r.mode === 'day' ? 'Light' : 'Dark') : r.mode === 'day' ? 'Day' : 'Night'}</th>`).join('')}${cur !== 'today' ? '<th class="n">Today light</th><th class="n">Today dark</th>' : ''}</tr>`;
+  for (const [key, label, min, extra] of CHECK_ROWS) {
+    const cell = r => { const v = r[key], bad = min && v < min; return `<td class="n${bad ? ' warn' : ''}">${fmt(v, min, key)}${extra ? ` <small>${r[extra]}</small>` : ''}${bad ? ' ⚠' : ''}</td>`; };
+    h += `<tr><td>${label}${min ? ` <small style="color:var(--muted)">≥ ${min}</small>` : ''}</td>${rows.map(cell).join('')}${cur !== 'today' ? base.map(cell).join('') : ''}</tr>`;
+  }
+  $('#checks').innerHTML = h + '</table>';
+}
+function renderTokens() {
+  const J = tokenJSON(cur, T[cur]);
+  const sw = v => /^#[0-9A-F]{6}$/i.test(v) ? `<span class="sw" style="background:${v}"></span>` : '';
+  const isNew = k => NEW_KEYS.some(n => n[0] === k);
+  let h = `<table class="tok"><tr><th>Token</th><th>${cur === 'today' ? 'Light' : 'Day'}</th><th>${cur === 'today' ? 'Dark' : 'Night'}</th></tr>`;
+  for (const k of Object.keys(J.day)) h += `<tr><td><code>${k}</code>${isNew(k) ? '<span class="new">new</span>' : ''}${NEW_NOTES[k] ? `<br><small style="color:var(--muted)">${NEW_NOTES[k]}</small>` : ''}</td><td>${sw(J.day[k])}<code>${esc(J.day[k])}</code></td><td>${sw(J.night[k])}<code>${esc(J.night[k])}</code></td></tr>`;
+  $('#tokens').innerHTML = h + '</table>';
+  $('#tokSub').textContent = cur === 'today' ? "Today's values from styles.css. The highlight tints and swatches stay as they are in every look." :
+    'The app\'s own token names, plus the new ones this look needs. Highlight tints (--sky, --coral, --amber, --sun, --mint) and their swatches stay as in styles.css. Derived: --sheet, --muted, --rule, --wave and --leaf come from the key colours; --muted is pushed toward the text until it reads at 4.8:1.';
+}
+
+// ── controls ──
+const labelOf = (item, c) => typeof item.l === 'function' ? item.l(c) : item.l;
+function buildControls() {
+  const root = $('#controls'); root.innerHTML = '';
+  const c = cfg();
+  let sec = null, secCount = 0;
+  const close = () => { if (sec && !secCount) sec.remove(); };
+  for (const item of SCHEMA) {
+    if (Array.isArray(item)) { close(); sec = document.createElement('div'); sec.className = 'sec'; sec.innerHTML = `<div class="sec-title">${item[0]}</div>`; root.appendChild(sec); secCount = 0; continue; }
+    if (item.when && !item.when(c)) continue;
+    secCount++;
+    const row = document.createElement('div'); row.className = 'ctl' + (item.t === 'check' ? ' check' : '');
+    const id = 'c_' + item.k, l = labelOf(item, c);
+    if (item.t === 'range') {
+      row.innerHTML = `<label for="${id}">${l}</label><input id="${id}" type="range" min="${item.min}" max="${item.max}" step="${item.step}"><span class="val"></span>`;
+      const inp = row.querySelector('input'), val = row.querySelector('.val');
+      const show = () => { val.textContent = (item.step < 1 ? (+c[item.k]).toFixed(2) : c[item.k]) + (item.u || ''); };
+      inp.value = c[item.k]; show();
+      inp.addEventListener('input', () => { c[item.k] = parseFloat(inp.value); show(); changed(); });
+    } else if (item.t === 'select') {
+      row.innerHTML = `<label for="${id}">${l}</label><select id="${id}">${item.o.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select>`;
+      const sel = row.querySelector('select'); sel.value = String(c[item.k]);
+      sel.addEventListener('change', () => { c[item.k] = sel.value; changed(); });
+    } else if (item.t === 'check') {
+      row.innerHTML = `<label for="${id}">${l}</label><input id="${id}" type="checkbox">`;
+      const cb = row.querySelector('input'); cb.checked = !!c[item.k];
+      cb.addEventListener('change', () => { c[item.k] = cb.checked; changed(); });
+    } else if (item.t === 'color') {
+      row.innerHTML = `<label for="${id}">${l}</label><div class="colorwrap"><input id="${id}" type="color"><span class="hex"></span></div>`;
+      const inp = row.querySelector('input'), hx = row.querySelector('.hex');
+      const show = () => { inp.value = c[item.k].toLowerCase(); hx.textContent = c[item.k].toUpperCase(); };
+      show();
+      inp.addEventListener('input', () => { c[item.k] = inp.value.toUpperCase(); show(); changed(); });
+    }
+    const hint = typeof item.hint === 'function' ? item.hint(c) : item.hint;
+    if (hint) row.insertAdjacentHTML('beforeend', `<div class="hint">${hint}</div>`);
+    sec.appendChild(row);
+  }
+  close();
+  if (cur === 'today') root.insertAdjacentHTML('beforeend', '<p class="note-today">Today\'s look is the baseline: the exact values from styles.css, nothing to tune. Pick another direction to change things.</p>');
+}
+let pending = false;
+function changed() {
+  store.set('cfgs', cfgs);
+  if (pending) return; pending = true;
+  requestAnimationFrame(() => {
+    pending = false;
+    compute(cur);
+    for (const f of frames) if (f.dir === cur && !f.pin) apply(f);
+    renderChecks(); renderTokens();
+  });
+}
+function select(dir) {
+  cur = dir; store.set('cur', dir);
+  buildPresets(); buildControls(); renderMain(); renderChecks(); renderTokens();
+  document.querySelectorAll('.dcard').forEach((el, i) => el.classList.toggle('cur', DIR_IDS[i] === dir));
+  $('#mainTitle').textContent = DIRS[dir].name; $('#blurb').textContent = DIRS[dir].blurb;
+}
+function buildPresets() {
+  const box = $('#presets'); box.innerHTML = '';
+  for (const d of DIR_IDS) {
+    const b = document.createElement('button'); b.textContent = DIRS[d].name;
+    if (d === cur) b.classList.add('primary');
+    b.addEventListener('click', () => select(d));
+    box.appendChild(b);
+  }
+}
+const SEGS = { mode: [['day', 'Day'], ['night', 'Night'], ['both', 'Both']], screen: [['shelf', 'Shelf'], ['reader', 'Reader'], ['both', 'Both']], width: [['phone', 'Phone'], ['desktop', 'Desktop'], ['both', 'Both']], pos: [['top', 'Top'], ['text', 'Highlights']] };
+function buildSegs() {
+  for (const [k, opts] of Object.entries(SEGS)) {
+    const seg = $('#seg' + k[0].toUpperCase() + k.slice(1)); seg.innerHTML = '';
+    for (const [v, l] of opts) {
+      const b = document.createElement('button'); b.textContent = l; if (view[k] === v) b.classList.add('on');
+      b.addEventListener('click', () => { view[k] = v; store.set('view', view); buildSegs(); renderMain(); });
+      seg.appendChild(b);
+    }
+  }
+}
+
+// ── pins, surprise, reset, copy ──
+const SURPRISE = {
+  leather: { d_chrome: ['#5A301C', '#4A1E16', '#2F3B28', '#1E2A3A', '#3A281C', '#6B4423'], d_gilt: ['#C49A45', '#D4AF5A', '#B88A3E'], n_chrome: ['#4A1E16', '#2B1A11', '#1D2A1E', '#18202E'], font: ['Cormorant Garamond', 'EB Garamond', 'IM Fell English'] },
+  ukiyoe: { d_chrome: ['#1A3152', '#16324F', '#24375E', '#2B2A4C', '#203A3A'], d_mark: ['#B5381F', '#A93226', '#B8462A'], d_paper: ['#F2EDE1', '#F4EFE6', '#EFE8D8'], font: ['Shippori Mincho', 'Zen Old Mincho', 'Zen Antique'] },
+  scroll: { d_chrome: ['#E2CB9C', '#D9C090', '#E8D5AE'], d_paper: ['#EEDFBD', '#EBDAB3', '#F0E3C6'], font: ['IM Fell English', 'Uncial Antiqua', 'Cormorant Garamond'] },
+};
+const pick = a => a[Math.floor(Math.random() * a.length)];
+$('#surprise').addEventListener('click', () => {
+  if (cur === 'today') return;
+  const c = cfg();
+  for (const [k, opts] of Object.entries(SURPRISE[cur])) c[k] = pick(opts);
+  c.grain = Math.round((0.2 + Math.random() * 0.7) * 20) / 20; c.chromeGrain = Math.round((0.3 + Math.random() * 0.7) * 20) / 20;
+  if (cur === 'ukiyoe') c.bokashi = Math.round(Math.random() * 20) / 20;
+  if (cur === 'scroll') c.roll = 8 + Math.floor(Math.random() * 22);
+  buildControls(); changed();
+});
+$('#reset').addEventListener('click', () => { cfgs[cur] = defaults(cur); buildControls(); changed(); });
+$('#pinBtn').addEventListener('click', () => {
+  const name = prompt('Name this variant', `${DIRS[cur].name} ${pins.length + 1}`);
+  if (name === null) return;
+  pins.push({ name: name || `Variant ${pins.length + 1}`, cfg: JSON.parse(JSON.stringify(cfg())) });
+  store.set('pins', pins); renderPins(); toast('Pinned');
+});
+$('#pins').addEventListener('click', e => {
+  const l = e.target.dataset.load, d = e.target.dataset.del;
+  if (l !== undefined) { const p = pins[+l]; cfgs[p.cfg.dir] = Object.assign(defaults(p.cfg.dir), JSON.parse(JSON.stringify(p.cfg))); compute(p.cfg.dir); select(p.cfg.dir); store.set('cfgs', cfgs); toast('Loaded ' + p.name); }
+  if (d !== undefined) { pins.splice(+d, 1); store.set('pins', pins); renderPins(); }
+});
+const round = o => JSON.parse(JSON.stringify(o, (k, v) => typeof v === 'number' ? Math.round(v * 100) / 100 : v));
+const editedOf = dir => Object.keys(cfgs[dir]).filter(k => JSON.stringify(round({ v: cfgs[dir][k] }).v) !== JSON.stringify(round({ v: defaults(dir)[k] }).v));
+function payload(action) {
+  const others = {};
+  for (const d of DIR_IDS) if (d !== cur && editedOf(d).length) others[d] = round(cfgs[d]);
+  return round({ lab: LAB.key, action, direction: cur, name: DIRS[cur].name, edited: editedOf(cur), note: $('#note').value, cfg: cfgs[cur],
+    tokens: tokenJSON(cur, T[cur]), newTokens: cur === 'today' ? [] : NEW_KEYS.map(n => n[0]), otherEditedDirections: others,
+    pins: pins.map(p => ({ name: p.name, direction: p.cfg.dir, cfg: p.cfg })) });
+}
+$('#copyBtn').addEventListener('click', async () => {
+  const text = JSON.stringify(payload('copy'), null, 2), out = $('#jsonOut');
+  out.value = text; out.classList.add('on');
+  try { await navigator.clipboard.writeText(text); toast('Copied. Paste it to Claude.'); }
+  catch { out.focus(); out.select(); toast('Select-all and copy from the box below'); }
+});
+// Served by the brainstorm companion, the page can also send straight to Claude.
+if (window.brainstorm && window.brainstorm.send) {
+  $('#sendBtn').hidden = false; $('#conn').textContent = 'Connected to Claude';
+  $('#sendBtn').addEventListener('click', () => { window.brainstorm.send(payload('send')); toast('Sent. Tell Claude in the terminal.'); });
+}
+function toast(msg) { const el = $('#toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 2200); }
+
+let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(renderMain, 200); });
+buildSegs(); renderGrid(); select(cur); renderPins();
+})();
+</script>
+</body>
+</html>
