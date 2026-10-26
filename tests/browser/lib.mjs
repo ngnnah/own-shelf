@@ -164,3 +164,18 @@ export async function addFootnoteBook(t,check=t.ok){
   await page.click('#tool [data-c="sun"]');await hlCount(t,'1');
   check('footnote highlight saved',(await t.text('#hlCount'))==='1');
 }
+
+/* ---------- the study log: settings:app's studyLog, { 'YYYY-MM-DD': { reviews, new } } by local date ---------- */
+export const dayKey=(t=Date.now())=>{const d=new Date(t);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+// settings:app as the local store (IndexedDB "upwind", store "kv") holds it now
+export const readSettings=page=>page.evaluate(()=>new Promise((res,rej)=>{
+  const r=indexedDB.open('upwind',1);r.onerror=()=>rej(r.error);
+  r.onsuccess=()=>{const g=r.result.transaction('kv').objectStore('kv').get('settings:app');g.onsuccess=()=>{r.result.close();res(g.result);};g.onerror=()=>rej(g.error);};
+}));
+// Replaces the stored study log, keeping the other settings. The app reads it when it loads and when Study opens; leave
+// Study first (Back), or the app writes its own copy over this one when the page reloads.
+export const setStudyLog=(page,log)=>page.evaluate(log=>new Promise((res,rej)=>{
+  const r=indexedDB.open('upwind',1);r.onerror=()=>rej(r.error);
+  r.onsuccess=()=>{const tx=r.result.transaction('kv','readwrite'),s=tx.objectStore('kv'),g=s.get('settings:app');
+    g.onsuccess=()=>s.put({...(g.result||{}),studyLog:log},'settings:app');tx.oncomplete=()=>{r.result.close();res();};tx.onerror=()=>rej(tx.error);};
+}),log);

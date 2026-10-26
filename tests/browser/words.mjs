@@ -200,7 +200,7 @@ await t.run(async()=>{
   ok('the Notebook opens on Highlights, with a Words tab',await page.$eval('#nbTabHl',e=>e.getAttribute('aria-selected'))==='true'&&await vis('#nbPanelHl')&&!(await vis('#nbPanelWd'))&&(await text('#nbTabWd'))==='Words');
   await page.click('#nbTabWd');await until(()=>document.querySelectorAll('#wdList .wcard').length===7);
   ok('Words lists every word, newest first',same(await terms(),['tide','obdurate','every night','quixotic','ships','Rivers','ephemeral']));
-  ok('the count line: words and due',(await text('#wdStats'))==='7 words · 7 due'&&!(await vis('#nbStats'))&&!(await vis('#nbPanelHl')));
+  ok('the count line: words; the Progress panel: 7 new left, none due',(await text('#wdStats'))==='7 words'&&(await text('#wpFigs [data-k="newLeft"] dd'))==='7'&&(await text('#wpFigs [data-k="due"] dd'))==='0'&&!(await vis('#nbStats'))&&!(await vis('#nbPanelHl')));
   const eph=await page.$eval(cardOf('ephemeral'),e=>({pos:e.querySelector('.w-pos').textContent,def:e.querySelector('.w-def').textContent,src:e.querySelector('.w-src').textContent,
     ex:[...e.querySelectorAll('.w-ex')].map(x=>[x.querySelector('.w-q').innerHTML,x.querySelector('.w-bk').textContent])}));
   ok('an entry: part of speech, meaning, source, each sentence with the word in bold and its book',eph.pos==='adjective'&&eph.def==='Lasting for a short period of time.'&&eph.src==='from Datamuse'
@@ -243,7 +243,7 @@ await t.run(async()=>{
   // 9. delete → Trash → Restore
   await openWordsTab();
   await page.click(cardOf('quixotic')+' [data-a="del"]');
-  ok('Delete asks nothing and moves the word to the Trash',(await toast())==='Moved to Trash · Undo'&&(await terms()).length===6&&!(await terms()).includes('quixotic')&&(await text('#wdStats'))==='6 words · 6 due');
+  ok('Delete asks nothing and moves the word to the Trash',(await toast())==='Moved to Trash · Undo'&&(await terms()).length===6&&!(await terms()).includes('quixotic')&&(await text('#wdStats'))==='6 words'&&(await text('#wpFigs [data-k="total"] dd'))==='6');
   ok('the word is gone from storage',!(await stored('quixotic',w=>!w)));
   await openTrash();
   const row=await page.$eval('#trashList .tr-row',e=>({sec:e.querySelector('.sec').textContent,q:e.querySelector('.q').textContent}));

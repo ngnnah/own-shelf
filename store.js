@@ -3,7 +3,7 @@
 // watchMeta calls cb(list) at least once with the current shelf, then again on remote changes.
 // Keys: "meta:<id>" (shelf entry), "doc:<id>" (book content), "state:<id>" (highlights,
 // position), "settings:app".
-import { mergeExtras } from './vocab.js';
+import { mergeExtras, mergeLog } from './vocab.js';
 
 /* ---------------- this device only (IndexedDB) ---------------- */
 export function makeLocal({ onError = () => {} } = {}) {
@@ -42,7 +42,8 @@ export function makeLocal({ onError = () => {} } = {}) {
 //   books/{id}                book header (everything except blocks) + nChunks
 //   books/{id}/chunks/{i}     slices of the blocks array, each well under Firestore's 1 MiB doc limit
 //   state/{id}                highlights, reading position, checkpoints, the book's shelf
-//   settings/app              app settings that follow you between devices (helper URL, colour meanings, shelves)
+//   settings/app              app settings that follow you between devices (helper URL, colour meanings, shelves,
+//                             the study log)
 //   trash/{id}                deleted books, highlights and notes, kept 30 days (the app purges them)
 //   words/{id}                saved vocabulary with example sentences and a flashcard schedule (see vocab.js)
 export const CHUNK_BYTES = 700 * 1024;
@@ -181,10 +182,11 @@ export function makeCloud(fs, db, uid, { onError = () => {}, delay = 2500 } = {}
 }
 
 /* ---------------- backup and restore ---------------- */
-// Format: { app: 'upwind', version: 1, exported, books: [{ meta, doc, state }], words, shelves }.
-// The artifact's "Back up shelf" button writes the same format, without words and shelves.
+// Format: { app: 'upwind', version: 1, exported, books: [{ meta, doc, state }], words, shelves, studyLog }.
+// The artifact's "Back up shelf" button writes the same format, without words, shelves and studyLog.
 // shelves: the shelf list ([{ id, name }] in order); each book's shelf id is in its state (state.shelf).
-export async function exportShelf(db, metas, shelves) {
+// studyLog: settings:app's count of Study's reviews by day (see vocab.js).
+export async function exportShelf(db, metas, shelves, studyLog) {
   metas = metas || await db.all('meta:');
   const books = [];
   for (const meta of metas) {
@@ -192,7 +194,7 @@ export async function exportShelf(db, metas, shelves) {
     if (doc) books.push({ meta, doc, state: state || null });
   }
   const words = await db.all('word:');
-  return { app: 'upwind', version: 1, exported: new Date().toISOString(), books, words, ...(shelves ? { shelves } : {}) };
+  return { app: 'upwind', version: 1, exported: new Date().toISOString(), books, words, ...(shelves ? { shelves } : {}), ...(studyLog ? { studyLog } : {}) };
 }
 
 // Adds books that aren't on the shelf yet. For books already there, adds the
@@ -201,17 +203,24 @@ export async function exportShelf(db, metas, shelves) {
 // shelves: this shelf's current list. The backup's shelves missing by id join its end. A shelf never arranged (no
 // list in settings:app) takes the backup's names and order instead, plus those of its own shelves that hold books
 // (so a starting shelf deleted in the backup stays deleted). → res.shelves when the stored list changed.
+// The backup's study log joins this one (mergeLog: per day, the larger counts). → res.studyLog when it changed.
+// Both land in settings:app in one write.
 export async function importShelf(db, data, existing, metaFor, shelves = []) {
   if (!data || data.app !== 'upwind' || !Array.isArray(data.books)) throw new Error('not_backup');
   if (data.version > 1) throw new Error('newer_version');
   const have = new Set(existing.map(m => m.id));
   const res = { added: 0, merged: 0, highlights: 0, metas: [], words: 0 };
-  if (Array.isArray(data.shelves)) {
+  if (Array.isArray(data.shelves) || data.studyLog) {
     const set = (await db.get('settings:app')) || {}, mine = Array.isArray(set.shelves);
-    const theirs = data.shelves.filter(s => s && s.id && s.name).map(({ id, name }) => ({ id, name }));
-    const [a, b] = mine ? [set.shelves, theirs] : [theirs, shelves.filter(s => existing.some(m => m.shelf === s.id))];
-    const add = b.filter(s => !a.some(x => x.id === s.id));
-    if (!mine || add.length) { res.shelves = [...a, ...add]; await db.put('settings:app', { ...set, shelves: res.shelves }); }
+    if (Array.isArray(data.shelves)) {
+      const theirs = data.shelves.filter(s => s && s.id && s.name).map(({ id, name }) => ({ id, name }));
+      const [a, b] = mine ? [set.shelves, theirs] : [theirs, shelves.filter(s => existing.some(m => m.shelf === s.id))];
+      const add = b.filter(s => !a.some(x => x.id === s.id));
+      if (!mine || add.length) res.shelves = [...a, ...add];
+    }
+    const log = mergeLog(set.studyLog, data.studyLog);
+    if (log) res.studyLog = log;
+    if (res.shelves || log) await db.put('settings:app', { ...set, ...(res.shelves ? { shelves: res.shelves } : {}), ...(log ? { studyLog: log } : {}) });
   }
   for (const b of data.books) {
     const id = b && b.doc && (b.doc.id || (b.meta && b.meta.id));

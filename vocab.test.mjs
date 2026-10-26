@@ -1,4 +1,4 @@
-import {normTerm,termKey,wordId,sentenceAround,cloze,newSrs,isDue,schedule,nextLabel,parseDatamuse,parseWiktionary,baseForms,isFact,factId,factBlank,factCloze,wordsIn,snapWords,
+import {normTerm,termKey,wordId,sentenceAround,cloze,newSrs,isDue,schedule,nextLabel,dayStart,progress,dueByDay,dayKey,logReview,newOn,pruneLog,reviewsByDay,streak,mergeLog,parseDatamuse,parseWiktionary,baseForms,isFact,factId,factBlank,factCloze,wordsIn,snapWords,
   wikiSummaryUrl,parseWikiSummary,datamuseRelUrl,parseDatamuseWords,wikitextUrl,parseWikitext,stripWiki,findWord,cleanText,parseList,exampleLine,parseExamples,mergeExtras} from './vocab.js';
 import {ok,done} from './test-util.mjs';
 
@@ -26,6 +26,50 @@ const e1=schedule(c,'easy',now);ok('easy on a new card: 4 days, ease up',e1.inte
 const a1=schedule(g3,'again',now);ok('again: 10 minutes, back to the start, ease down, a lapse',a1.due===now+600000&&a1.reps===0&&a1.ease<g3.ease&&a1.lapses===1);
 ok('ease never drops below 1.3',[...Array(10)].reduce(s=>schedule(s,'again',now),g3).ease===1.3);
 ok('nextLabel: 10 min / 1 day / 4 days',nextLabel(c,'again',now)==='10 min'&&nextLabel(c,'good',now)==='1 day'&&nextLabel(c,'easy',now)==='4 days');
+
+// progress: local days, so the fixture is built from a local date (noon), and days are local midnights
+const noon=new Date(2026,9,26,12).getTime(),mid=k=>new Date(2026,9,26+k).getTime(),HOUR=36e5;
+ok('dayStart: local midnight k days on, or back',dayStart(noon)===mid(0)&&dayStart(noon,1)===mid(1)&&dayStart(noon,-3)===mid(-3)&&dayStart(mid(1)-1,0)===mid(0));
+const card=(due,interval,extra)=>({id:'w'+Math.random(),srs:{due,interval,ease:2.5,reps:interval?2:0,lapses:0},...extra});
+const deck=[
+  card(noon-5*DAY,3),                  // overdue: due today, learning
+  card(noon-HOUR,0),                   // sent back by Again, due now: due today, learning
+  card(mid(1)-60000,8),                // due tonight at 23:59: due today, learning
+  card(mid(1),21),                     // due at tomorrow's midnight: tomorrow, learned (21 days)
+  card(mid(3)+9*HOUR,40,{kind:'fact'}),// a fact card in 3 days, learned
+  card(mid(13)+HOUR,20),               // the last day of the two weeks, learning (20 days)
+  card(mid(14)+HOUR,60),               // past the two weeks, learned
+  {id:'n1'},{id:'n2',kind:'fact'},{id:'n3'},{id:'n4'},null // new: no srs (a fact card too); a hole is skipped
+];
+const pg=progress(deck,noon,0,20);
+ok('progress: due today counts overdue cards and the rest of today, not tomorrow',pg.due===3);
+ok('progress: learning under 21 days, learned from 21 (fact cards too), total every card',pg.learning===4&&pg.learned===3&&pg.total===11&&pg.learning+pg.learned+4===pg.total);
+ok('progress: new left is the day’s allowance left, at most the new cards there are',pg.newLeft===4&&progress(deck,noon,18,20).newLeft===2&&progress(deck,noon,20,20).newLeft===0&&progress(deck,noon,25,20).newLeft===0);
+ok('progress: nothing at all is all zeros',JSON.stringify(progress([],noon))==='{"due":0,"newLeft":0,"learning":0,"learned":0,"total":0}'&&progress(null,noon).total===0);
+const dd=dueByDay(deck,noon,14);
+ok('dueByDay: 14 local days from today, today with the overdue cards (matches due today)',dd.length===14&&dd[0]===3&&dd[0]===pg.due&&dd[1]===1&&dd[3]===1&&dd[13]===1&&dd.reduce((a,b)=>a+b)===6);
+ok('dueByDay: new cards and cards past the last day are left out; a shorter window',JSON.stringify(dueByDay(deck,noon,2))==='[3,1]'&&dueByDay([{id:'x'}],noon,3).join()==='0,0,0');
+
+// the study log: { 'YYYY-MM-DD': { reviews, new } } by local date
+ok('dayKey: the local date, zero-padded',dayKey(noon)==='2026-10-26'&&dayKey(mid(1)-1)==='2026-10-26'&&dayKey(mid(1))==='2026-10-27'&&dayKey(new Date(2026,0,5,23,59).getTime())==='2026-01-05');
+let lg=logReview(undefined,noon,true);lg=logReview(lg,noon+HOUR,false);lg=logReview(lg,noon+2*HOUR,true);
+const lg2=logReview(lg,mid(1)+HOUR,false);
+ok('logReview: each rating counts a review, a new card’s first rating a new one, on its own day; the stale log is left alone',
+  JSON.stringify(lg)==='{"2026-10-26":{"reviews":3,"new":2}}'&&JSON.stringify(lg2['2026-10-27'])==='{"reviews":1,"new":0}'&&lg2['2026-10-26'].reviews===3&&!lg['2026-10-27']);
+ok('newOn: the day’s new cards, none on another day or with no log',newOn(lg,noon)===2&&newOn(lg,mid(1))===0&&newOn(undefined,noon)===0&&newOn({'2026-10-26':{new:'x'}},noon)===0);
+const days=k=>dayKey(mid(k)),stale={[days(-60)]:{reviews:5,new:1},[days(-59)]:{reviews:4,new:0},[days(0)]:{reviews:2,new:2},junk:{reviews:9},[days(-1)]:null};
+ok('pruneLog: keeps the last 60 days (today included), drops older days and anything not a day',JSON.stringify(Object.keys(pruneLog(stale,noon)).sort())===JSON.stringify([days(-59),days(0)])&&Object.keys(pruneLog(stale,noon,1)).join()===days(0)&&JSON.stringify(pruneLog(null,noon))==='{}');
+const hist={[days(-29)]:{reviews:4,new:1},[days(-3)]:{reviews:7,new:0},[days(-2)]:{reviews:1,new:0},[days(-1)]:{reviews:12,new:3},[days(-30)]:{reviews:50,new:0}};
+const rb=reviewsByDay(hist,noon,30);
+ok('reviewsByDay: the last 30 days, today last; a day outside the window left out',rb.length===30&&rb[0]===4&&rb[26]===7&&rb[27]===1&&rb[28]===12&&rb[29]===0&&rb.reduce((a,b)=>a+b)===24);
+ok('streak: days in a row up to yesterday while today has no review yet',streak(hist,noon)===3);
+ok('streak: today’s review extends it; a gap ends it; nothing is 0',streak({...hist,[days(0)]:{reviews:1,new:0}},noon)===4&&streak({[days(-2)]:{reviews:3}},noon)===0&&streak(undefined,noon)===0&&streak({[days(0)]:{reviews:0,new:0}},noon)===0);
+const full=Object.fromEntries(Array.from({length:80},(_,i)=>[days(-i),{reviews:1,new:0}]));
+ok('streak: at most 60, the days the log keeps',streak(full,noon)===60);
+const logA={[days(-1)]:{reviews:5,new:2},[days(0)]:{reviews:3,new:0}},logB={[days(-2)]:{reviews:4,new:4},[days(-1)]:{reviews:2,new:3},[days(0)]:{reviews:3,new:0},bad:{reviews:1},[days(-5)]:{reviews:'x'}};
+const mg=mergeLog(logA,logB);
+ok('mergeLog: adds missing days, takes the larger of each count, skips anything not a day',JSON.stringify(mg[days(-2)])==='{"reviews":4,"new":4}'&&JSON.stringify(mg[days(-1)])==='{"reviews":5,"new":3}'&&JSON.stringify(mg[days(0)])==='{"reviews":3,"new":0}'&&!('bad' in mg)&&!(days(-5) in mg)&&logA[days(-1)].new===2);
+ok('mergeLog: nothing to add is null (restoring twice changes nothing)',mergeLog(mg,logB)===null&&mergeLog(logA,null)===null&&mergeLog(logA,{})===null&&JSON.stringify(mergeLog(undefined,logA))===JSON.stringify(logA));
 
 const dm=parseDatamuse([{word:'ephemeral',defs:['adj\tLasting for a short period of time. ','n\tSomething which lasts for a short period of time. ']}]);
 ok('parseDatamuse: first definition and its part of speech',dm.def==='Lasting for a short period of time.'&&dm.pos==='adjective'&&dm.more.length===1&&dm.defSource==='Datamuse');

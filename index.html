@@ -72,10 +72,15 @@
     <div id="nbList"></div>
   </div>
   <div id="nbPanelWd" class="hidden" role="tabpanel" aria-labelledby="nbTabWd">
+    <section class="wp hidden" id="wdProg" aria-labelledby="wpH">
+      <div class="wp-head"><h2 id="wpH">Progress</h2><span class="wp-streak" id="wpStreak"></span><button class="btn sea hidden" id="wdStudy">Study</button></div>
+      <dl class="wp-figs" id="wpFigs"></dl>
+      <details class="wp-more" id="wpMore"><summary>Reviews by day</summary><div id="wpCharts"></div></details>
+    </section>
     <div class="nb-ctrl" id="wdCtrl">
       <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input class="f" id="wdQ" type="search" placeholder="Search words, facts and sentences" aria-label="Search words and facts"></label>
       <div class="nb-chips" id="wdChips" role="group" aria-label="Show"></div>
-      <div class="nb-row"><select class="f" id="wdBook" aria-label="Filter by book"></select><button class="btn sea hidden" id="wdStudy">Study</button></div>
+      <div class="nb-row"><select class="f" id="wdBook" aria-label="Filter by book"></select></div>
     </div>
     <div id="wdList"></div>
   </div>

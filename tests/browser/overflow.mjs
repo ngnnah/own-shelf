@@ -1,5 +1,5 @@
 // The page never scrolls sideways on a phone: on every screen and in every state, at 375 px with a touch screen (and
-// at 320 px for the shelf and the reader), nothing in the page is wider than the screen, no drawer or dialog scrolls
+// at 320 px for the shelf, the reader and the Words tab), nothing in the page is wider than the screen, no drawer or dialog scrolls
 // sideways inside, and the fixed bar, toolbar, cards, toast, drawers and dialogs stay inside the screen (with the
 // Date written quick picks in Add and Book details, the byline's pencil, every arrangement including by Shelf, the shelf
 // dialog, a shelf name without spaces, every shelf collapsed and the New shelf and Collapse all buttons, at both widths).
@@ -193,6 +193,7 @@ async function notebook(){
   await clk('#nbExp');await shown('#expM');await fits('Export (whole shelf)');await clk('#expM [data-cancel]');await hidden('#expM');
   await page.screenshot({path:join(shots,'notebook-375.png')});
   await clk('#nbTabWd');await until(()=>document.querySelectorAll('#wdList .wcard').length>0);await fits('Notebook, Words');
+  if(!(await page.$eval('#wpMore',d=>d.open))) await clk('#wpMore>summary');await fits('Notebook, Words, the Progress panel’s Reviews by day open');
   await clk('#wdChips [data-f="sort"]');await until(()=>document.querySelector('#wdList .scard'));await fits('Notebook, To sort');
   await clk('#wdChips [data-f="all"]');await clk('#nbTabHl');
 }
@@ -251,6 +252,8 @@ await t.run(async()=>{
   await phone(320);await page.goto(t.base,{waitUntil:'networkidle0'});await page.waitForSelector('#shelf:not(.hidden),#reader:not(.hidden)');
   await shelf();
   await dialogs(false);
+  await clk('#nbBtn');await shown('#notebook');await clk('#nbTabWd');await until(()=>document.querySelectorAll('#wdList .wcard').length>0);
+  await fits('Notebook, Words with the Progress panel');await clk('#nbTabHl');
   await reader();
   await openBook('Overflow Stress Test');await select('#col p.hp',30);await fits('highlight toolbar');
   await page.evaluate(()=>getSelection().removeAllRanges());

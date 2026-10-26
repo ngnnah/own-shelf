@@ -221,5 +221,32 @@ const errs=[];
   ok('cloud: restored shelves land in settings/app, a book\'s shelf in its state',r.shelves.length===1&&F.docs.get('users/u1/settings/app').shelves[0].name==='Poetry'&&F.docs.get('users/u1/state/x').shelf==='s1'&&F.docs.get('users/u1/meta/x').shelf==='s1');
 }
 
+// the study log (settings:app's studyLog, Study's reviews by day): in backups, merged on restore with the other settings kept
+{
+  const metaFor=(d,s)=>({id:d.id,title:d.title,shelf:s.shelf||'',hl:(s.hl||[]).length});
+  const LOG={'2026-10-24':{reviews:12,new:3},'2026-10-25':{reviews:4,new:0}};
+  const A=makeLocal();await A.open();
+  const d={id:'x',title:'X',blocks:[{t:'p',id:'b0',text:'hi'}],sections:[]};await A.put('doc:x',d);await A.put('state:x',{hl:[]});await A.put('meta:x',metaFor(d,{}));
+  const bk=JSON.parse(JSON.stringify(await exportShelf(A,null,null,LOG)));
+  ok('backup: carries the study log',JSON.stringify(bk.studyLog)===JSON.stringify(LOG)&&!('studyLog' in JSON.parse(JSON.stringify(await exportShelf(A)))));
+  const B=makeLocal();await B.open();
+  const r1=await importShelf(B,bk,[],metaFor,[]);
+  ok('restore: the log comes back into settings:app',JSON.stringify(r1.studyLog)===JSON.stringify(LOG)&&JSON.stringify((await B.get('settings:app')).studyLog)===JSON.stringify(LOG)&&!r1.shelves);
+  const C=makeLocal();await C.open();
+  await C.put('settings:app',{workerUrl:'https://w.example',shelves:[{id:'s1',name:'Poetry'}],studyLog:{'2026-10-25':{reviews:9,new:1},'2026-10-26':{reviews:2,new:2}}});
+  const r2=await importShelf(C,{...bk,shelves:[{id:'s2',name:'Maps'}]},[],metaFor,[]),sc=await C.get('settings:app');
+  ok('restore: days merge (the larger counts), the other settings stay, shelves and log in one write',JSON.stringify(sc.studyLog)==='{"2026-10-25":{"reviews":9,"new":1},"2026-10-26":{"reviews":2,"new":2},"2026-10-24":{"reviews":12,"new":3}}'
+    &&sc.workerUrl==='https://w.example'&&sc.shelves.map(s=>s.name).join()==='Poetry,Maps'&&r2.studyLog&&r2.shelves);
+  const r3=await importShelf(C,bk,await C.all('meta:'),metaFor,[]);
+  ok('restore: the same log again changes nothing',!r3.studyLog&&!r3.shelves&&(await C.get('settings:app')).studyLog['2026-10-24'].reviews===12);
+  const D=makeLocal();await D.open();const plain={...bk};delete plain.studyLog;
+  ok('restore: a backup without a log writes no settings',!(await importShelf(D,plain,[],metaFor,[])).studyLog&&!(await D.get('settings:app')));
+  // cloud: it lands in settings/app, which Firestore takes (a map of maps)
+  const F=fakeFirestore();const CL=makeCloud(F.fs,{},'u1',{onError:e=>errs.push(e),delay:10000});
+  await CL.put('settings:app',{workerUrl:'https://w.example'});
+  await importShelf(CL,bk,[],metaFor,[]);await CL.flush();
+  ok('cloud: a restored log lands in settings/app beside the other settings',F.docs.get('users/u1/settings/app').studyLog['2026-10-24'].new===3&&F.docs.get('users/u1/settings/app').workerUrl==='https://w.example');
+}
+
 ok('no write errors',errs.length===0);
 done();

@@ -4,7 +4,7 @@
 // Usage: node tests/browser/sort.mjs [repo dir]
 // Screenshots (To sort, the Facts chip, fact cards in Study; 390×844 and 1280×900, light and dark) go to
 // tests/browser/out/sort/.
-import {start,enterLocalMode,addMarkdown,sleep} from './lib.mjs';
+import {start,enterLocalMode,addMarkdown,sleep,dayKey,readSettings,setStudyLog} from './lib.mjs';
 import {wordId,factId} from '../../vocab.js';
 import {mkdirSync,writeFileSync} from 'node:fs';
 import {dirname,join} from 'node:path';
@@ -140,7 +140,7 @@ async function shoot(label,scroll,full=false){
   return bad;
 }
 /* Study */
-const setNewToday=n=>page.evaluate(n=>{const d=new Date();localStorage.setItem('upwind:studyNew',JSON.stringify({day:`${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`,n}));},n);
+const setNewToday=n=>setStudyLog(page,{[dayKey()]:{reviews:n,new:n}}); // the day's new cards, in the study log
 async function openStudy(){
   await page.goto(t.base+'?study=1',{waitUntil:'networkidle0'});await page.waitForSelector('#study:not(.hidden)');
   await until(()=>!document.querySelector('#syCard').textContent.includes('Gathering'));
@@ -275,7 +275,7 @@ await t.run(async()=>{
   const fsq=fs.find(x=>x.q===SQUALL);
   ok('a cloze card shows its blanked phrase marked; its book and section open the highlight',fsq.gap==='sudden, violent gust'&&fsq.bk==='The Salt Almanac · 1. Part One');
   ok('a re-read card shows its note',fs.find(x=>x.q===BARO).note==='Grandpa’s rule.'&&fs.find(x=>x.q===WALL).bk==='Harbour Notes');
-  ok('the count line: words, facts, due',(await text('#wdStats'))==='2 words · 5 facts · 7 due');
+  ok('the count line: words and facts; the Progress panel counts all 7 cards',(await text('#wdStats'))==='2 words · 5 facts'&&(await text('#wpFigs [data-k="total"] dd'))==='7');
   await chip('Words');
   ok('Words lists only the words',same(await page.$$eval('#wdList .wcard .w-term',e=>e.map(x=>x.textContent)),['ledger','pilots'])&&!(await page.$('#wdList .fcard')));
   await chip('All');
@@ -350,5 +350,7 @@ await t.run(async()=>{
   await key('2');await next('6 of 7');await key('Space');await key('2');await next('7 of 7');await key('Space');await key('2');
   await until(()=>document.querySelector('#syCard').textContent.includes('All caught up'));
   ok('done: words and facts reviewed',(await text('#syCard')).includes('You reviewed 2 words and 5 facts.'));
-  ok('the day’s new count includes the facts',await page.evaluate(()=>JSON.parse(localStorage.getItem('upwind:studyNew')).n)===7);
+  await page.click('#syActs [data-sy="back"]');await page.waitForSelector('#shelf:not(.hidden)');
+  let log;for(const end=Date.now()+5000;Date.now()<end;await sleep(50)){log=((await readSettings(page))||{}).studyLog||{};if(log[dayKey()]&&log[dayKey()].new)break;}
+  ok('the day’s new count includes the facts (written on leaving Study)',log[dayKey()].new===7);
 });
