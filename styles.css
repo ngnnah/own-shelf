@@ -100,7 +100,7 @@ label.fl,div.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--mut
 /* ▾ / ▸ before the name; its touch target reaches past its glyph */
 .sl-fold{position:relative;border:0;background:none;padding:0;width:1em;margin-right:-.2rem;font:400 1em/1 var(--ui);color:var(--muted);text-align:center;flex:none}
 .sl-fold::after{content:"";position:absolute;inset:-12px -4px -12px -10px}
-.sl-fold:hover{color:var(--sea)}
+@media (hover:hover){.sl-fold:hover{color:var(--sea)}}
 .shelf-row.bare,.shelf-row.shut{margin-bottom:1.1rem}
 .shelf-row.bare .shelf-label{margin:0;line-height:1.1}
 .shelf-row.shut .shelf-label{margin:0 0 .4rem;line-height:1.1}
@@ -110,7 +110,7 @@ label.fl,div.fl{display:grid;gap:.3rem;font:600 .82rem var(--ui);color:var(--mut
 /* New shelf and Collapse all / Expand all, after View; shown when arranged by Shelf in the Shelves view */
 .sh-tools{display:flex;gap:.5rem;flex-wrap:wrap}
 .sh-tools button{border:1px solid var(--rule);background:var(--sheet);border-radius:999px;font:500 .85rem var(--ui);padding:.55rem .9rem;color:var(--ink)}
-.sh-tools button:hover{border-color:var(--sea);color:var(--sea)}
+@media (hover:hover){.sh-tools button:hover{border-color:var(--sea);color:var(--sea)}} /* a tapped button on a phone keeps :hover */
 /* dragging: the lifted book or shelf name follows the pointer and its place stays faint; the shelf a book would land on
    lights up, and a line shows where a shelf would go */
 .shelf-row.drop{outline-color:var(--sea);background:color-mix(in srgb,var(--sea) 12%,transparent);box-shadow:0 0 0 8px color-mix(in srgb,var(--sea) 12%,transparent)}
