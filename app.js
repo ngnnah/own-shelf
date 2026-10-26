@@ -246,11 +246,14 @@ $('#shSave').onclick=()=>{
   const row=document.querySelector(`#shelfBody [data-shelf="${id}"]`);if(row) row.scrollIntoView({block:'nearest',behavior:'smooth'});
 };
 $('#shName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#shSave').click();}});
-// nothing is lost (the books go to Unsorted), so a second tap instead of a typed "yes"
+// nothing is lost (the books go to Unsorted), so a second tap instead of a typed "yes". The books keep the shelf's
+// id, so Undo only puts the shelf back in its place and they show on it again.
 $('#shDel').onclick=e=>{
-  const s=shelves().find(x=>x.id===shId);if(!s||!armed(e.currentTarget,'Tap again to delete')) return;
-  const n=META.filter(m=>m.shelf===s.id).length;saveShelves(shelves().filter(x=>x!==s));closeModal('#shelfM');
-  toast(n?`Deleted ${s.name} · ${plural(n,'book')} in Unsorted`:`Deleted ${s.name}`);
+  const l=shelves(),s=l.find(x=>x.id===shId);if(!s||!armed(e.currentTarget,'Tap again to delete')) return;
+  const i=l.indexOf(s),n=META.filter(m=>m.shelf===s.id).length;saveShelves(l.filter(x=>x!==s));closeModal('#shelfM');
+  toast(n?`Deleted ${s.name} · ${plural(n,'book')} in Unsorted`:`Deleted ${s.name}`,{label:'Undo',run:()=>{
+    const now=[...shelves()];if(now.some(x=>x.id===s.id)) return;now.splice(Math.min(i,now.length),0,s);saveShelves(now);
+  }});
 };
 
 // Dragging on the shelves (Arrange by Shelf, Shelves view): a cover onto another shelf, or a shelf by its name to

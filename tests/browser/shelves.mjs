@@ -276,6 +276,9 @@ await t.run(async()=>{
   await page.click('#shDel');await until(()=>document.querySelector('#shelfM').classList.contains('hidden'));
   ok('delete: the shelf goes, its books go to Unsorted (first again)',!(await names()).includes('Old Times')&&(await names()).startsWith('Unsorted|')&&(await on('Unsorted')).join()==='Atlas of Winds');
   ok('delete: the toast says where the books went',await toastHas('in Unsorted'));
+  await page.click('#toast button');
+  ok('Undo puts the shelf back in its place, with its books',(await names())==='Travel|Adventure|Old Times|Finance|Fantasy|Poetry|Philosophy'&&(await on('Old Times')).join()==='Atlas of Winds');
+  await edit('history');await page.click('#shDel');await page.click('#shDel');await until(()=>document.querySelector('#shelfM').classList.contains('hidden'));
   await reload();
   ok('shelf changes are kept after a reload',(await names())==='Unsorted|Travel|Adventure|Finance|Fantasy|Poetry|Philosophy');
   ok('the Details picker follows the shelves',(await (async()=>{await details('Atlas of Winds');const o=await page.$$eval('#dShelf option',os=>os.map(o=>o.textContent).join('|'));await page.click('#detM [data-cancel]');return o;})())==='Travel|Adventure|Finance|Fantasy|Poetry|Philosophy|Unsorted');
