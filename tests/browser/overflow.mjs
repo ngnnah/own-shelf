@@ -95,7 +95,7 @@ const measure=()=>page.evaluate(()=>{
   // the culprits: elements in the page whose box or content passes the right edge, innermost first
   const wide=sw>cw?[...document.body.querySelectorAll('*')].filter(e=>shows(e)&&getComputedStyle(e).position!=='fixed'&&!e.closest('.drawer,.modal,#tool,#noteBox,#wordBox,#toast,#bar')&&
     (past(e)||e.getBoundingClientRect().left+e.scrollWidth>cw+.5)&&!e.querySelector('*:not(br)')).slice(0,4).map(name):[];
-  const inner=[...document.querySelectorAll('.dr-list,.dlg,#noteBox,#wordBox,#wbMore')].filter(e=>shows(e)&&e.scrollWidth>e.clientWidth+1).map(name);
+  const inner=[...document.querySelectorAll('.dr-list,.dlg,#noteBox,#wordBox,#wbBody,#wbMore')].filter(e=>shows(e)&&e.scrollWidth>e.clientWidth+1).map(name);
   const fixed=[...document.querySelectorAll('#bar .bar-in>*,#tool,#noteBox,#wordBox,#toast.on,.drawer.open,.modal .dlg')].filter(e=>shows(e)&&past(e)).map(name);
   off.remove();
   return {cw,sw,wide,inner,fixed};

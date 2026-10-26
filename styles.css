@@ -397,13 +397,13 @@ body.focus .fn-card .hp{opacity:1}
 /* the note box and the word card stay inside the visible area (max-height set in app.js): as a flex column, a long
    or dragged-taller field gives way and scrolls, and the buttons stay in view */
 #noteBox{position:fixed;z-index:61;display:flex;flex-direction:column;overflow:auto;width:min(340px,calc(100vw - 24px));background:var(--sheet);border-radius:18px;padding:.9rem;box-shadow:0 14px 40px rgba(40,24,12,.3);border:1px solid var(--rule)}
-#noteBox>*,#wordBox>*{flex:none}
+#noteBox>*,#wordBox>*,#wbBody>*{flex:none}
 #noteBox textarea{flex:0 1 auto;min-height:90px;font:1rem/1.45 var(--body);resize:vertical}
 #noteBox .row{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.6rem}
 #noteBox .btn{padding:.5rem 1rem;font-size:.9rem}
-/* on a phone: a sheet across the screen, docked above the keyboard; its field grows with the note (app.js) */
-#noteBox.sheet{width:min(640px,calc(100vw - 16px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)))}
-#noteBox.sheet textarea{resize:none}
+/* on a phone: a sheet across the screen, docked above the keyboard; its fields grow with their text (app.js) */
+#noteBox.sheet,#wordBox.sheet{width:min(640px,calc(100vw - 16px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)))}
+#noteBox.sheet textarea,#wordBox.sheet textarea{resize:none}
 
 /* drawers */
 .drawer{position:fixed;z-index:50;top:0;bottom:0;width:min(420px,100vw);background:var(--sheet);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 0 40px rgba(40,24,12,.14);visibility:hidden;transition:transform .3s cubic-bezier(.2,.8,.2,1),visibility 0s .3s}
@@ -551,13 +551,13 @@ body:has(#noteBox:not(.hidden),#wordBox:not(.hidden)) #toast{top:calc(env(safe-a
 .wd{text-decoration:underline dotted color-mix(in srgb,var(--sea) 80%,transparent);text-decoration-thickness:2px;text-underline-offset:.22em;text-decoration-skip-ink:none;cursor:pointer}
 .wd.flash{animation:wflash 1.6s ease;border-radius:3px}
 @keyframes wflash{0%,45%{background:color-mix(in srgb,var(--sea) 26%,transparent)}}
-/* the word card, in the note box's style (and kept in view the same way); docked at the bottom on phones (set in app.js) */
+/* the word card, in the note box's style (and kept in view the same way); a sheet on phones (set in app.js) */
 #wordBox{position:fixed;z-index:61;display:flex;flex-direction:column;width:min(360px,calc(100vw - 24px));max-height:calc(100vh - 96px);overflow:auto;background:var(--sheet);border-radius:18px;padding:.85rem 1rem .9rem;box-shadow:0 14px 40px rgba(40,24,12,.3);border:1px solid var(--rule)}
 .wb-head,.w-head{display:flex;align-items:baseline;gap:.2rem .6rem;flex-wrap:wrap}
-/* the card's top, out to its edges, is the handle that drags it; a small grip shows it on touch screens */
+/* the card's top, out to its edges, is the handle that drags it; a sheet (every touch screen gets one) stays docked */
 .wb-head{position:relative;margin:-.85rem -1rem .55rem;padding:.85rem 1rem 0;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 #wordBox.drag .wb-head{cursor:grabbing}
-@media (pointer:coarse){.wb-head::before{content:"";position:absolute;top:5px;left:50%;width:34px;height:4px;margin-left:-17px;border-radius:2px;background:var(--rule)}}
+#wordBox.sheet .wb-head{cursor:auto}
 #wbTerm,.w-term{font:600 1.5rem/1.15 var(--display);margin:0;overflow-wrap:anywhere}
 #wbPos,.w-pos{font:italic 400 1.02rem var(--display);color:var(--muted)}
 /* in a full card the field gives way first; the rest (#wbMore: examples, synonyms, antonyms, pictures, the sentence)
@@ -565,7 +565,15 @@ body:has(#noteBox:not(.hidden),#wordBox:not(.hidden)) #toast{top:calc(env(safe-a
 #wbDef{flex:0 1000 auto;min-height:76px;font:1rem/1.45 var(--body);resize:vertical}
 #wbSrc,.w-src{font:500 .74rem var(--ui);color:var(--muted);margin:.3rem 0 0}
 #wbPos:empty,#wbSrc:empty,#wbEx:empty,.w-pos:empty,.w-src:empty{display:none}
-#wordBox>#wbMore{flex:0 1 auto;min-height:3em;overflow:auto;margin-top:.15rem}
+#wbBody>#wbMore{flex:0 1 auto;min-height:3em;overflow:auto;margin-top:.15rem}
+/* the card's middle: no box of its own with a mouse. As a sheet (app.js) the head and the buttons stay put and the
+   middle scrolls as one, each field grown with its text up to the room there (--room), then scrolling inside itself.
+   It reaches the card's edges, so a field's focus ring and hanging margin aren't clipped. */
+#wbBody{display:contents}
+#wordBox.sheet #wbBody{display:flex;flex-direction:column;flex:0 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;margin:-6px -1rem;padding:6px 1rem}
+#wordBox.sheet #wbDef,#wordBox.sheet #wbMore{flex:none}
+#wordBox.sheet #wbMore{min-height:0;overflow:visible}
+#wordBox.sheet .wx-f{max-height:var(--room,none);overflow:auto}
 #wbEx{font:.98rem/1.5 var(--body);margin:0;padding-left:.75rem;border-left:3px solid var(--wave);overflow-wrap:anywhere}
 #wbEx b,.w-q b{font-weight:650}
 /* a card's extras (the word card and the Words tab): small caps labels; the dictionary's examples, synonyms and
@@ -591,7 +599,7 @@ body:has(#noteBox:not(.hidden),#wordBox:not(.hidden)) #toast{top:calc(env(safe-a
 .w-addb{position:relative;border:0;background:none;padding:.3rem 0;font:600 .84rem var(--ui);color:var(--sea);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .w-addb:focus-within{outline:2.5px solid var(--sea);outline-offset:2px;border-radius:4px}
 .w-addb input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
-#wordBox>[data-x="add"]{margin-top:.45rem}
+#wbBody>[data-x="add"]{margin-top:.45rem}
 /* a picture dragged over a card */
 .pic-over{box-shadow:0 0 0 3px var(--sea),0 14px 40px rgba(40,24,12,.3)!important}
 #wordBox .row{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.8rem}
@@ -678,7 +686,9 @@ body:has(#noteBox:not(.hidden),#wordBox:not(.hidden)) #toast{top:calc(env(safe-a
 @media (max-width:600px){.sy-mode{order:3;flex-basis:100%;margin:0}.sy-mode button{flex:1}}
 .sy-main{flex:1;display:flex;flex-direction:column;width:100%;max-width:36rem;margin:0 auto}
 #syCard{margin:auto 0;padding:1.4rem 0 1rem}
-.sy-card{background:var(--sheet);border:1.5px solid var(--rule);border-radius:26px;padding:2rem clamp(1.2rem,5vw,2.4rem) 2.1rem;text-align:center;box-shadow:0 18px 40px -28px rgba(40,24,10,.45);overflow-wrap:break-word}
+.sy-card{position:relative;background:var(--sheet);border:1.5px solid var(--rule);border-radius:26px;padding:2rem clamp(1.2rem,5vw,2.4rem) 2.1rem;text-align:center;box-shadow:0 18px 40px -28px rgba(40,24,10,.45);overflow-wrap:break-word}
+/* the back's Delete, in the card's top corner: far from the ratings at the bottom */
+.sy-del{position:absolute;top:.45rem;right:.7rem}
 .sy-term{font:500 clamp(2.6rem,12vw,4rem)/1.05 var(--display);letter-spacing:-.01em;margin:0;overflow-wrap:anywhere}
 .sy-pos{font:italic 400 1.15rem var(--display);color:var(--muted);margin:.3rem 0 0}
 .sy-sent{font:1.16rem/1.55 var(--body);margin:1.3rem 0 0;text-wrap:pretty}
