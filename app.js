@@ -145,6 +145,7 @@ function renderShelf(){
   const cont=[...all].filter(m=>!m.finished&&m.progress>0.01).sort((a,b)=>b.opened-a.opened)[0];
   $('#contWrap').innerHTML=cont?`<div class="cont"><span class="cv" style="background:${cover(cont.id)[0]}"></span><div class="ct"><small>Continue reading</small><b>${esc(cont.title)}</b><span>${Math.round(cont.progress*100)}%${cont.words?` · about ${Math.max(1,Math.round(cont.words*(1-cont.progress)/230))} min left`:''}</span></div><button class="btn" data-open="${cont.id}">Continue</button></div>`:'';
   const body=$('#shelfBody');
+  $('#shTools').classList.toggle('hidden',!dragOn()||!!$('#q').value.trim()); // New shelf, Collapse all: not while searching
   if(!all.length){
     body.innerHTML=`<div class="empty-shelf"><img src="icons/mark.svg" alt=""><h2>An empty shelf, for now.</h2><p>Add a PDF, a text file, or paste any article. It lands here as a book you can read, highlight and come back to.</p><button class="btn sea" data-add>Add your first text</button></div>`;
     return;
@@ -160,7 +161,10 @@ function renderShelf(){
       rows.map(m=>`<tr data-open="${m.id}" tabindex="0"><td><span class="tt">${isKindleId(m.id)?'<i class="nb"></i>':`<i style="background:${cover(m.id)[0]}"></i>`}${esc(m.title)}</span></td><td class="mut">${esc(m.author||'—')}</td><td class="mut c-shelf">${esc(shelfName(shelfOf(m)))}</td><td class="mut c-written">${esc(m.written||'—')}</td><td class="mut c-words">${fmtWords(m.words)||'—'}</td><td class="mut c-added">${fmtDay(m.added)}</td><td>${m.finished?'Finished':`<span class="pbar"><i style="width:${Math.round(m.progress*100)}%"></i></span>${Math.round(m.progress*100)}%`}</td><td class="mut c-hl">${m.hl}</td></tr>`).join('')}</tbody></table>`;
     return;
   }
-  if(prefs.group==='shelf'){body.innerHTML=shelfRows(list);return;}
+  if(prefs.group==='shelf'){
+    body.innerHTML=shelfRows(list);const rs=[...body.querySelectorAll('.shelf-row')];
+    $('#foldAll').textContent=rs.length&&rs.every(r=>r.classList.contains('shut'))?'Expand all':'Collapse all';return;
+  }
   const groups=new Map();
   list.forEach(m=>{const g=groupKey(m);if(!groups.has(g.label))groups.set(g.label,{k:g.k,items:[]});groups.get(g.label).items.push(m);});
   const ord=[...groups.entries()].sort((a,b)=>{const A=a[1].k,B=b[1].k;if(prefs.group==='author'||prefs.group==='title') return A<B?-1:A>B?1:0; return B-A;});
@@ -168,19 +172,32 @@ function renderShelf(){
   body.innerHTML=ord.map(([label,g])=>`<section class="shelf-row"><h3 class="shelf-label">${esc(label)}<small>${g.items.length}</small></h3><div class="books">${g.items.sort(prefs.group==='title'?(a,b)=>sortTitle(a).localeCompare(sortTitle(b)):(a,b)=>inner(a)-inner(b)).map(bookHTML).join('')}</div><div class="plank"></div></section>`).join('');
 }
 // Arranged by shelf: Unsorted first while it holds books (a new shelf's books are in view), then every shelf in order.
-// While searching, only shelves with a match.
+// A collapsed shelf is a slim strip, its name and count on a bare board, and still takes a dropped book. While
+// searching, only shelves with a match, every one open.
 function shelfRows(list){
-  const q=!!$('#q').value.trim(),all=[{id:'',name:'Unsorted'},...shelves()],by=new Map(all.map(s=>[s.id,[]]));
+  const q=!!$('#q').value.trim(),all=[{id:'',name:'Unsorted'},...shelves()],by=new Map(all.map(s=>[s.id,[]])),shut=shutSet();
   list.forEach(m=>by.get(shelfOf(m)).push(m));
   return all.map(s=>{const l=by.get(s.id).sort((a,b)=>b.added-a.added);if(!l.length&&(q||!s.id)) return '';
-    return `<section class="shelf-row${l.length?'':' bare'}" data-shelf="${esc(s.id)}"><h3 class="shelf-label">${s.id?`<button class="sl-name" data-shelf-edit="${esc(s.id)}" aria-label="${esc(s.name)}: rename, move or delete">${esc(s.name)}</button>`:'Unsorted'}${l.length?`<small>${l.length}</small>`:''}</h3>`+
-      `<div class="books">${l.length?l.map(bookHTML).join(''):'<p class="sl-hint">Drag books here</p>'}</div><div class="plank"></div></section>`;}).join('')+
-    (q?'':'<button class="btn ghost sl-new" data-shelf-new>+ New shelf</button>');
+    const fold=!q&&shut.has(s.id);
+    return `<section class="shelf-row${fold?' shut':l.length?'':' bare'}" data-shelf="${esc(s.id)}"><h3 class="shelf-label">`+
+      (q?'':`<button class="sl-fold" data-fold="${esc(s.id)}" aria-label="${fold?'Expand':'Collapse'} ${esc(s.name)}" title="${fold?'Expand':'Collapse'}">${fold?'▸':'▾'}</button>`)+
+      `${s.id?`<button class="sl-name" data-shelf-edit="${esc(s.id)}" aria-label="${esc(s.name)}: rename, move or delete">${esc(s.name)}</button>`:'<span>Unsorted</span>'}${l.length?`<small>${l.length}</small>`:''}</h3>`+
+      (fold?'':`<div class="books">${l.length?l.map(bookHTML).join(''):'<p class="sl-hint">Drag books here</p>'}</div>`)+'<div class="plank"></div></section>';}).join('');
 }
+// Collapsed shelves are this device's (prefs.shut: their ids, '' for Unsorted), never synced. A new shelf isn't in the
+// list, so it starts expanded. Collapse all takes the shelves on screen; Expand all clears the list.
+const shutSet=()=>new Set(Array.isArray(prefs.shut)?prefs.shut:[]);
+function setShut(ids,focus){
+  const known=new Set(['',...shelves().map(s=>s.id)]);prefs.shut=ids.filter(id=>known.has(id));savePrefs();renderShelf();
+  const b=focus!=null&&document.querySelector(`#shelfBody [data-fold="${CSS.escape(focus)}"]`);if(b) b.focus({preventScroll:true}); // the key's focus stays on the arrow
+}
+function foldShelf(id,btn){const s=shutSet();s.has(id)?s.delete(id):s.add(id);setShut([...s],document.activeElement===btn?id:null);}
+$('#foldAll').onclick=()=>{const ids=[...$('#shelfBody').querySelectorAll('.shelf-row')].map(r=>r.dataset.shelf),s=shutSet();setShut(ids.every(id=>s.has(id))?[]:ids);};
 $('#shelf').addEventListener('click',e=>{
   const o=e.target.closest('[data-open]'); if(o){openBook(o.dataset.open);return;}
   const ed=e.target.closest('[data-edit]'); if(ed){openDetails(ed.dataset.edit);return;}
   if(e.target.closest('[data-add]')){resumeImport();return;}
+  const fo=e.target.closest('[data-fold]'); if(fo){foldShelf(fo.dataset.fold,fo);return;}
   const se=e.target.closest('[data-shelf-edit]'); if(se){openShelf(se.dataset.shelfEdit);return;}
   if(e.target.closest('[data-shelf-new]')){openShelf(null);return;}
   const s=e.target.closest('[data-sort]'); if(s){const c=s.dataset.sort;if(prefs.sort===c) prefs.dir*=-1; else {prefs.sort=c;prefs.dir=['title','author','shelf'].includes(c)?1:-1;}savePrefs();renderShelf();}
@@ -236,35 +253,54 @@ $('#shDel').onclick=e=>{
   toast(n?`Deleted ${s.name} · ${plural(n,'book')} in Unsorted`:`Deleted ${s.name}`);
 };
 
-// Dragging a cover onto another shelf (Arrange by Shelf, Shelves view). Mouse: press and drag. Touch: hold ~400 ms,
-// then drag; moving sooner is a scroll, and a tap still opens the book. The shelf under the pointer lights up; near the
-// window's top or bottom edge the page scrolls. Touch uses touch events: preventing touchmove is what stops iOS scrolling.
+// Dragging on the shelves (Arrange by Shelf, Shelves view): a cover onto another shelf, or a shelf by its name to
+// another place in the list (Unsorted stays first). Mouse: press and drag. Touch: hold ~400 ms, then drag; moving sooner
+// is a scroll, and a tap still opens the book or the shelf's dialog. The shelf a book would land on lights up, a collapsed
+// one too; a line shows where a shelf would go. Near the window's top or bottom edge the page scrolls. Touch uses touch
+// events: preventing touchmove is what stops iOS scrolling.
 let DRAG=null,dragClick=false;
 const dragOn=()=>prefs.group==='shelf'&&prefs.view==='shelves';
-function dragStart(c,x,y,touch,pid){
-  const m=META.find(b=>b.id===c.dataset.open);if(!m) return;
-  DRAG={id:m.id,from:shelfOf(m),book:c.parentElement,touch,pid,x,y,cx:x,cy:y};
-  if(touch) DRAG.hold=setTimeout(liftBook,400);
+// el: a cover, or a shelf's name (not while searching, when some shelves are hidden). src fades; look is what's lifted.
+function dragStart(el,x,y,touch,pid){
+  let d;
+  if(el.dataset.open){const m=META.find(b=>b.id===el.dataset.open);if(!m) return;d={id:m.id,from:shelfOf(m),src:el.parentElement,look:el.parentElement};}
+  else{if($('#q').value.trim()) return;d={shelf:el.dataset.shelfEdit,src:el.closest('.shelf-row'),look:el.parentElement};}
+  DRAG={...d,touch,pid,x,y,cx:x,cy:y};
+  if(touch) DRAG.hold=setTimeout(lift,400);
 }
-// → true while a book is lifted (then the move is the drag's, not the page's)
+// → true while something is lifted (then the move is the drag's, not the page's)
 function dragTo(x,y){
   const d=DRAG;d.cx=x;d.cy=y;
   if(d.ghost){placeGhost();return true;}
-  if(Math.hypot(x-d.x,y-d.y)>8){if(d.touch) dragStop(false); else liftBook();}
+  if(Math.hypot(x-d.x,y-d.y)>8){if(d.touch) dragStop(false); else lift();}
   return !!(DRAG&&DRAG.ghost);
 }
-function liftBook(){
+function lift(){
   const d=DRAG;if(!d||d.ghost) return;clearTimeout(d.hold);
-  const r=d.book.getBoundingClientRect(),g=d.ghost=d.book.cloneNode(true);d.dx=d.x-r.left;d.dy=d.y-r.top;
-  g.querySelectorAll('.c-more').forEach(x=>x.remove());g.querySelectorAll('[data-open]').forEach(x=>x.removeAttribute('data-open'));
+  const r=d.look.getBoundingClientRect(),g=d.ghost=d.look.cloneNode(true);d.dx=d.x-r.left;d.dy=d.y-r.top;
+  g.querySelectorAll('.c-more').forEach(x=>x.remove());g.querySelectorAll('button').forEach(x=>{['data-open','data-shelf-edit','data-fold'].forEach(a=>x.removeAttribute(a));x.tabIndex=-1;});
   g.classList.add('drag-ghost');g.setAttribute('aria-hidden','true');document.body.appendChild(g);
-  d.book.classList.add('lifted');document.body.classList.add('dragging');getSelection().removeAllRanges();
+  if(d.shelf){d.mark=document.createElement('div');d.mark.className='shelf-mark hidden';document.body.appendChild(d.mark);}
+  d.src.classList.add('lifted');document.body.classList.add('dragging');getSelection().removeAllRanges();
   placeGhost();d.raf=requestAnimationFrame(dragScroll);
 }
 function placeGhost(){
-  const d=DRAG;d.ghost.style.transform=`translate(${d.cx-d.dx}px,${d.cy-d.dy}px) rotate(-2deg)`;
+  const d=DRAG;d.ghost.style.transform=`translate(${d.cx-d.dx}px,${d.cy-d.dy}px) rotate(${d.shelf?-1:-2}deg)`;
+  if(d.shelf){placeMark();return;}
   const el=document.elementFromPoint(d.cx,d.cy),row=el&&el.closest('#shelfBody .shelf-row'),to=row&&row.dataset.shelf!==d.from?row:null;
   if(to!==d.over){if(d.over) d.over.classList.remove('drop');d.over=to;if(to) to.classList.add('drop');}
+}
+// A dragged shelf goes before the first named shelf whose middle is below the pointer, else last. d.order is the new
+// list when that changes it (the line shows between the two rows), else null (no line).
+function placeMark(){
+  const d=DRAG,named=[...$('#shelfBody').querySelectorAll('.shelf-row:not([data-shelf=""])')],box=r=>r.getBoundingClientRect();
+  const i=named.findIndex(r=>{const b=box(r);return d.cy<b.top+b.height/2;}),at=i<0?null:named[i];
+  const s=shelves().find(x=>x.id===d.shelf),l=shelves().filter(x=>x!==s);
+  if(s){const k=at?l.findIndex(x=>x.id===at.dataset.shelf):-1;l.splice(k<0?l.length:k,0,s);}
+  d.order=s&&l.some((x,j)=>x!==shelves()[j])?l:null;
+  d.mark.classList.toggle('hidden',!d.order);if(!d.order) return;
+  const prev=at?at.previousElementSibling:named.at(-1),y=at?(prev?(box(prev).bottom+box(at).top)/2:box(at).top-6):box(prev).bottom+9,b=box($('#shelfBody'));
+  Object.assign(d.mark.style,{left:b.left+'px',width:b.width+'px',top:Math.round(y-2)+'px'});
 }
 // up to 16 px a frame, faster the closer to the edge
 function dragScroll(){
@@ -275,16 +311,18 @@ function dragScroll(){
 }
 function dragStop(drop){
   const d=DRAG;DRAG=null;if(!d) return;clearTimeout(d.hold);if(!d.ghost) return;
-  cancelAnimationFrame(d.raf);d.ghost.remove();d.book.classList.remove('lifted');document.body.classList.remove('dragging');dragClick=true;
+  cancelAnimationFrame(d.raf);d.ghost.remove();d.src.classList.remove('lifted');document.body.classList.remove('dragging');dragClick=true;
+  if(d.mark){d.mark.remove();if(drop&&d.order) saveShelves(d.order);} // one write per drop
   if(d.over){d.over.classList.remove('drop');if(drop) moveBook(d.id,d.over.dataset.shelf);}
 }
 const shelfBody=$('#shelfBody');
-shelfBody.addEventListener('pointerdown',e=>{const c=e.target.closest('.cover');if(c&&e.pointerType==='mouse'&&!e.button&&!DRAG&&dragOn()) dragStart(c,e.clientX,e.clientY,false);});
+const grip=e=>e.target.closest('.cover,.sl-name');
+shelfBody.addEventListener('pointerdown',e=>{const c=grip(e);if(c&&e.pointerType==='mouse'&&!e.button&&!DRAG&&dragOn()) dragStart(c,e.clientX,e.clientY,false);});
 addEventListener('pointermove',e=>{if(DRAG&&!DRAG.touch&&e.pointerType==='mouse'){if(e.buttons&1) dragTo(e.clientX,e.clientY); else dragStop(false);}}); // released outside the window: no drop
 addEventListener('pointerup',e=>{if(DRAG&&!DRAG.touch&&e.pointerType==='mouse') dragStop(true);});
 shelfBody.addEventListener('touchstart',e=>{
   if(DRAG){dragStop(false);return;} // a second finger: a pinch, not a drag
-  const c=e.target.closest('.cover'),p=e.changedTouches[0];if(c&&e.touches.length===1&&dragOn()) dragStart(c,p.clientX,p.clientY,true,p.identifier);
+  const c=grip(e),p=e.changedTouches[0];if(c&&e.touches.length===1&&dragOn()) dragStart(c,p.clientX,p.clientY,true,p.identifier);
 },{passive:true});
 const myTouch=e=>DRAG&&DRAG.touch&&[...e.changedTouches].find(p=>p.identifier===DRAG.pid);
 document.addEventListener('touchmove',e=>{
@@ -297,7 +335,7 @@ document.addEventListener('touchcancel',e=>{if(myTouch(e)) dragStop(false);});
 addEventListener('keydown',e=>{if(e.key==='Escape'&&DRAG) dragStop(false);});
 addEventListener('blur',()=>{if(DRAG) dragStop(false);});
 shelfBody.addEventListener('contextmenu',e=>{if(DRAG) e.preventDefault();}); // Android's long-press menu
-// the click that ends a drag doesn't open the book; the next press or key starts afresh
+// the click that ends a drag doesn't open the book or the shelf's dialog; the next press or key starts afresh
 ['pointerdown','keydown'].forEach(t=>addEventListener(t,()=>{dragClick=false;},true));
 $('#shelf').addEventListener('click',e=>{if(dragClick){dragClick=false;e.stopPropagation();e.preventDefault();}},true);
 
@@ -942,24 +980,31 @@ function placeCard(box,at){
   Object.assign(s,{left:x+'px',top:y+'px',maxHeight:vt+vh-y-12+'px'});
   return {x,y};
 }
-// On a phone (a coarse pointer or a narrow screen) the note box is a sheet across the screen, docked above the
-// keyboard, whose field grows with the note up to the visible area (the box's max-height) and then scrolls inside
-// itself: a fixed-height field showed three lines of a long note, and an iPhone has no grip to make it taller.
+// On a phone (a coarse pointer or a narrow screen) the note box and the word card are sheets across the screen, docked
+// above the keyboard, whose fields grow with their text up to the visible area (the box's max-height) and then scroll
+// inside themselves: a fixed-height field showed three lines of a long note, and an iPhone has no grip to make it taller.
+// → whether box opens as a sheet; a field grown there (ta) goes back to its usual height when it doesn't.
+function asSheet(box,ta){
+  const s=coarse||innerWidth<600;
+  if(!s&&box.classList.contains('sheet')) ta.style.height='';
+  box.classList.toggle('sheet',s);return s;
+}
+// A sheet's text field grown to its text, at most max px. Also run when the visible area changes; a caret at the end
+// (where it is on opening) stays in view as the field shrinks (end: scrolled to its end, else where it was).
+function growTa(ta,max=Infinity,end=ta.selectionEnd===ta.value.length){
+  const st=ta.scrollTop;
+  ta.style.height='auto';ta.style.height=Math.min(max,ta.scrollHeight+ta.offsetHeight-ta.clientHeight)+'px';
+  ta.scrollTop=end?ta.scrollHeight:st;
+}
 let noteTarget=null,noteAt=null; // the highlight whose note is open
 function openNote(h,rect){
   saveCards(); // another note or the word card open: saved first
-  noteTarget=h;const nb=$('#noteBox'),sheet=coarse||innerWidth<600;
-  nb.classList.toggle('sheet',sheet);nb.classList.remove('hidden');$('#noteTa').value=h.note||'';growNote();
+  noteTarget=h;const nb=$('#noteBox'),sheet=asSheet(nb,$('#noteTa'));
+  nb.classList.remove('hidden');$('#noteTa').value=h.note||'';growNote();
   noteAt=placeCard(nb,sheet||!rect?null:{x:rect.left,y:Math.min(innerHeight-220,Math.max(70,rect.top))});
   setTimeout(()=>$('#noteTa').focus(),30);
 }
-// Also run when the visible area changes; a caret at the end (where it is on opening) stays in view as the field shrinks.
-function growNote(){
-  if(!$('#noteBox').classList.contains('sheet')) return;
-  const ta=$('#noteTa'),st=ta.scrollTop;
-  ta.style.height='auto';ta.style.height=ta.scrollHeight+ta.offsetHeight-ta.clientHeight+'px';
-  ta.scrollTop=ta.selectionEnd===ta.value.length?ta.scrollHeight:st;
-}
+function growNote(){if($('#noteBox').classList.contains('sheet')) growTa($('#noteTa'));}
 $('#noteTa').addEventListener('input',growNote);
 function closeNote(){$('#noteBox').classList.add('hidden');noteTarget=null;}
 $('#noteCancel').onclick=closeNote;
@@ -1418,7 +1463,7 @@ function setDef(w,v){v=cleanText(v);if(v===(w.def||'')) return false;w.def=v;w.d
 function showDef(w){
   if(CARD&&CARD.id===w.id){
     const ta=$('#wbDef');if(!ta.value.trim()&&w.def) ta.value=w.def;
-    ta.placeholder=defPh(w);$('#wbPos').textContent=w.pos||'';$('#wbSrc').textContent=srcText(w);
+    ta.placeholder=defPh(w);$('#wbPos').textContent=w.pos||'';$('#wbSrc').textContent=srcText(w);growCard();
   }
   const c=document.querySelector(`#wdList .wcard[data-id="${w.id}"]`);if(!c) return;
   const d=c.querySelector('.w-def');if(!d.textContent.trim()&&w.def) d.textContent=w.def;
@@ -1544,7 +1589,7 @@ function showExtras(w,only){
     el.outerHTML=extraHTML(w,k);
     if(k==='pics') setPics(r.querySelector('[data-x="pics"]'),w);
   }));
-  if(box) CARD.at=placeCard(box,CARD.at); // grown: still inside the visible area
+  if(box){CARD.at=placeCard(box,CARD.at);growCard();} // grown: still inside the visible area
 }
 // Add: shows an empty section to type in.
 function revealExtra(root,k){
@@ -1580,33 +1625,56 @@ function extrasClick(e,root,id){
 });
 
 // The word card: term, part of speech, the meaning to edit, the dictionary's examples, synonyms and antonyms, the
-// pictures, and the sentence from your reading (the one at `at`, else the newest).
+// pictures, and the sentence from your reading (the one at `at`, else the newest). Delete sits in its head, away
+// from Save.
 let CARD=null; // {id, at: where placeCard put it} while open
 function openWordCard(id,at,rect){
   const w=WORDS&&WORDS.get(id);if(!w) return;
   const exs=w.examples||[],ex=(at&&exs.find(x=>x.bookId===at.bookId&&x.pid===at.pid&&x.ws===at.ws))||exs[exs.length-1];
   saveCards(); // the note box or another card open: saved first
   CARD={id};
-  const box=$('#wordBox');
-  $('#wbTerm').textContent=w.term;$('#wbDef').value=w.def||'';$('#wbEx').innerHTML=ex?exampleHTML(ex):'';$('#wbRead').classList.toggle('hidden',!ex);
-  box.querySelectorAll('[data-x]').forEach(el=>{el.outerHTML=extraHTML(w,el.dataset.x);});setPics(box,w);$('#wbMore').scrollTop=0;
+  const box=$('#wordBox'),sheet=asSheet(box,$('#wbDef'));
+  $('#wbTerm').textContent=w.term;$('#wbDel').setAttribute('aria-label',`Delete “${w.term}”`);
+  $('#wbDef').value=w.def||'';$('#wbEx').innerHTML=ex?exampleHTML(ex):'';$('#wbRead').classList.toggle('hidden',!ex);
+  box.querySelectorAll('[data-x]').forEach(el=>{el.outerHTML=extraHTML(w,el.dataset.x);});setPics(box,w);
   showDef(w);fillDef(w);
-  box.classList.remove('hidden');box.style.maxHeight='';
-  // docked at the bottom on phones, like the toolbar; elsewhere under the word, or above it near the bottom
+  box.classList.remove('hidden');box.style.maxHeight='';$('#wbMore').scrollTop=$('#wbBody').scrollTop=0;
+  // a sheet on phones; elsewhere under the word, or above it near the bottom (docked without a word to go by)
   let to=null;
-  if(!(coarse||!rect||innerWidth<600)){
+  if(!(sheet||!rect)){
     const bw=box.offsetWidth,bh=box.offsetHeight;let top=rect.bottom+12;if(top+bh>innerHeight-12) top=Math.max(70,rect.top-bh-12);
     to={x:rect.left+rect.width/2-bw/2,y:top};
   }
-  CARD.at=placeCard(box,to);
+  CARD.at=placeCard(box,to);growCard();
   queueFill(w,true);
 }
 function closeWordCard(){$('#wordBox').classList.add('hidden');CARD=null;}
-// Dragging the card by its head moves it anywhere inside the visible area, until it closes.
+// The word card as a sheet: the meaning grows with its text up to the room between the head and the buttons, then
+// scrolls inside itself (to its end only while you type there), and so do the other fields (--room); the middle
+// scrolls so the field being edited stays in view at its caret. Run on opening, typing, focusing a field and whenever
+// the visible area changes.
+function growCard(){
+  const box=$('#wordBox'),body=$('#wbBody'),ta=$('#wbDef');if(!CARD||box.classList.contains('hidden')||!box.classList.contains('sheet')) return;
+  const cs=getComputedStyle(body),st=body.scrollTop,f=document.activeElement;
+  const room=Math.max(80,(parseFloat(getComputedStyle(box).maxHeight)||innerHeight)-(box.offsetHeight-body.clientHeight)-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom));
+  box.style.setProperty('--room',room+'px');
+  growTa(ta,room,f===ta&&ta.selectionEnd===ta.value.length);body.scrollTop=st; // the field's moment at no height mustn't scroll the middle
+  if(!f||!body.contains(f)) return;
+  let r=f.getBoundingClientRect();const s=getSelection();
+  if(f.isContentEditable&&s.rangeCount&&f.contains(s.focusNode)){const c=s.getRangeAt(0).cloneRange();c.collapse(false);r=c.getClientRects()[0]||r;}
+  const b=body.getBoundingClientRect(),pad=8;
+  if(r.bottom>b.bottom-pad) body.scrollTop+=r.bottom-b.bottom+pad;
+  else if(r.top<b.top+pad) body.scrollTop-=b.top+pad-r.top;
+}
+$('#wordBox').addEventListener('input',growCard);
+$('#wordBox').addEventListener('focusin',()=>requestAnimationFrame(growCard));
+// Delete: the word goes to the Trash, with what was typed into the card left out; Undo brings it back.
+$('#wbDel').onclick=()=>{const id=CARD&&CARD.id;closeWordCard();if(id) deleteWord(id);};
+// Dragging the card by its head moves it anywhere inside the visible area, until it closes. Not a sheet.
 let wbDrag=null;
 const wbHead=$('#wordBox .wb-head'),endWbDrag=()=>{wbDrag=null;$('#wordBox').classList.remove('drag');};
 wbHead.addEventListener('pointerdown',e=>{
-  if(!CARD||e.button) return;
+  if(!CARD||e.button||e.target.closest('button')||$('#wordBox').classList.contains('sheet')) return;
   const r=$('#wordBox').getBoundingClientRect();
   wbDrag={id:e.pointerId,dx:e.clientX-r.left,dy:e.clientY-r.top};
   wbHead.setPointerCapture(e.pointerId);$('#wordBox').classList.add('drag');e.preventDefault(); // the field keeps focus
@@ -1617,7 +1685,7 @@ wbHead.addEventListener('pointerup',endWbDrag);wbHead.addEventListener('pointerc
 function keepCardsInView(){
   const nb=$('#noteBox');
   if(!nb.classList.contains('hidden')){noteAt=placeCard(nb,noteAt);growNote();}
-  if(CARD) CARD.at=placeCard($('#wordBox'),CARD.at);
+  if(CARD){CARD.at=placeCard($('#wordBox'),CARD.at);growCard();}
 }
 window.visualViewport?.addEventListener('resize',keepCardsInView);window.visualViewport?.addEventListener('scroll',keepCardsInView);
 addEventListener('resize',keepCardsInView);
@@ -1769,12 +1837,14 @@ function listWords(){
   list.forEach(fillDef);
 }
 // Deleting asks nothing: the whole word or fact card goes to the Trash, and Restore puts it back. A fact card's
-// highlight stays sorted.
-function deleteWord(id){
-  const w=WORDS&&WORDS.get(id);if(!w) return;
+// highlight stays sorted. From the Words tab, the word card and Study (w: Study's copy, when the words aren't loaded).
+function deleteWord(id,w=WORDS&&WORDS.get(id)){
+  if(!w) return;
   const tr=toTrash('word',{title:isFact(w)?wordBook(w):w.term,word:w});
-  WORDS.delete(id);WIDX=null;DB.del('word:'+id);movedToTrash(tr);
+  if(WORDS){WORDS.delete(id);WIDX=null;}DB.del('word:'+id);movedToTrash(tr);underline(w);
 }
+// The open book's blocks where a word was saved, drawn again: its underline goes with a delete and comes back with Undo.
+function underline(w){if(DOC) rerender((w.examples||[]).filter(x=>x.bookId===DOC.id).map(x=>x.pid));}
 // A word back from the Trash. Saved again meanwhile: its examples are merged in, and the newer copy keeps its meaning
 // and flashcard schedule unless it has none, and its pictures, synonyms, antonyms and dictionary examples unless it
 // lacks them. A fact card made again meanwhile is the newer one and stays, with the old one's pictures if it has none.
@@ -2070,6 +2140,7 @@ function afterRestore(e){
   if(onShelf()) renderShelf();
   else if(nb&&words&&e.kind==='word') renderWords();
   else if(nb&&!words&&e.kind!=='word') openNotebook(); // the Highlights tab reads the books again
+  if(e.kind==='word'){underline(e.word);syRestored(e.word);}
 }
 // Puts an entry back. Returns '' or why it can't.
 async function restoreEntry(e){
@@ -2157,9 +2228,9 @@ $('#trashEmpty').onclick=async()=>{
 // (prefs.studyMode): 'word' shows the word and asks for its meaning; 'cloze' shows a sentence with the word blanked
 // out and the meaning as a hint, and asks for the word. srs.seen counts reviews; each one starts the examples one
 // further along, so the front sentence changes. Fact cards (vocab.js) share the queue, the schedule and the day's new
-// allowance; the card type doesn't apply to them.
+// allowance; the card type doesn't apply to them. SY.gone: the cards deleted in this session, which Undo puts back.
 const STUDY_NEW=20,STUDY_AGAIN=5,RATINGS=['again','good','easy'];
-let SY={words:[],queue:[],i:0,shown:false,done:new Set()},syRun=0;
+let SY={words:[],queue:[],i:0,shown:false,done:new Set(),gone:new Set()},syRun=0;
 // The study log (settings:app's studyLog, vocab.js): each rating counts toward its day, a new card's first toward the
 // day's new cards, which every device shares. It changes in memory and is written once: when Study closes (show) or the
 // page hides (persist), never per card, as settings:app writes go straight to Firestore. Opening Study reads settings:app
@@ -2189,7 +2260,7 @@ function sySentence(x,blank){
   return esc(c.slice(0,x.s))+`<span class="sy-gap" aria-label="blank">${esc(c.slice(x.s,x.s+gap))}</span>`+esc(c.slice(x.s+gap));
 }
 async function openStudy(){
-  const run=++syRun;SY={words:[],queue:[],i:0,shown:false,done:new Set()};
+  const run=++syRun;SY={words:[],queue:[],i:0,shown:false,done:new Set(),gone:new Set()};
   show('study');window.scrollTo(0,0);syHead(false);
   $('#syCard').innerHTML='<div class="empty">Gathering your words…</div>';$('#syActs').innerHTML='';
   let words=[];try{[words]=await Promise.all([DB.all('word:'),freshSettings()]);}catch(e){console.warn('Study',e);}
@@ -2244,10 +2315,10 @@ function syFact(f,now){
   const back=syPic(f)+(f.note?`<p class="sy-note">${esc(f.note)}</p>`:'')+`<p class="sy-book"><b>${esc(wordBook(f))}</b>${f.section?`<span>${esc(f.section)}</span>`:''}</p>`;
   syCard(f,now,front,back,c?'Show answer':f.note?'Show note':'Show source');
 }
-// the card, its back once shown, and the button that shows it or the three ratings
+// the card, its back once shown (with Delete in the top corner), and the button that shows it or the three ratings
 function syCard(w,now,front,back,show){
-  const open=SY.shown;
-  $('#syCard').innerHTML=`<article class="sy-card">${front}${open?`<div class="sy-back"><div class="sy-rule" aria-hidden="true">❦</div>${back}</div>`:''}</article>`;
+  const open=SY.shown,del=`<button class="w-del sy-del" data-sy="del" aria-label="${isFact(w)?'Delete this fact card':`Delete “${esc(w.term)}”`}">Delete</button>`;
+  $('#syCard').innerHTML=`<article class="sy-card">${front}${open?`<div class="sy-back"><div class="sy-rule" aria-hidden="true">❦</div>${back}</div>${del}`:''}</article>`;
   $('#syActs').innerHTML=open?`<div class="sy-rate">${RATINGS.map((r,i)=>`<button class="sy-r ${r}" data-r="${r}" aria-keyshortcuts="${i+1}"><b>${r[0].toUpperCase()+r.slice(1)}</b><small>${nextLabel(w.srs,r,now)}</small></button>`).join('')}</div>`
     :`<button class="btn sy-big" data-sy="show" aria-keyshortcuts="Space Enter">${show}</button>`;
 }
@@ -2261,6 +2332,20 @@ function syRate(r){
   if(r==='again') SY.queue.splice(Math.min(SY.queue.length,SY.i+1+STUDY_AGAIN),0,w);
   SY.i++;SY.shown=false;syRender();window.scrollTo(0,0);
 }
+// Delete, on the back: the card goes to the Trash like any word and the next one shows. Undo puts it back next in
+// the deck while this session is open (syRestored).
+function syDelete(){
+  const w=SY.queue[SY.i];if(!w||!SY.shown) return;
+  deleteWord(w.id,(wordsDb===DB&&WORDS&&WORDS.get(w.id))||w);
+  SY.queue=SY.queue.filter((x,i)=>i<SY.i||x.id!==w.id);SY.words=SY.words.filter(x=>x.id!==w.id);SY.gone.add(w.id);
+  SY.shown=false;syRender();window.scrollTo(0,0);
+}
+function syRestored(w){
+  if(!SY.gone.delete(w.id)||$('#study').classList.contains('hidden')) return;
+  const c=(wordsDb===DB&&WORDS&&WORDS.get(w.id))||w;
+  SY.queue.splice(SY.i,0,c);SY.words.push(c);SY.shown=false;syRender();window.scrollTo(0,0);
+}
+$('#syCard').onclick=e=>{if(e.target.closest('[data-sy="del"]')) syDelete();};
 $('#syBack').onclick=goShelf;
 // a pointer click lets go of the focus, so Space goes back to the card instead of this button
 $('#syMode').onclick=e=>{const b=e.target.closest('[data-m]');if(!b)return;if(e.detail)b.blur();prefs.studyMode=b.dataset.m;savePrefs();SY.shown=false;syRender();};
