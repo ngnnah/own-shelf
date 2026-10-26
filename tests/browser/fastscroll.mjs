@@ -114,7 +114,7 @@ await t.run(async()=>{
   g=await geo();await drag(g.h*.5,{hold:true});
   ok('375×667: dragging shows the section and the percentage',(await tip())===(await expected()));
   await shot('375-middle');await release();
-  await page.setViewport({width:1280,height:900,deviceScaleFactor:1});await sleep(150);
+  await page.setViewport({width:1280,height:900,deviceScaleFactor:1});await t.reader(); // touch off: puppeteer reloads
   await scrollBy(300);await sleep(100);
   ok('at 1280 px, where the rail shows, there is no handle',await page.$eval('#scrub',e=>getComputedStyle(e).display==='none'));
 });
