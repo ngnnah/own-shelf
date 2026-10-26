@@ -17,7 +17,8 @@
 //   shelf.mjs       arranging the shelf by title (shelves and List view), picking a cover colour in Details
 //   shelves.mjs     Arrange by Shelf: the starting shelves and Unsorted, chosen once; dragging covers between shelves
 //                   with a mouse and a finger (hold, swipe, tap, the page scrolling at the edges), the Shelf picker in
-//                   Details, new, rename, move and delete, search, the List view's Shelf column, a backup round trip
+//                   Details, new, rename, move and delete, search, the List view's Shelf column, a backup round trip;
+//                   collapsing shelves (one, all, kept per device, dropping on a collapsed one); dragging a shelf by its name
 //   kindle.mjs      Kindle notebook exports: review step, highlights and notes, merging, several files at once, the notebook cover
 //   words.mjs       vocabulary: Word in the toolbar, the word card and its looked-up meaning (dictionaries mocked), the
 //                   underline in the text, the Notebook's Words tab (search, book filter, open at the word), the Trash

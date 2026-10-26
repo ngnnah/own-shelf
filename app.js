@@ -144,6 +144,7 @@ function renderShelf(){
   const cont=[...all].filter(m=>!m.finished&&m.progress>0.01).sort((a,b)=>b.opened-a.opened)[0];
   $('#contWrap').innerHTML=cont?`<div class="cont"><span class="cv" style="background:${cover(cont.id)[0]}"></span><div class="ct"><small>Continue reading</small><b>${esc(cont.title)}</b><span>${Math.round(cont.progress*100)}%${cont.words?` · about ${Math.max(1,Math.round(cont.words*(1-cont.progress)/230))} min left`:''}</span></div><button class="btn" data-open="${cont.id}">Continue</button></div>`:'';
   const body=$('#shelfBody');
+  $('#shTools').classList.toggle('hidden',!dragOn()||!!$('#q').value.trim()); // New shelf, Collapse all: not while searching
   if(!all.length){
     body.innerHTML=`<div class="empty-shelf"><img src="icons/mark.svg" alt=""><h2>An empty shelf, for now.</h2><p>Add a PDF, a text file, or paste any article. It lands here as a book you can read, highlight and come back to.</p><button class="btn sea" data-add>Add your first text</button></div>`;
     return;
@@ -159,7 +160,10 @@ function renderShelf(){
       rows.map(m=>`<tr data-open="${m.id}" tabindex="0"><td><span class="tt">${isKindleId(m.id)?'<i class="nb"></i>':`<i style="background:${cover(m.id)[0]}"></i>`}${esc(m.title)}</span></td><td class="mut">${esc(m.author||'—')}</td><td class="mut c-shelf">${esc(shelfName(shelfOf(m)))}</td><td class="mut c-written">${esc(m.written||'—')}</td><td class="mut c-words">${fmtWords(m.words)||'—'}</td><td class="mut c-added">${fmtDay(m.added)}</td><td>${m.finished?'Finished':`<span class="pbar"><i style="width:${Math.round(m.progress*100)}%"></i></span>${Math.round(m.progress*100)}%`}</td><td class="mut c-hl">${m.hl}</td></tr>`).join('')}</tbody></table>`;
     return;
   }
-  if(prefs.group==='shelf'){body.innerHTML=shelfRows(list);return;}
+  if(prefs.group==='shelf'){
+    body.innerHTML=shelfRows(list);const rs=[...body.querySelectorAll('.shelf-row')];
+    $('#foldAll').textContent=rs.length&&rs.every(r=>r.classList.contains('shut'))?'Expand all':'Collapse all';return;
+  }
   const groups=new Map();
   list.forEach(m=>{const g=groupKey(m);if(!groups.has(g.label))groups.set(g.label,{k:g.k,items:[]});groups.get(g.label).items.push(m);});
   const ord=[...groups.entries()].sort((a,b)=>{const A=a[1].k,B=b[1].k;if(prefs.group==='author'||prefs.group==='title') return A<B?-1:A>B?1:0; return B-A;});
@@ -167,19 +171,32 @@ function renderShelf(){
   body.innerHTML=ord.map(([label,g])=>`<section class="shelf-row"><h3 class="shelf-label">${esc(label)}<small>${g.items.length}</small></h3><div class="books">${g.items.sort(prefs.group==='title'?(a,b)=>sortTitle(a).localeCompare(sortTitle(b)):(a,b)=>inner(a)-inner(b)).map(bookHTML).join('')}</div><div class="plank"></div></section>`).join('');
 }
 // Arranged by shelf: Unsorted first while it holds books (a new shelf's books are in view), then every shelf in order.
-// While searching, only shelves with a match.
+// A collapsed shelf is a slim strip, its name and count on a bare board, and still takes a dropped book. While
+// searching, only shelves with a match, every one open.
 function shelfRows(list){
-  const q=!!$('#q').value.trim(),all=[{id:'',name:'Unsorted'},...shelves()],by=new Map(all.map(s=>[s.id,[]]));
+  const q=!!$('#q').value.trim(),all=[{id:'',name:'Unsorted'},...shelves()],by=new Map(all.map(s=>[s.id,[]])),shut=shutSet();
   list.forEach(m=>by.get(shelfOf(m)).push(m));
   return all.map(s=>{const l=by.get(s.id).sort((a,b)=>b.added-a.added);if(!l.length&&(q||!s.id)) return '';
-    return `<section class="shelf-row${l.length?'':' bare'}" data-shelf="${esc(s.id)}"><h3 class="shelf-label">${s.id?`<button class="sl-name" data-shelf-edit="${esc(s.id)}" aria-label="${esc(s.name)}: rename, move or delete">${esc(s.name)}</button>`:'Unsorted'}${l.length?`<small>${l.length}</small>`:''}</h3>`+
-      `<div class="books">${l.length?l.map(bookHTML).join(''):'<p class="sl-hint">Drag books here</p>'}</div><div class="plank"></div></section>`;}).join('')+
-    (q?'':'<button class="btn ghost sl-new" data-shelf-new>+ New shelf</button>');
+    const fold=!q&&shut.has(s.id);
+    return `<section class="shelf-row${fold?' shut':l.length?'':' bare'}" data-shelf="${esc(s.id)}"><h3 class="shelf-label">`+
+      (q?'':`<button class="sl-fold" data-fold="${esc(s.id)}" aria-label="${fold?'Expand':'Collapse'} ${esc(s.name)}" title="${fold?'Expand':'Collapse'}">${fold?'▸':'▾'}</button>`)+
+      `${s.id?`<button class="sl-name" data-shelf-edit="${esc(s.id)}" aria-label="${esc(s.name)}: rename, move or delete">${esc(s.name)}</button>`:'<span>Unsorted</span>'}${l.length?`<small>${l.length}</small>`:''}</h3>`+
+      (fold?'':`<div class="books">${l.length?l.map(bookHTML).join(''):'<p class="sl-hint">Drag books here</p>'}</div>`)+'<div class="plank"></div></section>';}).join('');
 }
+// Collapsed shelves are this device's (prefs.shut: their ids, '' for Unsorted), never synced. A new shelf isn't in the
+// list, so it starts expanded. Collapse all takes the shelves on screen; Expand all clears the list.
+const shutSet=()=>new Set(Array.isArray(prefs.shut)?prefs.shut:[]);
+function setShut(ids,focus){
+  const known=new Set(['',...shelves().map(s=>s.id)]);prefs.shut=ids.filter(id=>known.has(id));savePrefs();renderShelf();
+  const b=focus!=null&&document.querySelector(`#shelfBody [data-fold="${CSS.escape(focus)}"]`);if(b) b.focus({preventScroll:true}); // the key's focus stays on the arrow
+}
+function foldShelf(id,btn){const s=shutSet();s.has(id)?s.delete(id):s.add(id);setShut([...s],document.activeElement===btn?id:null);}
+$('#foldAll').onclick=()=>{const ids=[...$('#shelfBody').querySelectorAll('.shelf-row')].map(r=>r.dataset.shelf),s=shutSet();setShut(ids.every(id=>s.has(id))?[]:ids);};
 $('#shelf').addEventListener('click',e=>{
   const o=e.target.closest('[data-open]'); if(o){openBook(o.dataset.open);return;}
   const ed=e.target.closest('[data-edit]'); if(ed){openDetails(ed.dataset.edit);return;}
   if(e.target.closest('[data-add]')){resumeImport();return;}
+  const fo=e.target.closest('[data-fold]'); if(fo){foldShelf(fo.dataset.fold,fo);return;}
   const se=e.target.closest('[data-shelf-edit]'); if(se){openShelf(se.dataset.shelfEdit);return;}
   if(e.target.closest('[data-shelf-new]')){openShelf(null);return;}
   const s=e.target.closest('[data-sort]'); if(s){const c=s.dataset.sort;if(prefs.sort===c) prefs.dir*=-1; else {prefs.sort=c;prefs.dir=['title','author','shelf'].includes(c)?1:-1;}savePrefs();renderShelf();}
@@ -235,35 +252,54 @@ $('#shDel').onclick=e=>{
   toast(n?`Deleted ${s.name} · ${plural(n,'book')} in Unsorted`:`Deleted ${s.name}`);
 };
 
-// Dragging a cover onto another shelf (Arrange by Shelf, Shelves view). Mouse: press and drag. Touch: hold ~400 ms,
-// then drag; moving sooner is a scroll, and a tap still opens the book. The shelf under the pointer lights up; near the
-// window's top or bottom edge the page scrolls. Touch uses touch events: preventing touchmove is what stops iOS scrolling.
+// Dragging on the shelves (Arrange by Shelf, Shelves view): a cover onto another shelf, or a shelf by its name to
+// another place in the list (Unsorted stays first). Mouse: press and drag. Touch: hold ~400 ms, then drag; moving sooner
+// is a scroll, and a tap still opens the book or the shelf's dialog. The shelf a book would land on lights up, a collapsed
+// one too; a line shows where a shelf would go. Near the window's top or bottom edge the page scrolls. Touch uses touch
+// events: preventing touchmove is what stops iOS scrolling.
 let DRAG=null,dragClick=false;
 const dragOn=()=>prefs.group==='shelf'&&prefs.view==='shelves';
-function dragStart(c,x,y,touch,pid){
-  const m=META.find(b=>b.id===c.dataset.open);if(!m) return;
-  DRAG={id:m.id,from:shelfOf(m),book:c.parentElement,touch,pid,x,y,cx:x,cy:y};
-  if(touch) DRAG.hold=setTimeout(liftBook,400);
+// el: a cover, or a shelf's name (not while searching, when some shelves are hidden). src fades; look is what's lifted.
+function dragStart(el,x,y,touch,pid){
+  let d;
+  if(el.dataset.open){const m=META.find(b=>b.id===el.dataset.open);if(!m) return;d={id:m.id,from:shelfOf(m),src:el.parentElement,look:el.parentElement};}
+  else{if($('#q').value.trim()) return;d={shelf:el.dataset.shelfEdit,src:el.closest('.shelf-row'),look:el.parentElement};}
+  DRAG={...d,touch,pid,x,y,cx:x,cy:y};
+  if(touch) DRAG.hold=setTimeout(lift,400);
 }
-// → true while a book is lifted (then the move is the drag's, not the page's)
+// → true while something is lifted (then the move is the drag's, not the page's)
 function dragTo(x,y){
   const d=DRAG;d.cx=x;d.cy=y;
   if(d.ghost){placeGhost();return true;}
-  if(Math.hypot(x-d.x,y-d.y)>8){if(d.touch) dragStop(false); else liftBook();}
+  if(Math.hypot(x-d.x,y-d.y)>8){if(d.touch) dragStop(false); else lift();}
   return !!(DRAG&&DRAG.ghost);
 }
-function liftBook(){
+function lift(){
   const d=DRAG;if(!d||d.ghost) return;clearTimeout(d.hold);
-  const r=d.book.getBoundingClientRect(),g=d.ghost=d.book.cloneNode(true);d.dx=d.x-r.left;d.dy=d.y-r.top;
-  g.querySelectorAll('.c-more').forEach(x=>x.remove());g.querySelectorAll('[data-open]').forEach(x=>x.removeAttribute('data-open'));
+  const r=d.look.getBoundingClientRect(),g=d.ghost=d.look.cloneNode(true);d.dx=d.x-r.left;d.dy=d.y-r.top;
+  g.querySelectorAll('.c-more').forEach(x=>x.remove());g.querySelectorAll('button').forEach(x=>{['data-open','data-shelf-edit','data-fold'].forEach(a=>x.removeAttribute(a));x.tabIndex=-1;});
   g.classList.add('drag-ghost');g.setAttribute('aria-hidden','true');document.body.appendChild(g);
-  d.book.classList.add('lifted');document.body.classList.add('dragging');getSelection().removeAllRanges();
+  if(d.shelf){d.mark=document.createElement('div');d.mark.className='shelf-mark hidden';document.body.appendChild(d.mark);}
+  d.src.classList.add('lifted');document.body.classList.add('dragging');getSelection().removeAllRanges();
   placeGhost();d.raf=requestAnimationFrame(dragScroll);
 }
 function placeGhost(){
-  const d=DRAG;d.ghost.style.transform=`translate(${d.cx-d.dx}px,${d.cy-d.dy}px) rotate(-2deg)`;
+  const d=DRAG;d.ghost.style.transform=`translate(${d.cx-d.dx}px,${d.cy-d.dy}px) rotate(${d.shelf?-1:-2}deg)`;
+  if(d.shelf){placeMark();return;}
   const el=document.elementFromPoint(d.cx,d.cy),row=el&&el.closest('#shelfBody .shelf-row'),to=row&&row.dataset.shelf!==d.from?row:null;
   if(to!==d.over){if(d.over) d.over.classList.remove('drop');d.over=to;if(to) to.classList.add('drop');}
+}
+// A dragged shelf goes before the first named shelf whose middle is below the pointer, else last. d.order is the new
+// list when that changes it (the line shows between the two rows), else null (no line).
+function placeMark(){
+  const d=DRAG,named=[...$('#shelfBody').querySelectorAll('.shelf-row:not([data-shelf=""])')],box=r=>r.getBoundingClientRect();
+  const i=named.findIndex(r=>{const b=box(r);return d.cy<b.top+b.height/2;}),at=i<0?null:named[i];
+  const s=shelves().find(x=>x.id===d.shelf),l=shelves().filter(x=>x!==s);
+  if(s){const k=at?l.findIndex(x=>x.id===at.dataset.shelf):-1;l.splice(k<0?l.length:k,0,s);}
+  d.order=s&&l.some((x,j)=>x!==shelves()[j])?l:null;
+  d.mark.classList.toggle('hidden',!d.order);if(!d.order) return;
+  const prev=at?at.previousElementSibling:named.at(-1),y=at?(prev?(box(prev).bottom+box(at).top)/2:box(at).top-6):box(prev).bottom+9,b=box($('#shelfBody'));
+  Object.assign(d.mark.style,{left:b.left+'px',width:b.width+'px',top:Math.round(y-2)+'px'});
 }
 // up to 16 px a frame, faster the closer to the edge
 function dragScroll(){
@@ -274,16 +310,18 @@ function dragScroll(){
 }
 function dragStop(drop){
   const d=DRAG;DRAG=null;if(!d) return;clearTimeout(d.hold);if(!d.ghost) return;
-  cancelAnimationFrame(d.raf);d.ghost.remove();d.book.classList.remove('lifted');document.body.classList.remove('dragging');dragClick=true;
+  cancelAnimationFrame(d.raf);d.ghost.remove();d.src.classList.remove('lifted');document.body.classList.remove('dragging');dragClick=true;
+  if(d.mark){d.mark.remove();if(drop&&d.order) saveShelves(d.order);} // one write per drop
   if(d.over){d.over.classList.remove('drop');if(drop) moveBook(d.id,d.over.dataset.shelf);}
 }
 const shelfBody=$('#shelfBody');
-shelfBody.addEventListener('pointerdown',e=>{const c=e.target.closest('.cover');if(c&&e.pointerType==='mouse'&&!e.button&&!DRAG&&dragOn()) dragStart(c,e.clientX,e.clientY,false);});
+const grip=e=>e.target.closest('.cover,.sl-name');
+shelfBody.addEventListener('pointerdown',e=>{const c=grip(e);if(c&&e.pointerType==='mouse'&&!e.button&&!DRAG&&dragOn()) dragStart(c,e.clientX,e.clientY,false);});
 addEventListener('pointermove',e=>{if(DRAG&&!DRAG.touch&&e.pointerType==='mouse'){if(e.buttons&1) dragTo(e.clientX,e.clientY); else dragStop(false);}}); // released outside the window: no drop
 addEventListener('pointerup',e=>{if(DRAG&&!DRAG.touch&&e.pointerType==='mouse') dragStop(true);});
 shelfBody.addEventListener('touchstart',e=>{
   if(DRAG){dragStop(false);return;} // a second finger: a pinch, not a drag
-  const c=e.target.closest('.cover'),p=e.changedTouches[0];if(c&&e.touches.length===1&&dragOn()) dragStart(c,p.clientX,p.clientY,true,p.identifier);
+  const c=grip(e),p=e.changedTouches[0];if(c&&e.touches.length===1&&dragOn()) dragStart(c,p.clientX,p.clientY,true,p.identifier);
 },{passive:true});
 const myTouch=e=>DRAG&&DRAG.touch&&[...e.changedTouches].find(p=>p.identifier===DRAG.pid);
 document.addEventListener('touchmove',e=>{
@@ -296,7 +334,7 @@ document.addEventListener('touchcancel',e=>{if(myTouch(e)) dragStop(false);});
 addEventListener('keydown',e=>{if(e.key==='Escape'&&DRAG) dragStop(false);});
 addEventListener('blur',()=>{if(DRAG) dragStop(false);});
 shelfBody.addEventListener('contextmenu',e=>{if(DRAG) e.preventDefault();}); // Android's long-press menu
-// the click that ends a drag doesn't open the book; the next press or key starts afresh
+// the click that ends a drag doesn't open the book or the shelf's dialog; the next press or key starts afresh
 ['pointerdown','keydown'].forEach(t=>addEventListener(t,()=>{dragClick=false;},true));
 $('#shelf').addEventListener('click',e=>{if(dragClick){dragClick=false;e.stopPropagation();e.preventDefault();}},true);
 
