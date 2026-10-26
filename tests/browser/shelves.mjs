@@ -1,5 +1,8 @@
 // Arrange by Shelf: category shelves (one per book, kept in its reading state), dragging covers between them with a
-// mouse and with a finger, the Shelf picker in Book details, new, rename, move and delete, search, the List view and backups.
+// mouse and with a finger, the Shelf picker in Book details, new (at the top), rename, move and delete, search, the List
+// view and backups; collapsing and expanding shelves (one, Collapse all / Expand all, kept per device across a reload,
+// a cover dropped on a collapsed shelf, a new shelf open, search opening them); dragging a shelf by its name to reorder
+// (mouse and touch, the line where it lands, one write per drop, Escape, a tap still opening its dialog, Unsorted fixed).
 // Usage: node tests/browser/shelves.mjs [repo dir]. Screenshots: tests/browser/out/shelves/ (390 and 1280 px, light and dark).
 import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {dirname,join} from 'node:path';
@@ -24,7 +27,7 @@ const idb=(key,p=page)=>p.evaluate(k=>new Promise(res=>{const r=indexedDB.open('
 const idOf=title=>page.$eval(cov(title),c=>c.dataset.open);
 const outside=()=>page.mouse.click(4,4); // on a dialog's backdrop
 // every shelf row on screen: its id, name and the titles on it
-const rows=(p=page)=>p.$$eval('#shelfBody .shelf-row',rs=>rs.map(r=>({id:r.dataset.shelf,name:r.querySelector('.shelf-label').firstChild.textContent.trim(),
+const rows=(p=page)=>p.$$eval('#shelfBody .shelf-row',rs=>rs.map(r=>({id:r.dataset.shelf,name:r.querySelector('.shelf-label :is(.sl-name,span)').textContent.trim(),
   books:[...r.querySelectorAll('.c-t')].map(x=>x.textContent),hint:!!r.querySelector('.sl-hint')})));
 const names=async(p=page)=>seen=(await rows(p)).map(r=>r.name).join('|');
 const on=async(name,p=page)=>((await rows(p)).find(r=>r.name===name)||{books:[]}).books;
@@ -48,6 +51,37 @@ async function mouseDrag(title,id,{drop=true}={}){
   const r={lifted:await ghost(),lit:await lit()};
   if(drop) await page.mouse.up();
   return r;
+}
+// Shelves dragged by their names, and collapsed or expanded by their arrows
+const fold=id=>`#shelfBody [data-fold="${id}"]`;
+const nameSel=id=>`#shelfBody [data-shelf-edit="${id}"]`;
+// counts the page's writes to its store from here on, by key ({} when none)
+const spy=(p=page)=>p.evaluate(()=>{window.__puts={};const P=IDBObjectStore.prototype;if(P.__spied) return;P.__spied=1;
+  const put=P.put;P.put=function(v,k){window.__puts[k]=(window.__puts[k]||0)+1;return put.apply(this,arguments);};});
+const puts=()=>page.evaluate(()=>window.__puts);
+// the line showing where a dragged shelf would land: its middle's y, or null when none shows
+const mark=()=>page.evaluate(()=>{const m=document.querySelector('.shelf-mark');return m&&!m.classList.contains('hidden')?m.getBoundingClientRect().top+2:null;});
+// Mouse: press on a shelf's name, move past the threshold, then into the target row (frac of its height from the top;
+// last: just below the last row), and let go there.
+async function mouseShelf(id,toId,{frac=.25,drop=true,last=false}={}){
+  const a=await spot(nameSel(id));
+  await page.mouse.move(a.x,a.y);await page.mouse.down();await page.mouse.move(a.x+12,a.y+12,{steps:3});
+  const b=await page.evaluate((sel,f,last)=>{const rs=document.querySelectorAll('#shelfBody .shelf-row'),r=(last?rs[rs.length-1]:document.querySelector(sel)).getBoundingClientRect();
+    return {x:r.left+40,y:last?r.bottom+12:r.top+r.height*f};},rowSel(toId),frac,last);
+  await page.mouse.move(b.x,b.y,{steps:8});
+  const r={lifted:!!(await page.$('.shelf-label.drag-ghost')),faded:!!(await page.$(rowSel(id)+'.lifted')),mark:await mark()};
+  if(drop) await page.mouse.up();
+  return r;
+}
+// Touch: hold a shelf's name ~0.55 s, then move the finger into the target row in steps, and lift it.
+async function touchShelf(id,toId,frac=.25){
+  const a=await spot(nameSel(id));
+  await page.evaluate(()=>{window.__tm={n:0,prevented:0};});
+  await page.touchscreen.touchStart(a.x,a.y);await sleep(550);
+  const lifted=!!(await page.$('.shelf-label.drag-ghost')),b=await page.$eval(rowSel(toId),(e,f)=>{const r=e.getBoundingClientRect();return {x:r.left+40,y:r.top+r.height*f};},frac);
+  for(let i=1;i<=8;i++) await page.touchscreen.touchMove(a.x+(b.x-a.x)*i/8,a.y+(b.y-a.y)*i/8);
+  const r={lifted,mark:await mark()};await page.touchscreen.touchEnd();
+  r.tm=await page.evaluate(()=>window.__tm);return r;
 }
 // Touch: hold the cover ~0.55 s, then move the finger to the target row in steps, and lift it.
 async function touchDrag(title,id){
@@ -206,14 +240,16 @@ await t.run(async()=>{
 
   // managing shelves: new, rename, move up and down, delete
   ok('Unsorted isn\'t a button; named shelves are',(await page.$$('#shelfBody .sl-name')).length===6);
-  await page.click('#shelfBody [data-shelf-new]');await page.waitForSelector('#shelfM:not(.hidden)');
+  ok('+ New shelf is at the top, by Arrange by, not after the last shelf',await vis('#shTools [data-shelf-new]')&&!(await page.$('#shelfBody [data-shelf-new]'))
+    &&await page.evaluate(()=>{const r=e=>document.querySelector(e).getBoundingClientRect();return r('#shTools').top>=r('#segGroup').top&&r('#shTools').bottom<=r('#shelfBody').top;}));
+  await page.click('#shTools [data-shelf-new]');await page.waitForSelector('#shelfM:not(.hidden)');
   ok('+ New shelf asks for a name',(await text('#shH'))==='New shelf'&&!(await vis('#shDel'))&&!(await vis('#shMove')));
   await outside();
   ok('a tap outside with nothing typed just closes',await until(()=>document.querySelector('#shelfM').classList.contains('hidden'))&&(await names())==='Travel|Adventure|History|Finance|Fantasy|Philosophy');
-  await page.click('#shelfBody [data-shelf-new]');await page.waitForSelector('#shelfM:not(.hidden)');
+  await page.click('#shTools [data-shelf-new]');await page.waitForSelector('#shelfM:not(.hidden)');
   await page.type('#shName','Poetry');await outside();await until(()=>document.querySelector('#shelfM').classList.contains('hidden'));
   ok('a tap outside with a name typed adds the shelf, at the end, empty with its hint',(await names())==='Travel|Adventure|History|Finance|Fantasy|Philosophy|Poetry'&&(await rows()).find(r=>r.name==='Poetry').hint);
-  await page.click('#shelfBody [data-shelf-new]');await page.waitForSelector('#shelfM:not(.hidden)');
+  await page.click('#shTools [data-shelf-new]');await page.waitForSelector('#shelfM:not(.hidden)');
   await page.type('#shName','history');await page.click('#shSave');
   ok('a name already taken is refused',await vis('#shErr')&&(await text('#shErr')).includes('already')&&await vis('#shelfM'));
   await page.click('#shelfM [data-cancel]');
@@ -246,7 +282,7 @@ await t.run(async()=>{
 
   // search filters across shelves; empty shelves hide while searching
   await page.type('#q','ledger');
-  ok('search: only shelves with a match show',(await names())==='Finance|Philosophy'&&!(await page.$('#shelfBody [data-shelf-new]')));
+  ok('search: only shelves with a match show, without New shelf or Collapse all',(await names())==='Finance|Philosophy'&&!(await vis('#shTools')));
   await page.$eval('#q',i=>{i.value='';i.dispatchEvent(new Event('input'));});
   ok('clearing the search shows every shelf again',(await names())==='Unsorted|Travel|Adventure|Finance|Fantasy|Poetry|Philosophy');
 
@@ -287,4 +323,150 @@ await t.run(async()=>{
   await reload(p2);
   ok('restore: … and stay after a reload',(await names(p2))==='Travel|Adventure|Finance|Fantasy|Poetry|Philosophy');
   await p2.close();
+
+  // collapse and expand: this device's choice, kept in its prefs; nothing goes to the shelf's storage
+  await page.setViewport(PHONE);await reload();await spy();
+  // each shelf on screen, - when collapsed, + when open
+  const folds=()=>page.$$eval('#shelfBody .shelf-row',rs=>rs.map(r=>(r.classList.contains('shut')?'-':'+')+r.querySelector('.shelf-label :is(.sl-name,span)').textContent).join(' '));
+  const poetry=(await rows()).find(r=>r.name==='Poetry').id;
+  ok('every shelf\'s heading has a ▾ before its name',(await page.$$eval('#shelfBody .shelf-row',rs=>rs.every(r=>r.querySelector('.shelf-label').firstElementChild.matches('.sl-fold')&&r.querySelector('.sl-fold').textContent==='▾'))));
+  await page.click(fold('travel'));
+  const strip=await page.$eval(rowSel('travel'),r=>({h:Math.round(r.getBoundingClientRect().height),covers:r.querySelectorAll('.cover').length,count:r.querySelector('small').textContent,arrow:r.querySelector('.sl-fold').textContent,label:r.querySelector('.sl-fold').getAttribute('aria-label')}));
+  ok('▾ collapses a shelf to a slim strip: its name, its count and the board',strip.covers===0&&strip.count==='1'&&strip.arrow==='▸'&&strip.label==='Expand Travel'&&strip.h<=44&&(await names()).startsWith('Travel|'));
+  ok('… and only that shelf',(await folds())==='-Travel +Adventure +Finance +Fantasy +Poetry +Philosophy');
+  await page.click(fold('travel'));
+  ok('▸ expands it again',(await folds()).startsWith('+Travel')&&(await on('Travel')).join()==='Salt and Sails');
+  await page.focus(fold('fantasy'));await page.keyboard.press('Enter');
+  ok('from the keyboard too, and the focus stays on the arrow',(await folds()).includes('-Fantasy')&&await page.evaluate(()=>document.activeElement.dataset.fold==='fantasy'));
+  ok('collapsing writes nothing to the shelf\'s storage',!Object.keys(await puts()).length);
+  await reload();await spy();
+  ok('a collapsed shelf stays collapsed after a reload (this device\'s prefs)',(await folds()).includes('-Fantasy')&&(await prefs()).shut.join()==='fantasy');
+  // an unsorted book (from Fantasy, opened first), so Unsorted shows
+  await page.click(fold('fantasy'));
+  await details('Atlas of Winds');await page.select('#dShelf','');await page.click('#dSave');await until(()=>document.querySelector('#detM').classList.contains('hidden'));
+  ok('Collapse all sits by New shelf',await vis('#foldAll')&&(await text('#foldAll'))==='Collapse all');
+  await spy();await page.click('#foldAll');
+  ok('Collapse all collapses every shelf, Unsorted too',(await folds())==='-Unsorted -Travel -Adventure -Finance -Fantasy -Poetry -Philosophy');
+  const all=await page.evaluate(()=>{const rs=[...document.querySelectorAll('#shelfBody .shelf-row')],r=e=>e.getBoundingClientRect();return {hs:rs.map(x=>Math.round(r(x).height)),span:Math.round(r(rs.at(-1)).bottom-r(rs[0]).top)};});
+  ok('… into slim strips (about 40 px) that fit well within one phone screen',all.hs.every(h=>h<=44)&&all.span<=480);
+  ok('… and the button turns into Expand all',(await text('#foldAll'))==='Expand all');
+  ok('Collapse all writes nothing to the shelf\'s storage',!Object.keys(await puts()).length);
+  await reload();await spy();
+  ok('all collapsed after a reload, with Expand all',(await folds())==='-Unsorted -Travel -Adventure -Finance -Fantasy -Poetry -Philosophy'&&(await text('#foldAll'))==='Expand all');
+  await page.evaluate(()=>document.querySelector('#ctrl').scrollIntoView());
+  await shoot('collapsed-390',{});
+
+  // a cover dropped on a collapsed shelf: the strip lights up like a full shelf, and stays collapsed
+  await page.click(fold(''));
+  ok('one shelf expanded among collapsed ones shows its books',(await on('Unsorted')).join()==='Atlas of Winds'&&(await text('#foldAll'))==='Collapse all');
+  const m2=await mouseDrag('Atlas of Winds','adventure',{drop:false});await sleep(300); // the highlight fades in
+  const glow=await page.$eval(rowSel('adventure'),r=>getComputedStyle(r).outlineColor);
+  await page.mouse.up();
+  ok('mouse: a collapsed shelf lights up under the pointer',m2.lifted&&m2.lit.join()==='adventure'&&glow!=='rgba(0, 0, 0, 0)');
+  ok('mouse: dropping on it moves the book there; it stays collapsed, with its count',await toastHas('Moved to Adventure')&&(await idb('meta:'+atlas)).shelf==='adventure'
+    &&await page.$eval(rowSel('adventure'),r=>r.classList.contains('shut')&&r.querySelector('small').textContent==='1')&&!(await names()).includes('Unsorted'));
+  await page.setViewport({...PHONE,isMobile:true,hasTouch:true});await reload();
+  await page.evaluate(()=>window.addEventListener('touchmove',e=>{window.__tm.n++;if(e.defaultPrevented)window.__tm.prevented++;},{passive:true}));
+  await page.click(fold('travel'));
+  const salt=await idOf('Salt and Sails'),t2=await touchDrag('Salt and Sails','finance');
+  ok('touch: a collapsed shelf lights up under the finger',t2.lifted&&t2.lit.join()==='finance'&&t2.tm.prevented===t2.tm.n);
+  ok('touch: lifting the finger moves the book there; it stays collapsed',await toastHas('Moved to Finance')&&(await idb('meta:'+salt)).shelf==='finance'
+    &&await page.$eval(rowSel('finance'),r=>r.classList.contains('shut')&&r.querySelector('small').textContent==='2')&&!(await on('Travel')).length);
+
+  // a new shelf starts expanded; Expand all opens the rest
+  await page.click(fold('travel'));
+  ok('every shelf collapsed again',(await text('#foldAll'))==='Expand all');
+  await spy();
+  await page.click('#shTools [data-shelf-new]');await page.waitForSelector('#shelfM:not(.hidden)');await page.type('#shName','Maps');await page.click('#shSave');
+  await until(()=>document.querySelector('#shelfM').classList.contains('hidden'));
+  const maps=(await rows()).find(r=>r.name==='Maps');
+  ok('a new shelf starts expanded among collapsed ones (one write: the shelf list)',maps&&maps.hint&&(await folds()).endsWith('+Maps')&&(await puts())['settings:app']===1&&(await text('#foldAll'))==='Collapse all');
+  await page.click('#foldAll');
+  await page.click('#foldAll');
+  ok('Collapse all, then Expand all, opens every shelf',(await folds())==='+Travel +Adventure +Finance +Fantasy +Poetry +Philosophy +Maps'&&!(await prefs()).shut.length&&(await text('#foldAll'))==='Collapse all');
+
+  // search opens a collapsed shelf with a match, and leaves it collapsed afterwards
+  await page.click('#foldAll');
+  await page.type('#q','salt');
+  ok('search: a collapsed shelf with a match shows open, without the arrows',(await names())==='Finance'&&(await on('Finance')).join()==='Salt and Sails'&&!(await page.$('#shelfBody .sl-fold'))&&!(await vis('#shTools')));
+  await page.$eval('#q',i=>{i.value='';i.dispatchEvent(new Event('input'));});
+  ok('… and clearing the search collapses it again',(await folds()).split(' ').every(f=>f.startsWith('-'))&&await vis('#shTools'));
+  // the List view has no shelves to collapse
+  await page.click('#segView [data-v="list"]');await page.waitForSelector('.tbl');
+  ok('List view: no New shelf or Collapse all, and the table lists every book',!(await vis('#shTools'))&&(await page.$$('.tbl tbody tr')).length===4);
+  await page.click('#segView [data-v="shelves"]');
+  ok('back in the Shelves view, the shelves are still collapsed',(await folds()).split(' ').every(f=>f.startsWith('-')));
+
+  // a shelf dragged by its name to another place: mouse
+  await page.setViewport(PHONE);await reload();await spy();
+  const sm=await mouseShelf(poetry,'adventure',{drop:false});
+  const between=await page.evaluate((y,a,b)=>{const r=s=>document.querySelector(s).getBoundingClientRect();return y>=r(a).bottom-1&&y<=r(b).top+1;},sm.mark,rowSel('travel'),rowSel('adventure'));
+  ok('mouse: pressing a shelf\'s name and moving lifts it, and its place fades',sm.lifted&&sm.faded);
+  ok('mouse: a line shows where it will land (between Travel and Adventure)',sm.mark!=null&&between);
+  await shoot('shelf-drag-390',{});
+  await page.mouse.up();
+  ok('mouse: dropping it there reorders the shelves',(await names())===`Travel|Poetry|Adventure|Finance|Fantasy|Philosophy|Maps`&&!(await page.$('.drag-ghost,.shelf-mark'))&&!(await vis('#shelfM')));
+  ok('… with one write of the shelf list',(await puts())['settings:app']===1&&Object.keys(await puts()).length===1&&(await idb('settings:app')).shelves.map(s=>s.name).join('|')==='Travel|Poetry|Adventure|Finance|Fantasy|Philosophy|Maps');
+  ok('… and the shelves stay collapsed',(await folds()).split(' ').every(f=>f.startsWith('-')));
+  await spy();
+  const end=await mouseShelf('travel','',{drop:true,last:true});
+  ok('mouse: below the last shelf, a shelf goes to the end',end.mark!=null&&(await names())===`Poetry|Adventure|Finance|Fantasy|Philosophy|Maps|Travel`&&(await puts())['settings:app']===1);
+  await spy();
+  const same=await mouseShelf('finance','fantasy',{frac:.1});
+  ok('mouse: dropped back where it was: no line, no write, no dialog',same.lifted&&same.mark==null&&(await names())===`Poetry|Adventure|Finance|Fantasy|Philosophy|Maps|Travel`&&!Object.keys(await puts()).length&&!(await vis('#shelfM')));
+  await mouseShelf(maps.id,poetry,{drop:false});await page.keyboard.press('Escape');await page.mouse.up();
+  ok('Escape puts a dragged shelf back',!(await page.$('.drag-ghost,.shelf-mark,.shelf-row.lifted'))&&(await names())===`Poetry|Adventure|Finance|Fantasy|Philosophy|Maps|Travel`&&!Object.keys(await puts()).length);
+  await page.click(nameSel('finance'));await page.waitForSelector('#shelfM:not(.hidden)');
+  ok('a click on a shelf\'s name still opens its dialog, with Move up and Move down',(await page.$eval('#shName',i=>i.value))==='Finance'&&await vis('#shMove'));
+  await page.click('#shelfM [data-cancel]');
+  await reload();
+  ok('the new order is kept after a reload',(await names())===`Poetry|Adventure|Finance|Fantasy|Philosophy|Maps|Travel`);
+  // the page scrolls near the bottom edge while dragging a shelf (every shelf open, so the page is long)
+  await page.click('#foldAll');await page.evaluate(()=>scrollTo(0,0));
+  {
+    const a=await spot(nameSel(poetry),false);
+    await page.mouse.move(a.x,a.y);await page.mouse.down();await page.mouse.move(a.x+12,a.y+12,{steps:3});
+    const y0=await page.evaluate(()=>scrollY);await page.mouse.move(a.x,836,{steps:4});await sleep(600);
+    ok('dragging a shelf near the bottom edge scrolls the page',(await page.evaluate(()=>scrollY))>y0+150&&await page.$('.shelf-label.drag-ghost'));
+    await page.keyboard.press('Escape');await page.mouse.up();
+  }
+  // Unsorted stays first: it has no name to drag
+  await details('Atlas of Winds');await page.select('#dShelf','');await page.click('#dSave');await until(()=>document.querySelector('#detM').classList.contains('hidden'));
+  {
+    const a=await spot(rowSel('')+' .shelf-label span');
+    await page.mouse.move(a.x,a.y);await page.mouse.down();await page.mouse.move(a.x+12,a.y+60,{steps:4});
+    ok('Unsorted can\'t be dragged',!(await page.$('.drag-ghost'))&&!(await page.$(rowSel('')+' .sl-name')));
+    await page.mouse.up();
+  }
+
+  // touch: hold a shelf's name, then drag; a swipe scrolls; a tap opens the dialog
+  await page.setViewport({...TALL,isMobile:true,hasTouch:true});await reload();await spy();
+  await page.evaluate(()=>window.addEventListener('touchmove',e=>{window.__tm.n++;if(e.defaultPrevented)window.__tm.prevented++;},{passive:true}));
+  const ts=await touchShelf('travel','adventure');
+  ok('touch: holding a shelf\'s name lifts it, and a line shows where it will land',ts.lifted&&ts.mark!=null);
+  ok('touch: the page doesn\'t scroll while dragging a shelf',ts.tm.n>0&&ts.tm.prevented===ts.tm.n);
+  ok('touch: lifting the finger reorders the shelves, Unsorted still first, one write',(await names())==='Unsorted|Poetry|Travel|Adventure|Finance|Fantasy|Philosophy|Maps'&&(await puts())['settings:app']===1);
+  {
+    const a=await spot(nameSel('finance'));await page.evaluate(()=>{window.__tm={n:0,prevented:0};});
+    await page.touchscreen.touchStart(a.x,a.y);
+    for(let i=1;i<=6;i++){await page.touchscreen.touchMove(a.x+3*i,a.y-25*i);await sleep(15);}
+    const g=await page.$('.drag-ghost');await page.touchscreen.touchEnd();await sleep(500);
+    const tm=await page.evaluate(()=>window.__tm);
+    ok('touch: a quick swipe on a shelf\'s name scrolls, and lifts nothing',!g&&tm.n>0&&tm.prevented===0&&!(await vis('#shelfM')));
+  }
+  await page.touchscreen.tap(...Object.values(await spot(nameSel('fantasy'))));await page.waitForSelector('#shelfM:not(.hidden)');
+  ok('touch: a tap on a shelf\'s name opens its dialog',(await page.$eval('#shName',i=>i.value))==='Fantasy');
+  await page.click('#shelfM [data-cancel]');
+  // while searching, some shelves are hidden: a shelf's name doesn't drag
+  await page.type('#q','salt');
+  {
+    const a=await spot(nameSel('finance'));await page.touchscreen.touchStart(a.x,a.y);await sleep(550);
+    ok('while searching, holding a shelf\'s name lifts nothing',!(await page.$('.drag-ghost')));
+    await page.touchscreen.touchEnd();await sleep(100);
+    if(await vis('#shelfM')) await page.click('#shelfM [data-cancel]'); // a long press may count as a tap
+  }
+  await page.$eval('#q',i=>{i.value='';i.dispatchEvent(new Event('input'));});
+  await page.setViewport(DESK);await page.evaluate(()=>scrollTo(0,0));
+  await shoot('shelves-tools-1280',{});
+  await page.setViewport(PHONE);
 });
