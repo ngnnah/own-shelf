@@ -456,6 +456,15 @@ const isLoneUrl=s=>/^\s*https?:\/\/\S+\s*$/i.test(String(s||''));
 // Readability keeps the best-scoring block and its strong siblings. An <article>'s <header> (title, standfirst,
 // summary box) scores too low as a whole and is dropped; unwrapped, its paragraphs are judged one by one.
 function liftArticleHeaders(doc){doc.querySelectorAll('article header').forEach(h=>h.replaceWith(...h.childNodes));return doc;}
+// Readability also keeps the best block's siblings that score at least 10 (or a fifth of the best block's score, if
+// higher); a sibling with the same non-empty class gets that fifth as a bonus. Some sites wrap each chunk of an
+// article in a bare <div> (no attributes, one element inside): a short chunk, such as a two-paragraph intro, scores
+// under 10 and, having no class, gets no bonus. One shared class makes such wrappers side by side count as alike.
+// The name matches none of Readability's class patterns, so no score changes.
+function markBareWrappers(doc){
+  doc.querySelectorAll('div').forEach(d=>{if(!d.attributes.length&&d.childElementCount===1&&![...d.childNodes].some(n=>n.nodeType===3&&n.nodeValue.trim())) d.className='bare-wrapper';});
+  return doc;
+}
 // Fetched bytes → text, honouring the charset in the Content-Type header or a <meta> tag.
 function decodeBody(buf,type){
   let cs=(/charset=["']?([\w-]+)/i.exec(type||'')||[])[1];

@@ -36,7 +36,8 @@
 //   migrate.mjs     the artifact's "Back up shelf" (legacy/app-artifact.html) → the app's "Restore from backup"
 //   study.mjs       Study flashcards: the queue (due first, the daily new-word cap), front and back, ratings and
 //                   their saved schedule, Again, keys, Sentence → word, done and empty states, ?study=1
-//   linkimport.mjs  link import's article extraction: a summary in the article's <header> survives Readability
+//   linkimport.mjs  link import's article extraction: a summary in the article's <header> survives Readability, and
+//                   so does a short intro chunk in a bare <div> beside the article's other chunks
 //   sort.mjs        To sort: Coral highlights (Kindle red and pink) become words (tap) or fact cards (a
 //                   selected phrase as the blank), Skip and Show skipped, Make the rest facts, the sorting surviving
 //                   a Kindle re-import, the Facts chip, the Trash, fact cards in Study
@@ -59,7 +60,8 @@
 // with `python3 -m http.server` on its own port, so files can also run in parallel) and a network
 // connection: fonts, the Firebase SDK and pdf.js load from CDNs.
 // Fixtures are synthetic: legacy/test-fixture-rich-paste.html, tests/fixtures/kindle-notebook.html,
-// tests/fixtures/article-header-summary.html and Markdown written to a temp dir at run time.
+// tests/fixtures/article-header-summary.html, tests/fixtures/chunked-article-intro.html and Markdown written to a
+// temp dir at run time.
 // Screenshots go to tests/browser/out/ (gitignored).
 import {spawn} from 'node:child_process';
 import {dirname,join} from 'node:path';
