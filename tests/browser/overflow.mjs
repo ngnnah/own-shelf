@@ -259,6 +259,9 @@ await t.run(async()=>{
   await page.evaluate(()=>getSelection().removeAllRanges());
   await page.evaluate(()=>document.querySelector('#col mark.hl').click());await until(()=>!document.querySelector('#tool').classList.contains('hidden'));
   await fits('highlight toolbar for a highlight (Edit note, Remove)');
+  ok('320 px: the docked toolbar keeps "Edit note" on one line, inside the screen',await page.evaluate(()=>{const n=document.querySelector('#tool [data-a="note"]'),was=n.textContent;n.textContent='Edit note';
+    const h=[...document.querySelectorAll('#tool .tb')].map(b=>b.getBoundingClientRect().height),r=document.querySelector('#tool').getBoundingClientRect();n.textContent=was;
+    return Math.max(...h)-Math.min(...h)<4&&r.left>=0&&r.right<=document.documentElement.clientWidth;}));
   ok('320 px: the reader bar fits a three-digit highlight count',await page.evaluate(()=>{const b=document.querySelector('#hlCount'),was=b.textContent;b.textContent='999';
     const fit=[...document.querySelectorAll('#bar .bar-in>*')].every(e=>e.getBoundingClientRect().right<=document.documentElement.clientWidth);b.textContent=was;return fit;}));
   await page.keyboard.press('Escape');await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:join(shots,'stress-320.png'),fullPage:true});

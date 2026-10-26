@@ -387,13 +387,13 @@ body.focus .fn-card .hp{opacity:1}
 #tool .sw{width:28px;height:28px;border-radius:50%;border:2px solid transparent;padding:0}
 #tool .sw.on{border-color:var(--sheet)}
 #tool .sep{width:1px;height:22px;background:color-mix(in srgb,var(--sheet) 30%,transparent);margin:0 .15rem}
-#tool .tb{border:0;background:transparent;color:var(--sheet);font-weight:650;font-size:.88rem;padding:.35rem .6rem;border-radius:999px}
+#tool .tb{border:0;background:transparent;color:var(--sheet);font-weight:650;font-size:.88rem;padding:.35rem .6rem;border-radius:999px;white-space:nowrap}
 #tool .tb:hover{background:color-mix(in srgb,var(--sheet) 15%,transparent)}
 /* five swatches and three buttons: a little tighter on phones under 380 px, so a 360 px screen fits them, and
    tighter again under 340 px for a 320 px one */
 @media (max-width:380px){#tool{gap:.2rem;padding:.35rem .4rem}#tool .sw{width:26px;height:26px}#tool .tb{padding:.35rem .45rem}}
 @media (max-width:340px){#tool{gap:.1rem;padding:.35rem .3rem}#tool .tb{padding:.35rem .3rem}}
-#tool.docked{left:50%!important;transform:translateX(-50%)!important;top:auto!important;bottom:calc(env(safe-area-inset-bottom,0px) + 18px)}
+#tool.docked{left:50%!important;transform:translateX(-50%)!important;width:max-content;top:auto!important;bottom:calc(env(safe-area-inset-bottom,0px) + 18px)}
 /* the note box and the word card stay inside the visible area (max-height set in app.js): as a flex column, a long
    or dragged-taller field gives way and scrolls, and the buttons stay in view */
 #noteBox{position:fixed;z-index:61;display:flex;flex-direction:column;overflow:auto;width:min(340px,calc(100vw - 24px));background:var(--sheet);border-radius:18px;padding:.9rem;box-shadow:0 14px 40px rgba(40,24,12,.3);border:1px solid var(--rule)}
