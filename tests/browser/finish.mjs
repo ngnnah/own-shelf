@@ -1,11 +1,14 @@
 // Finishing a book: real reading time is needed, the cover says "✓ Finished", and Details can override it either way.
 // Usage: node tests/browser/finish.mjs [repo dir]
-import {start,enterLocalMode,addQuietEngine,addMarkdown,sleep} from './lib.mjs';
+import {start,enterLocalMode,addQuietEngine,addMarkdown} from './lib.mjs';
 
 const t=await start('finish',8129);
 const {page,ok,must,vis,text,until}=t;
-// The app's reading time comes from Date.now(); this lets the test move the clock forward.
-await page.evaluateOnNewDocument(()=>{const real=Date.now.bind(Date);let off=0;Date.now=()=>real()+off;window.__advance=ms=>{off+=ms;};});
+// The app's reading time comes from Date.now(); this lets the test move the clock forward. Its reading-time clock
+// ticks every 5 s (a setInterval adding to readMs); __ticks counts those ticks, so the test can wait for the next.
+await page.evaluateOnNewDocument(()=>{const real=Date.now.bind(Date);let off=0;Date.now=()=>real()+off;window.__advance=ms=>{off+=ms;};
+  const si=window.setInterval;window.__ticks=0;
+  window.setInterval=(f,ms,...a)=>si(typeof f==='function'&&String(f).includes('readMs')?(...b)=>{f(...b);window.__ticks++;}:f,ms,...a);});
 
 await t.run(async()=>{
   await enterLocalMode(t,must);
@@ -13,7 +16,9 @@ await t.run(async()=>{
   const toEnd=()=>page.evaluate(()=>{scrollTo(0,document.documentElement.scrollHeight);dispatchEvent(new Event('scroll'));});
   const done=title=>page.$$eval('.book',(bs,tt)=>{const b=bs.find(x=>x.querySelector('.c-t').textContent===tt);return b?!!b.querySelector('.c-done'):null;},title);
   const home=async()=>{await page.click('#bHome');await page.waitForSelector('#shelf:not(.hidden)');};
-  const tick=()=>sleep(6000); // the reading-time clock ticks every 5 s
+  // the next tick of the reading-time clock after the end came into view (an IntersectionObserver: a frame later)
+  const tick=async()=>{await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+    must('the reading-time clock ticks',await page.waitForFunction(n=>__ticks>n,{timeout:8000},await page.evaluate(()=>__ticks)).then(()=>true,()=>false));};
 
   // reaching the end straight away
   await toEnd();await tick();await home();

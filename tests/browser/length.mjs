@@ -26,6 +26,9 @@ const heroWords=()=>page.$$eval('.log span',s=>{const w=s.find(e=>/ words?$/.tes
 // a book's parts, measured on the page: cover, page block, the whole book and the ⋯ button
 const parts=title=>page.$eval(cov(title),c=>{const b=c.parentElement,r=e=>e&&e.getBoundingClientRect().toJSON(),s=e=>getComputedStyle(e).transform;
   return {cover:r(c),pages:r(b.querySelector('.pages')),book:r(b),more:r(b.querySelector('.c-more')),tc:s(c),tp:s(b.querySelector('.pages'))};});
+// in the page: whether the stored shelf entry of the book titled t has its progress (saved 0.5 s after a scroll)
+const stored=t=>new Promise(res=>{const r=indexedDB.open('upwind',1);r.onsuccess=()=>{
+  const q=r.result.transaction('kv').objectStore('kv').getAll(IDBKeyRange.bound('meta:','meta:\uffff'));q.onsuccess=()=>{r.result.close();res(q.result.some(m=>m.title===t&&m.progress>0));};};});
 const noSideScroll=()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth);
 const scheme=s=>page.emulateMediaFeatures([{name:'prefers-color-scheme',value:s}]);
 const shoot=async(label,opts={fullPage:true})=>{
@@ -53,7 +56,7 @@ await t.run(async()=>{
     b.exact=await heroWords();
     // the short note scrolled to the end; the medium one partly, so its footer shows a percentage
     if(b===SHORT){await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));await sleep(600);}
-    if(b===MID){await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight*.4));await until(()=>document.querySelector('#tocSub').textContent.match(/[1-9]\d*% read/));}
+    if(b===MID){await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight*.4));await until(stored,MID.title);}
   }
   must('the reader counts the short note as 40 words',SHORT.exact==='40');
   await page.click('#bHome');await page.waitForSelector('#shelf:not(.hidden)');

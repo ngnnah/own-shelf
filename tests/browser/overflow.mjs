@@ -174,7 +174,10 @@ async function dialogs(all=true){
   await clk('#addBtn');await shown('#importM');await fits('Add');
   await inside(`${w} px, Add: the Date written quick picks`,'#importM .dq .chip','.dlg');
   await pasteHtml(page,STRESS,'x');await until(()=>document.querySelector('#det').textContent.includes('Wren'));await fits('Add, the stress paste');
-  await pasteHtml(page,LONGBOOK,'x');await until(t=>document.querySelector('#det').textContent.includes(t),LONGTITLE.slice(0,20));await fits('Add, an unbroken title');
+  // a paste goes in at the caret, after the stress paste: empty the box first, so the long title is the one found
+  await page.$eval('#paste',e=>{e.textContent='';});
+  await pasteHtml(page,LONGBOOK,'x');await until(t=>document.querySelector('#det').textContent.includes(t),LONGTITLE.slice(0,20));
+  must('the Add dialog shows the unbroken title',(await page.$eval('#det',e=>e.textContent)).includes(LONGTITLE));await fits('Add, an unbroken title');
   await inside(`${w} px, Add with an unbroken title: the Date written quick picks`,'#importM .dq .chip','.dlg');
   await clk('#importM [data-cancel]');await hidden('#importM');
   await page.$$eval('.book',(bs,tt)=>bs.find(b=>b.querySelector('.c-t').textContent===tt).querySelector('.c-more').click(),LONGTITLE);await shown('#detM');

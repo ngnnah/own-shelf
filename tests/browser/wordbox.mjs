@@ -198,7 +198,8 @@ await t.run(async()=>{
   ok('Escape closes it',!(await vis('#wordBox')));
 
   // 7. on a phone, a sheet: no grip on its head, and a finger there doesn't move it from its dock
-  await page.setViewport({width:390,height:844,deviceScaleFactor:2,hasTouch:true});await sleep(150);
+  // turning touch on or off reloads the page (puppeteer): wait for the reopened book
+  await page.setViewport({width:390,height:844,deviceScaleFactor:2,hasTouch:true});await t.reader();
   await openCard(P1,'lanterns');
   const dock=await cardFit();
   ok('a phone shows the word card as a sheet without a grip',await page.$eval('#wordBox',e=>e.classList.contains('sheet')&&getComputedStyle(e.querySelector('.wb-head'),'::before').content==='none'));
@@ -206,7 +207,7 @@ await t.run(async()=>{
   ok('a finger on its head doesn’t move the sheet',f.top===dock.top&&f.left===dock.left&&inView(f));
   await page.click('#wbClose');await hidden('#wordBox');
   ok('then Cancel works',!(await vis('#wordBox')));
-  await page.setViewport({width:390,height:844,deviceScaleFactor:2});await sleep(150);
+  await page.setViewport({width:390,height:844,deviceScaleFactor:2});await t.reader();
 
   // 8. the note box: the same, on a phone and on a desktop
   for(const [vw,vh,size] of [[390,844,'phone'],[1280,900,'desktop']]){
