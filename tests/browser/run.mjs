@@ -62,31 +62,62 @@
 // Run: `npm install` once, then `npm run test:browser`. One file: `node tests/browser/search.mjs`.
 // Either takes an optional repo directory (default: this repo).
 // Needs Google Chrome (set CHROME_PATH if it isn't at the macOS default), python3 (each file serves the repo
-// with `python3 -m http.server` on its own port, so files can also run in parallel) and a network
-// connection: fonts, the Firebase SDK and pdf.js load from CDNs.
+// with `python3 -m http.server` on its own port) and a network connection: fonts, the Firebase SDK and pdf.js
+// load from CDNs.
+// TEST_JOBS sets how many files run at once (default 4). Each of those workers keeps one Chrome for the files it
+// runs, and each file gets a fresh browser context in it (lib.mjs). With TEST_JOBS=1 the files run in the order
+// below and their output streams as it comes; with more, the longest files start first (by the last run's
+// times, kept in out/times.json) and each file's output prints whole when it ends. The summary gives each
+// file's time and the wall time.
 // Fixtures are synthetic: legacy/test-fixture-rich-paste.html, tests/fixtures/kindle-notebook.html,
 // tests/fixtures/article-header-summary.html and Markdown written to a temp dir at run time.
 // Screenshots go to tests/browser/out/ (gitignored).
 import {spawn} from 'node:child_process';
+import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {launch,quit} from './lib.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
 const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','shelves.mjs','kindle.mjs','words.mjs','wordbox.mjs','notesheet.mjs','wordsheet.mjs','fastscroll.mjs','wordcard.mjs','study.mjs','sort.mjs','migrate.mjs','linkimport.mjs','setup.mjs','colours.mjs','signin.mjs','dialogs.mjs','overflow.mjs'];
+const jobs=Math.max(1,Math.floor(Number(process.env.TEST_JOBS))||4),live=jobs===1;
+const timesFile=join(here,'out','times.json');
+let last={};try{last=JSON.parse(readFileSync(timesFile,'utf8'));}catch{}
+const queue=live?[...files]:[...files].sort((a,b)=>(last[b]??1e9)-(last[a]??1e9)); // a new file counts as long
 
-// Run one file, echo its output and count its PASS/FAIL lines.
-const runOne=f=>new Promise(res=>{
-  const c=spawn(process.execPath,[join(here,f),...process.argv.slice(2)],{stdio:['ignore','pipe','inherit']});
-  const r={f,pass:0,fail:0,code:null};let rest='';
-  c.stdout.on('data',d=>{process.stdout.write(d);const lines=(rest+d).split('\n');rest=lines.pop();
+// Run one file in the given Chrome (none: the file launches its own) and count its PASS/FAIL lines. Live, its
+// output goes straight through; otherwise it is kept for printing in one piece.
+const runOne=(f,chrome)=>new Promise(res=>{
+  const env=chrome?{...process.env,TEST_CHROME:chrome}:process.env;
+  const c=spawn(process.execPath,[join(here,f),...process.argv.slice(2)],{stdio:['ignore','pipe',live?'inherit':'pipe'],env});
+  const r={f,pass:0,fail:0,code:null,out:[]},t0=performance.now();let rest='';
+  c.stdout.on('data',d=>{if(live)process.stdout.write(d);else r.out.push(d);
+    const lines=(rest+d).split('\n');rest=lines.pop();
     for(const l of lines){if(l.startsWith('PASS '))r.pass++;else if(l.startsWith('FAIL '))r.fail++;}});
-  c.on('close',code=>{r.code=code;res(r);});
+  if(!live) c.stderr.on('data',d=>r.out.push(d));
+  c.on('close',code=>{r.code=code;r.s=(performance.now()-t0)/1000;res(r);});
 });
 
-const results=[];
-for(const f of files){console.log(`\n# ${f}`);results.push(await runOne(f));}
+// A worker takes files off the queue one at a time, all in one Chrome (a new one if it has died).
+const results=new Map(),t0=performance.now();
+async function worker(){
+  let chrome=null;
+  for(let f;(f=queue.shift());){
+    if(!chrome?.connected){if(chrome) await quit(chrome).catch(()=>{});chrome=await launch().catch(()=>null);}
+    if(live) console.log(`\n# ${f}`);
+    const r=await runOne(f,chrome?.wsEndpoint());
+    if(!live) process.stdout.write(`\n# ${f}\n${r.out.join('')}`);
+    results.set(f,r);
+  }
+  if(chrome) await quit(chrome).catch(()=>{});
+}
+await Promise.all(Array.from({length:Math.min(jobs,files.length)},worker));
+
+const all=files.map(f=>results.get(f)),wall=(performance.now()-t0)/1000,sum=all.reduce((a,r)=>a+r.s,0);
 console.log('\n# summary');
-for(const r of results) console.log(`${r.code||r.fail?'FAIL':'PASS'} ${r.f}: ${r.pass} passed, ${r.fail} failed`);
-const pass=results.reduce((a,r)=>a+r.pass,0),fail=results.reduce((a,r)=>a+r.fail,0),bad=results.some(r=>r.code||r.fail);
+for(const r of all) console.log(`${r.code||r.fail?'FAIL':'PASS'} ${r.f}: ${r.pass} passed, ${r.fail} failed (${r.s.toFixed(1)} s)`);
+console.log(`${all.length} files in ${wall.toFixed(0)} s with TEST_JOBS=${jobs} (the files took ${sum.toFixed(0)} s together)`);
+const pass=all.reduce((a,r)=>a+r.pass,0),fail=all.reduce((a,r)=>a+r.fail,0),bad=all.some(r=>r.code||r.fail);
 console.log(`${pass+fail} checks: ${pass} passed, ${fail} failed`);
+mkdirSync(dirname(timesFile),{recursive:true});writeFileSync(timesFile,JSON.stringify(Object.fromEntries(all.map(r=>[r.f,+r.s.toFixed(1)])),null,1)+'\n');
 process.exitCode=bad?1:0;

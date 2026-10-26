@@ -31,23 +31,33 @@ export async function waitForFile(dir,re,ms=5000){
   return null;
 }
 
+// Headless Chrome. Close it with quit(): Chrome's crash reporter (chrome_crashpad_handler) can outlive it by up to
+// ~10 minutes still holding Chrome's stdout and stderr, and Node waits for those pipes before it exits.
+export const launch=()=>puppeteer.launch({executablePath:CHROME,headless:true,args:['--no-first-run']});
+export async function quit(browser){const p=browser.process();await browser.close();for(const s of p?.stdio||[]) s?.destroy();}
+
 // Start the server and Chrome for one test file. Returns the test context `t`.
 // TEST_PORT_OFFSET shifts every file's port, so two checkouts can run the suite at the same time.
+// run.mjs passes TEST_CHROME, the address of a Chrome it keeps for several files; alone, a file launches its own.
+// Either way the file gets a fresh browser context (like a new incognito window): its own storage, cache,
+// service workers and downloads, so nothing carries over from one file to the next.
 export async function start(name,port){
   port+=Number(process.env.TEST_PORT_OFFSET||0);
   const srv=await serve(port);
+  const shared=process.env.TEST_CHROME;
   let browser;
-  try{browser=await puppeteer.launch({executablePath:CHROME,headless:true,args:['--no-first-run']});}
+  try{browser=shared?await puppeteer.connect({browserWSEndpoint:shared}):await launch();}
   catch(e){srv.kill();throw e;}
   mkdirSync(out,{recursive:true});
   const tmp=mkdtempSync(join(tmpdir(),'own-shelf-test-')),dl=join(tmp,'downloads');mkdirSync(dl);
+  const context=await browser.createBrowserContext({downloadBehavior:{policy:'allow',downloadPath:dl}});
   const errors=[];let passed=0,failed=0;
   const t={
-    name,port,repo,tmp,dl,browser,base:`http://localhost:${port}/`,
+    name,port,repo,tmp,dl,browser:context,base:`http://localhost:${port}/`,
     ok(label,cond){cond?passed++:failed++;console.log(cond?'PASS':'FAIL',label);},
     must(label,cond){if(!cond)throw new Error('setup step failed: '+label);},
     async newPage(){
-      const p=await browser.newPage();await p.setViewport({width:390,height:844,deviceScaleFactor:2});
+      const p=await context.newPage();await p.setViewport({width:390,height:844,deviceScaleFactor:2});
       p.on('pageerror',e=>errors.push('pageerror: '+e.message));
       p.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text());});
       return p;
@@ -86,13 +96,13 @@ export async function start(name,port){
       try{await body();}catch(e){failed++;console.log('FAIL exception',e.message);}
       const real=errors.filter(e=>!/ERR_INTERNET_DISCONNECTED|Failed to load resource|net::ERR/.test(e));
       t.ok('no page errors',real.length===0);if(real.length)console.log(real.join('\n'));
-      await browser.close();srv.kill();rmSync(tmp,{recursive:true,force:true});
+      await context.close();if(shared) await browser.disconnect();else await quit(browser);
+      srv.kill();rmSync(tmp,{recursive:true,force:true});
       console.log(failed?`${failed} of ${passed+failed} failed`:`all ${passed} passed`);
       process.exitCode=failed?1:0;
     }
   };
   t.page=await t.newPage();
-  const cdp=await t.page.createCDPSession();await cdp.send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:dl});
   return t;
 }
 
