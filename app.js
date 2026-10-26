@@ -1,7 +1,7 @@
 // own-shelf app (formerly Upwind). Ported from legacy/app-script.js; all data goes through the store.js adapters.
 import {makeLocal,makeCloud,exportShelf,importShelf} from './store.js';
 import {firebaseConfig,WORKER_URL} from './config.js';
-import {wordId,normTerm,termKey,sentenceAround,isDue,schedule,nextLabel,dayStart,progress,dueByDay,cloze,datamuseUrl,parseDatamuse,wiktionaryUrl,parseWiktionary,baseForms,isFact,factId,factCloze,wordsIn,snapWords,
+import {wordId,normTerm,termKey,sentenceAround,isDue,schedule,nextLabel,dayStart,progress,dueByDay,LOG_DAYS,logReview,newOn,pruneLog,reviewsByDay,streak,cloze,datamuseUrl,parseDatamuse,wiktionaryUrl,parseWiktionary,baseForms,isFact,factId,factCloze,wordsIn,snapWords,
   wikiSummaryUrl,parseWikiSummary,datamuseRelUrl,parseDatamuseWords,wikitextUrl,parseWikitext,cleanText,parseList,parseExamples,mergeExtras} from './vocab.js';
 /* ================= utils ================= */
 const $=s=>document.querySelector(s);
@@ -85,6 +85,7 @@ let stT;function saveState(now){clearTimeout(stT);const f=async()=>{if(!DOC)retu
 
 /* ================= views ================= */
 function show(view){
+  if(view!=='study') syFlush(); // leaving Study writes the day's count (see syLog)
   $('#signin').classList.toggle('hidden',view!=='signin');
   $('#shelf').classList.toggle('hidden',view!=='shelf');
   $('#notebook').classList.toggle('hidden',view!=='notebook');
@@ -1669,8 +1670,9 @@ async function openWords(fresh){
   if(ready) renderWords();
   else{$('#wdStats').innerHTML='';$('#wdProg').classList.add('hidden');$('#wdCtrl').classList.add('hidden');$('#wdList').innerHTML='<div class="empty">Gathering your words…</div>';}
   if(ready&&!fresh) return;
-  await loadWords(fresh);
-  if(run===WD.run&&prefs.nbTab==='wd'&&WORDS&&wordsSig()!==shown&&!$('#wdList').contains(document.activeElement)) renderWords();
+  await Promise.all([loadWords(fresh),fresh&&freshSettings()]); // the study log too: another device may have studied
+  if(run!==WD.run||prefs.nbTab!=='wd'||!WORDS) return;
+  if(wordsSig()!==shown&&!$('#wdList').contains(document.activeElement)) renderWords(); else wdProgress();
 }
 function renderWords(){
   const all=WORDS?[...WORDS.values()]:[];
@@ -1694,10 +1696,12 @@ function wdChips(){
   $('#wdChips').innerHTML=WD_CHIPS.map(([f,l])=>`<button class="chip" aria-pressed="${WD.f===f}" data-f="${f}">${l}${f==='sort'&&n!==null?` (${n})`:''}</button>`).join('');
 }
 // The Progress panel at the top of the tab, over every card whatever the chips, search and book filter show: the
-// counts line under the title, the figures (vocab.js progress(), which says what each counts), Study, and under "Reviews
-// by day" the cards coming up in the next two weeks. Shown once there's a card.
+// counts line under the title, the figures (vocab.js progress(), which says what each counts), the streak, Study, and
+// under "Reviews by day" the cards coming up in the next two weeks and the reviews of the last 30 days (the study log).
+// Shown once there's a card.
 function wdProgress(){
-  const all=WORDS?[...WORDS.values()]:[],nf=all.filter(isFact).length,now=Date.now();
+  const all=WORDS?[...WORDS.values()]:[],nf=all.filter(isFact).length,now=Date.now(),log=SETTINGS.studyLog,st=streak(log,now);
+  $('#wpStreak').textContent=st?`${st>=LOG_DAYS?LOG_DAYS+'+ day':st+'-day'} streak`:'';
   $('#wdStats').innerHTML=all.length?[all.length>nf&&nbCount(all.length-nf,'word'),nf&&nbCount(nf,'fact')].filter(Boolean).join(' · '):'';
   $('#wdProg').classList.toggle('hidden',!all.length);
   if(!all.length) return;
@@ -1706,7 +1710,9 @@ function wdProgress(){
     ['learning','Learning','Cards whose next review is under three weeks after the last'],['learned','Learned','Cards whose next review is three weeks or more after the last'],['total','Total','Every word and fact card']]
     .map(([k,label,tip])=>`<div class="wp-fig" data-k="${k}" title="${tip}"><dt>${label}</dt><dd>${p[k]}</dd></div>`).join('');
   const due=dueByDay(all,now,14);
-  $('#wpCharts').innerHTML=wpChart('Coming up',due,dayStart(now),0,'card',`${plural(due.reduce((a,b)=>a+b,0),'card')} in 14 days`,'Nothing due in the next two weeks.');
+  const done=reviewsByDay(log,now,30),sum=l=>l.reduce((a,b)=>a+b,0);
+  $('#wpCharts').innerHTML=wpChart('Coming up',due,dayStart(now),0,'card',`${plural(sum(due),'card')} in 14 days`,'Nothing due in the next two weeks.')+
+    wpChart('Reviewed',done,dayStart(now,-29),29,'review',`${plural(sum(done),'review')} in 30 days`,'No reviews in the last 30 days.');
 }
 // A bar per day, the first on the day starting at `from`, in one colour; today's bar (index `today`) carries its count.
 // Hovering or tapping a bar reads its day and count beside the title, and each bar says it to screen readers.
@@ -2015,7 +2021,7 @@ $('#sSave').onclick=async()=>{
 $('#backupBtn').onclick=async e=>{
   const b=e.currentTarget,label=b.textContent;b.disabled=true;b.textContent='Backing up…';
   try{
-    await DB.flush();const data=await exportShelf(DB,META,shelves());
+    await DB.flush();const data=await exportShelf(DB,META,shelves(),SETTINGS.studyLog);
     download(`own-shelf-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(data),'application/json');
     toast(`Backed up ${data.books.length} book${data.books.length===1?'':'s'}`);
   }catch(err){console.error(err);setErr('The backup failed. Try again.');}
@@ -2027,7 +2033,7 @@ $('#restoreFile').onchange=async e=>{
   $('#setErr').classList.add('hidden');
   let data;try{data=JSON.parse(await f.text());}catch(err){setErr('That file isn’t an own-shelf backup.');return;}
   try{
-    const r=await importShelf(DB,data,META,metaFor,shelves());if(r.shelves) SETTINGS={...SETTINGS,shelves:r.shelves};
+    const r=await importShelf(DB,data,META,metaFor,shelves());if(r.shelves) SETTINGS={...SETTINGS,shelves:r.shelves};if(r.studyLog) SETTINGS={...SETTINGS,studyLog:r.studyLog};
     r.metas.forEach(m=>{META=META.filter(x=>x.id!==m.id).concat(m);untrashBook(m.id);});
     closeModal('#setM');renderShelf();
     toast(r.added||r.merged?`Restored ${r.added} book${r.added===1?'':'s'}${r.highlights?` and ${r.highlights} highlight${r.highlights===1?'':'s'}`:''}`:'Everything in that backup is already here');
@@ -2147,15 +2153,23 @@ $('#trashEmpty').onclick=async()=>{
 /* ================= study ================= */
 // Flashcards for the saved words (word:<id>, see vocab.js). Opening builds the session's queue: every due word,
 // most overdue first, then new words (no srs yet), oldest first, at most STUDY_NEW a day; a new word counts toward
-// the day once rated (ls 'studyNew'). "Again" brings the card back STUDY_AGAIN cards later. Two kinds of card
+// the day once rated (the study log, see syLog). "Again" brings the card back STUDY_AGAIN cards later. Two kinds of card
 // (prefs.studyMode): 'word' shows the word and asks for its meaning; 'cloze' shows a sentence with the word blanked
 // out and the meaning as a hint, and asks for the word. srs.seen counts reviews; each one starts the examples one
 // further along, so the front sentence changes. Fact cards (vocab.js) share the queue, the schedule and the day's new
 // allowance; the card type doesn't apply to them.
 const STUDY_NEW=20,STUDY_AGAIN=5,RATINGS=['again','good','easy'];
 let SY={words:[],queue:[],i:0,shown:false,done:new Set()},syRun=0;
-const syDay=()=>{const d=new Date();return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;};
-const syNewToday=()=>{const c=ls.get('studyNew',null);return c&&c.day===syDay()?c.n:0;};
+// The study log (settings:app's studyLog, vocab.js): each rating counts toward its day, a new card's first toward the
+// day's new cards, which every device shares. It changes in memory and is written once: when Study closes (show) or the
+// page hides (persist), never per card, as settings:app writes go straight to Firestore. Opening Study reads settings:app
+// again first, so the write starts from the stored copy (another device's study or shelf changes).
+let syDirty=false;
+const syNewToday=()=>newOn(SETTINGS.studyLog,Date.now());
+function syLog(isNew){SETTINGS={...SETTINGS,studyLog:logReview(SETTINGS.studyLog,Date.now(),isNew)};syDirty=true;}
+function syFlush(){if(!syDirty||!DB) return;syDirty=false;SETTINGS={...SETTINGS,studyLog:pruneLog(SETTINGS.studyLog,Date.now())};DB.put('settings:app',SETTINGS);}
+// settings:app as stored, unless a count waits to be written; db: the store it was asked of, still the one in use
+async function freshSettings(){const db=DB,s=await db.get('settings:app').catch(()=>null);if(s&&db===DB&&!syDirty) SETTINGS=s;}
 const syMidnight=(t,days=0)=>{const d=new Date(t);d.setHours(24*days,0,0,0);return d.getTime();}; // local, so DST-safe
 // when the next card is due: "in 5 min", "later today", "tomorrow", "in 3 days"
 function syWhen(t,now){
@@ -2178,7 +2192,7 @@ async function openStudy(){
   const run=++syRun;SY={words:[],queue:[],i:0,shown:false,done:new Set()};
   show('study');window.scrollTo(0,0);syHead(false);
   $('#syCard').innerHTML='<div class="empty">Gathering your words…</div>';$('#syActs').innerHTML='';
-  let words=[];try{words=await DB.all('word:');}catch(e){console.warn('Study',e);}
+  let words=[];try{[words]=await Promise.all([DB.all('word:'),freshSettings()]);}catch(e){console.warn('Study',e);}
   if(run!==syRun) return;
   const now=Date.now();
   const due=words.filter(w=>w.srs&&isDue(w.srs,now)).sort((a,b)=>(a.srs.due||0)-(b.srs.due||0));
@@ -2240,7 +2254,7 @@ function syCard(w,now,front,back,show){
 function syShow(){if(SY.queue[SY.i]&&!SY.shown){SY.shown=true;syRender();}}
 function syRate(r){
   const w=SY.queue[SY.i];if(!w||!SY.shown) return;
-  if(!w.srs) ls.set('studyNew',{day:syDay(),n:syNewToday()+1});
+  syLog(!w.srs);
   w.srs=Object.assign(schedule(w.srs,r,Date.now()),{seen:((w.srs&&w.srs.seen)||0)+1});
   DB.put('word:'+w.id,w);SY.done.add(w.id);
   const c=wordsDb===DB&&WORDS&&WORDS.get(w.id);if(c&&c!==w) c.srs=w.srs; // the cached copy, written again by a later lookup, keeps it
@@ -2292,7 +2306,7 @@ async function loadFirebase(){
   return {A,F,auth:A.getAuth(fa),db};
 }
 async function start(store){
-  unwatch();if(DB) await DB.flush();
+  unwatch();syFlush();if(DB) await DB.flush();
   DB=store;await DB.open();DOC=null;ST=null;HL=[];
   // first shelf: wait briefly for the server when the offline cache is empty (a new device)
   META=await new Promise(res=>{let first=true,t=null;
@@ -2302,7 +2316,7 @@ async function start(store){
       META=list;if(onShelf())renderShelf();
     },e=>{syncError(e);settle([]);});
   });
-  SETTINGS=(await DB.get('settings:app'))||{};
+  SETTINGS=(await DB.get('settings:app'))||{};syDirty=false;
   purgeTrash();
   const last=ls.get('last',null);
   if(incoming){show('shelf');renderShelf();runIncoming();}
@@ -2388,7 +2402,7 @@ async function runIncoming(){
 }
 
 /* ================= keep changes when the tab is hidden or closed ================= */
-function persist(){(async()=>{if(DOC&&ST){ST.pos=scrollY;await saveState(true);}if(DB) await DB.flush();})();}
+function persist(){syFlush();(async()=>{if(DOC&&ST){ST.pos=scrollY;await saveState(true);}if(DB) await DB.flush();})();}
 addEventListener('pagehide',persist);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden') persist();});
 

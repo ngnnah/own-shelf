@@ -1,9 +1,11 @@
 // The Words tab's Progress panel. Usage: node tests/browser/progress.mjs [repo dir]
-// Cards with known schedules are written straight into the local store (IndexedDB "upwind", store "kv"); their due
-// times sit at fixed hours of local days, never minutes from now, so no time of day moves a card to another day.
+// Cards with known schedules and a study log are written straight into the local store (IndexedDB "upwind", store
+// "kv"); due times sit at fixed hours of local days, never minutes from now, so no time of day moves a card to another
+// day. Then the study log: Study writes the day's count once, when it closes or the page hides; another device's
+// count shows when the Notebook opens; the backup carries it.
 // Screenshots at 390×844, 320×568 and 1280×900, light and dark, go to tests/browser/out/progress/.
-import {start,enterLocalMode,sleep} from './lib.mjs';
-import {mkdirSync} from 'node:fs';
+import {start,enterLocalMode,sleep,waitForFile,dayKey,readSettings,setStudyLog} from './lib.mjs';
+import {mkdirSync,readFileSync} from 'node:fs';
 import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -37,8 +39,8 @@ const seed=(words,clear=false)=>page.evaluate((words,clear)=>new Promise((res,re
     if(clear) s.delete(IDBKeyRange.bound('word:','word:￿'));
     words.forEach(w=>s.put(w,'word:'+w.id));tx.oncomplete=()=>{r.result.close();res();};tx.onerror=()=>rej(tx.error);};
 }),words,clear);
-// the day's new-card count, as Study keeps it
-const setNewToday=n=>page.evaluate(n=>{const d=new Date();localStorage.setItem('upwind:studyNew',JSON.stringify({day:`${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`,n}));},n);
+// the day's new cards, in the study log as Study keeps it
+const setNewToday=n=>setStudyLog(page,{[dayKey()]:{reviews:n,new:n}});
 async function openWords(){
   await page.goto(t.base,{waitUntil:'networkidle0'});await page.waitForSelector('#shelf:not(.hidden)');
   await page.click('#nbBtn');await page.waitForSelector('#notebook:not(.hidden)');
@@ -140,9 +142,57 @@ await t.run(async()=>{
   ok('Study opens from the panel with the due cards first',/^1 of \d+$/.test(await text('#syProg'))&&['abate','bucolic'].includes(await page.$eval('#syCard .sy-term',e=>e.textContent)));
   await page.click('#syBack');await page.waitForSelector('#shelf:not(.hidden)');
 
-  /* ---------- only new cards: nothing coming up ---------- */
-  await seed(CARDS.filter(w=>!w.srs),true);await openWords();
+  /* ---------- the study log: the last 30 days and the streak ---------- */
+  const D=k=>dayKey(mid(k)),short=k=>page.evaluate(t=>new Date(t).toLocaleDateString(undefined,{month:'short',day:'numeric'}),mid(k));
+  await setStudyLog(page,{[D(-29)]:{reviews:4,new:1},[D(-3)]:{reviews:7,new:0},[D(-2)]:{reviews:1,new:0},[D(-1)]:{reviews:12,new:3},[D(-30)]:{reviews:50,new:0},[D(-61)]:{reviews:9,new:0}});
+  await openWords();
+  c=await chart('Reviewed');
+  ok('Reviewed: a bar per day for the last 30 days, today last (a day before them left out)',c&&c.bars.length===30&&same(c.bars.map(b=>b.n),[4,...Array(25).fill(0),7,1,12,0]));
+  ok('Reviewed: the sum, the axis from 29 days ago to Today, no label while today has no review',c.read==='24 reviews in 30 days'&&c.axis[0]===await short(-29)&&c.axis[1]==='Today'&&c.bars.every(b=>!b.em)&&c.bars[28].sr===c.bars[28].tip&&/: 12 reviews$/.test(c.bars[28].tip));
+  ok('the streak: 3 days in a row up to yesterday (today has none yet)',(await text('#wpStreak'))==='3-day streak'&&await vis('#wpStreak'));
+
+  // Study keeps the count in memory and writes it when the page hides and when Study closes, never per card
+  const todayLog=async want=>{let l;for(const end=Date.now()+5000;Date.now()<end;await sleep(50)){l=(((await readSettings(page))||{}).studyLog||{})[dayKey()];if(want(l))return l;}return l;};
+  const rate=async(k,prog)=>{await page.keyboard.press('Space');await sleep(30);await page.keyboard.press(k);await until(p=>document.querySelector('#syProg').textContent.startsWith(p)||document.querySelector('#syCard').textContent.includes('All caught up'),prog);};
+  await page.click('#wdStudy');await page.waitForSelector('#study:not(.hidden)');await until(()=>!document.querySelector('#syCard').textContent.includes('Gathering'));
+  await rate('2','2 of');await rate('2','3 of');
+  ok('two ratings, nothing written yet',!(await readSettings(page)).studyLog[dayKey()]);
+  await page.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>'hidden'});document.dispatchEvent(new Event('visibilitychange'));delete document.visibilityState;});
+  let l=await todayLog(l=>l&&l.reviews===2);
+  ok('the page hiding writes the count: 2 reviews today, no new card',same(l,{reviews:2,new:0}));
+  const third=await page.$eval('#syCard',e=>e.textContent);
+  await rate('3','4 of');
+  await page.click('#syBack');await page.waitForSelector('#shelf:not(.hidden)');
+  l=await todayLog(l=>l&&l.reviews===3);
+  ok('leaving Study writes the rest: 3 reviews today',l&&l.reviews===3&&l.new===(/halcyon/.test(third)?1:0));
+  ok('writing keeps the last 60 days and drops older ones',await readSettings(page).then(s=>!(D(-61) in s.studyLog)&&s.studyLog[D(-30)].reviews===50&&s.studyLog[D(-29)].reviews===4));
+  await page.click('#nbBtn');await page.waitForSelector('#notebook:not(.hidden)');await until(()=>!document.querySelector('#wdList').textContent.includes('Gathering'));
+  c=await chart('Reviewed');
+  ok('back in the Words tab: today’s bar, labelled, and the streak grown to 4',c.bars[29].n===3&&c.bars[29].em==='3'&&c.read==='27 reviews in 30 days'&&(await text('#wpStreak'))==='4-day streak');
+  ok('reviewed screenshots: no sideways scroll, light or dark',!(await shoot('reviewed')).length);
+
+  // another device studied 4 days ago: the Notebook reads settings:app again when it opens
+  await page.click('#nbBack');await page.waitForSelector('#shelf:not(.hidden)');
+  await setStudyLog(page,{...(await readSettings(page)).studyLog,[D(-4)]:{reviews:5,new:0}});
+  await page.click('#nbBtn');await page.waitForSelector('#notebook:not(.hidden)');
+  ok('another device’s day shows when the Notebook opens, without a reload',await until(()=>document.querySelector('#wpStreak').textContent==='5-day streak')&&(await chart('Reviewed')).read==='32 reviews in 30 days');
+
+  // the backup carries the log
+  await page.click('#nbBack');await page.waitForSelector('#shelf:not(.hidden)');
+  await page.click('#setBtn');await page.waitForSelector('#setM:not(.hidden)');await page.click('#backupBtn');
+  const f=await waitForFile(t.dl,/^own-shelf-backup-.*\.json$/),bk=f&&JSON.parse(readFileSync(join(t.dl,f),'utf8'));
+  ok('Back up shelf carries the study log',!!bk&&bk.studyLog[dayKey()].reviews===3&&bk.studyLog[D(-4)].reviews===5);
+  await page.click('#setM [data-cancel]');
+
+  // a streak longer than the log keeps
+  await setStudyLog(page,Object.fromEntries(Array.from({length:70},(_,i)=>[D(-i),{reviews:1,new:0}])));await openWords();
+  ok('a streak longer than the 60 days kept reads 60+',(await text('#wpStreak'))==='60+ day streak');
+
+  /* ---------- only new cards, no reviews: nothing to draw ---------- */
+  await seed(CARDS.filter(w=>!w.srs),true);await setStudyLog(page,{});await openWords();
   if(!(await page.$eval('#wpMore',d=>d.open))) await page.click('#wpMore>summary');
   c=await chart('Coming up');
   ok('only new cards: no bars, a line saying nothing is due',c.bars.length===0&&c.none==='Nothing due in the next two weeks.'&&same(await figs(),{'Due today':'0','New left':'4','Learning':'0','Learned':'0','Total':'4'}));
+  c=await chart('Reviewed');
+  ok('no reviews: a line saying so, and no streak',c.bars.length===0&&c.none==='No reviews in the last 30 days.'&&!(await vis('#wpStreak')));
 });

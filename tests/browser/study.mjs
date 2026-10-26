@@ -1,7 +1,7 @@
 // Study: flashcards for saved words. Usage: node tests/browser/study.mjs [repo dir]
 // Words are written straight into the local store (IndexedDB "upwind", store "kv"), then /?study=1 opens Study.
 // Screenshots of each state at 390×844 and 1280×900, light and dark, go to tests/browser/out/study/.
-import {start,enterLocalMode,sleep} from './lib.mjs';
+import {start,enterLocalMode,sleep,dayKey,readSettings,setStudyLog} from './lib.mjs';
 import {mkdirSync} from 'node:fs';
 import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -43,8 +43,10 @@ const readWord=id=>page.evaluate(id=>new Promise((res,rej)=>{
 // the stored word once cond holds (the app saves without waiting), or the last read after 5 s
 async function stored(id,cond){let w;for(const end=Date.now()+5000;Date.now()<end;await sleep(50)){w=await readWord(id);if(w&&cond(w))return w;}return w;}
 const near=(t,want)=>Math.abs(t-want)<2*MIN;
-// the day's new-word count, as the app keys it (local date)
-const setNewToday=n=>page.evaluate(n=>{const d=new Date();localStorage.setItem('upwind:studyNew',JSON.stringify({day:`${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`,n}));},n);
+// settings:app once its log has today's entry changed from the seeded one (the app writes without waiting)
+async function storedLog(){let x;for(const end=Date.now()+5000;Date.now()<end;await sleep(50)){x=await readSettings(page);if(x&&x.studyLog&&x.studyLog[dayKey()]&&x.studyLog[dayKey()].reviews!==18)return x;}return x;}
+// the day's new words, in the study log (settings:app)
+const setNewToday=n=>setStudyLog(page,{[dayKey()]:{reviews:n,new:n}});
 async function openStudy(){
   await page.goto(t.base+'?study=1',{waitUntil:'networkidle0'});
   await page.waitForSelector('#study:not(.hidden)');
@@ -94,7 +96,7 @@ await t.run(async()=>{
 
   /* ---------- the queue ---------- */
   await seed([A,B,C,...NEW]);
-  await page.evaluate(()=>localStorage.setItem('upwind:studyNew',JSON.stringify({day:'2000-1-1',n:20}))); // an old day doesn't count
+  await setStudyLog(page,{'2000-01-01':{reviews:20,new:20}}); // an old day doesn't count
   await openStudy();
   let c=await card();
   ok('queue: the 2 due words and 20 of the 22 new ones (pellucid isn’t due)',c.prog==='1 of 22');
@@ -162,7 +164,10 @@ await t.run(async()=>{
   ok('done: All caught up, how many reviewed, next review tomorrow',done.includes('All caught up')&&done.includes('You reviewed 4 words.')&&nextNew.test(done));
   ok('done: no progress or toggle',(await text('#syProg'))===''&&!(await vis('#syMode')));
   ok('done: no sideways scroll, button on screen',!(await shoot('done')).length);
-  ok('the day’s count includes the 2 new words rated',await page.evaluate(()=>JSON.parse(localStorage.getItem('upwind:studyNew')).n)===20);
+  ok('the day’s count waits in memory while Study is open: nothing written per card',JSON.stringify((await readSettings(page)).studyLog)===JSON.stringify({[dayKey()]:{reviews:18,new:18}}));
+  await page.click('#syActs [data-sy="back"]');await page.waitForSelector('#shelf:not(.hidden)');
+  let log=(await storedLog()).studyLog;
+  ok('leaving Study writes it once: 5 more reviews (Again’s repeat too), 2 more new words',JSON.stringify(log)===JSON.stringify({[dayKey()]:{reviews:23,new:20}}));
   await openStudy();
   ok('with the day’s new words used up and nothing due: done at once',(await text('#syCard')).includes('Nothing is due right now.')&&nextNew.test(await text('#syCard')));
 
@@ -170,7 +175,7 @@ await t.run(async()=>{
   const X={id:'wx',term:'sonorous',def:'Deep and full in sound.',pos:'adjective',defSource:'Datamuse',added:now-9*DAY,
     examples:[ex('The bell was sonorous in the cold air.','sonorous','Winter Bells')],srs:{due:now-DAY,interval:3,ease:2.5,reps:2,lapses:0}};
   const Y={id:'wy',term:'quixotic',def:'',pos:'adjective',defSource:'',added:now-8*DAY,examples:[ex('It was a quixotic plan to sail alone.','quixotic','The Long Road')]};
-  await seed([X,Y],true);await page.evaluate(()=>localStorage.removeItem('upwind:studyNew'));
+  await seed([X,Y],true);await setStudyLog(page,{});
   await openStudy();
   ok('two cards',(await card()).prog==='1 of 2'&&(await card()).term==='sonorous');
   await page.click('#syMode [data-m="cloze"]');

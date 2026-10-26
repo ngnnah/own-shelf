@@ -597,6 +597,8 @@ body:has(#noteBox:not(.hidden),#wordBox:not(.hidden)) #toast{top:calc(env(safe-a
 .wp{max-width:46rem;background:var(--sheet);border:1.5px solid var(--rule);border-radius:18px;padding:.75rem 1rem .55rem;margin:0 0 1.3rem}
 .wp-head{display:flex;align-items:center;flex-wrap:wrap;gap:.3rem .8rem}
 .wp-head h2{font:600 1.3rem/1.2 var(--display);margin:0}
+.wp-streak{font:500 .82rem var(--ui);color:var(--muted)}
+.wp-streak:empty{display:none}
 #wdStudy{margin-left:auto;flex:none;padding:.48rem 1.15rem;font-size:1rem}
 .wp-figs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.5rem;margin:.6rem 0 0}
 .wp-fig{display:flex;flex-direction:column-reverse;justify-content:flex-end;min-width:0}

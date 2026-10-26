@@ -38,7 +38,9 @@
 //                   their saved schedule, Again, keys, Sentence → word, done and empty states, ?study=1
 //   progress.mjs    the Words tab's Progress panel: its figures for cards with known schedules (due today, new left,
 //                   learning, learned, total), the two-week chart of reviews coming up (the bars, today's count, hover
-//                   and tap, folded on a phone and remembered), Study from the panel, compact at 320 px, light and dark
+//                   and tap, folded on a phone and remembered), Study from the panel, compact at 320 px, light and dark;
+//                   the study log: the last 30 days' reviews and the streak, written once when Study closes or the page
+//                   hides (never per card), another device's days on opening the Notebook, in the backup
 //   linkimport.mjs  link import's article extraction: a summary in the article's <header> survives Readability
 //   sort.mjs        To sort: Coral highlights (Kindle red and pink) become words (tap) or fact cards (a
 //                   selected phrase as the blank), Skip and Show skipped, Make the rest facts, the sorting surviving

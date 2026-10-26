@@ -123,6 +123,49 @@ export function dueByDay(cards, now, days = 14) {
   return out;
 }
 
+/* ---------- the study log: settings:app's studyLog ---------- */
+// By local date, { 'YYYY-MM-DD': { reviews, new } }: every rating Study saved that day (Again's repeats too), and how
+// many of them were a new card's first rating, which counts toward the day's new cards. The panel draws the last 30
+// days and the streak from it. Kept LOG_DAYS days.
+export const LOG_DAYS = 60;
+export const dayKey = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const DAY_KEY = /^\d{4}-\d\d-\d\d$/, num = x => Number.isFinite(x) && x > 0 ? Math.floor(x) : 0;
+const countOn = (log, t, k) => { const d = log && log[dayKey(t)]; return d ? num(d[k]) : 0; };
+// The log with one rating made at `now` counted; isNew: the card had never been rated.
+export function logReview(log, now, isNew) {
+  const k = dayKey(now), d = (log && log[k]) || {};
+  return { ...log, [k]: { reviews: num(d.reviews) + 1, new: num(d.new) + (isNew ? 1 : 0) } };
+}
+// New cards rated on the day of t.
+export const newOn = (log, t) => countOn(log, t, 'new');
+// The days of the last `keep` (today included); older entries and anything that isn't a day go.
+export function pruneLog(log, now, keep = LOG_DAYS) {
+  const from = dayKey(dayStart(now, 1 - keep));
+  return Object.fromEntries(Object.entries(log || {}).filter(([k, v]) => DAY_KEY.test(k) && k >= from && v && typeof v === 'object'));
+}
+// Reviews on each of the last `days` days, today last.
+export const reviewsByDay = (log, now, days = 30) => Array.from({ length: days }, (_, i) => countOn(log, dayStart(now, i + 1 - days), 'reviews'));
+// Days in a row with a review, up to today, or up to yesterday while today has none yet: a streak ends only once a
+// whole day passes without one. At most LOG_DAYS, as the log keeps no more (the panel says "60+").
+export function streak(log, now) {
+  const from = countOn(log, now, 'reviews') ? 0 : -1;
+  let n = 0;
+  while (n < LOG_DAYS && countOn(log, dayStart(now, from - n), 'reviews')) n++;
+  return n;
+}
+// A backup's log into this one: each day gets the larger of each count, so restoring twice changes nothing.
+// → the merged log, or null when the backup adds nothing.
+export function mergeLog(have, from) {
+  const out = { ...(have || {}) };
+  let added = false;
+  for (const [k, v] of Object.entries(from || {})) {
+    if (!DAY_KEY.test(k) || !v || typeof v !== 'object') continue;
+    const h = out[k] || {}, reviews = Math.max(num(h.reviews), num(v.reviews)), nw = Math.max(num(h.new), num(v.new));
+    if (reviews !== num(h.reviews) || nw !== num(h.new)) { out[k] = { reviews, new: nw }; added = true; }
+  }
+  return added ? out : null;
+}
+
 /* ---------- dictionaries (free, no key, CORS-enabled) ---------- */
 // Datamuse first: plain-text definitions with a part of speech.
 export const datamuseUrl = term => `https://api.datamuse.com/words?sp=${encodeURIComponent(termKey(term))}&md=d&max=1`;
