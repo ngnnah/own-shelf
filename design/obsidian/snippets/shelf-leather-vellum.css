@@ -1,0 +1,311 @@
+/* shelf-leather-vellum.css
+   own-shelf look: Leather & vellum (own-shelf/design/looks.json, the pinned "Leather & vellum 3"), day and night.
+   A bound book: warm vellum pages and dark brown ink, navy tooled-leather bars with gilt fillets,
+   library-green and oxblood accents, IM Fell English headings. Night is the same book under a lamp.
+   Enable one shelf snippet at a time: Settings > Appearance > CSS snippets.
+   Light and dark follow Obsidian's base colour scheme (Settings > Appearance > Base color scheme).
+   No plugins, no remote images: textures are small inline SVGs (feTurbulence) from own-shelf's themes lab.
+
+   Fonts: nothing is downloaded. Each stack starts with the own-shelf font, used if it is installed,
+   and falls back to fonts that ship on macOS and iOS. To fetch the own-shelf fonts instead, uncomment
+   the next line; Obsidian then requests them from Google Fonts on every launch (and needs a network).
+*/
+/* @import url("https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=EB+Garamond:ital,wght@0,400..700;1,400..700&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..500&display=swap"); */
+
+:root body.theme-light {
+  /* Day */
+  --shelf-paper: #F1E3C4;
+  --shelf-sheet: #F9F2E4;
+  --shelf-ink: #2A1B10;
+  --shelf-muted: #665746;
+  --shelf-faint: #8A7B66;
+  --shelf-accent: #2C5236;
+  --shelf-accent-hover: #2C442D;
+  --shelf-mark: #8E1B2B;
+  --shelf-mark-text: #8E1B2B;
+  --shelf-h2: #2C5236;
+  --shelf-h3: #8E1B2B;
+  --shelf-gilt: #D4AF5A;
+  --shelf-rule: #997D40;
+  --shelf-marker: #997D40;
+  --shelf-quote: #997D40;
+  --shelf-quote-bg: #EEDEB9;
+  --shelf-secondary: #EDDCB5;
+  --shelf-secondary-alt: #F9F2E4;
+  --shelf-primary-alt: #EADCBE;
+  --shelf-border: #CDB88B;
+  --shelf-border-hover: #B09C75;
+  --shelf-code-bg: #DFD6B7;
+  --shelf-code-pre-bg: #F6EDD9;
+  --shelf-code-keyword: #8E1B2B;
+  --shelf-code-string: #2C5236;
+  --shelf-code-comment: #665746;
+  --shelf-table-head: #EBD9AF;
+  --shelf-highlight: rgba(255, 212, 59, 0.6);
+  --shelf-selection: color-mix(in srgb, #2C5236 22%, transparent);
+  --shelf-chrome: #1E2A3A;
+  --shelf-chrome-hi: #353F4E;
+  --shelf-chrome-deep: #17212D;
+  --shelf-chrome-ink: #F8F1E2;
+  --shelf-chrome-ink-soft: #BBB9B3;
+  --shelf-band-rule: #D4AF5A;
+  --shelf-wave: #DFC382;
+  --shelf-paper-tex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cdefs%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.006' numOctaves='4' seed='5' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.533 0 0 0 0 0.424 0 0 0 0 0.224 0.6 0 0 0 -0.255'/%3E%3C/filter%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='9' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.165 0 0 0 0 0.106 0 0 0 0 0.063 0.162 0 0 0 -0.061'/%3E%3C/filter%3E%3C/defs%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --shelf-chrome-tex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='l' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.62' numOctaves='2' seed='3' stitchTiles='stitch'/%3E%3CfeDiffuseLighting surfaceScale='1.8' lighting-color='%23fff'%3E%3CfeDistantLight azimuth='225' elevation='58'/%3E%3C/feDiffuseLighting%3E%3CfeColorMatrix values='1.3 0 0 0 -0.6 1.3 0 0 0 -0.6 1.3 0 0 0 -0.6 0 0 0 0 0.722'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23l)'/%3E%3C/svg%3E");
+
+  /* Obsidian's neutral ramp, re-tinted from page to ink (menus, modals, settings) */
+  --color-base-00: #F9F2E4;
+  --color-base-05: #F5EBD4;
+  --color-base-10: #F1E3C4;
+  --color-base-20: #E9DBBD;
+  --color-base-25: #E1D3B6;
+  --color-base-30: #D5C7AB;
+  --color-base-35: #C9BBA0;
+  --color-base-40: #B1A38A;
+  --color-base-50: #9D8F78;
+  --color-base-60: #766754;
+  --color-base-70: #665746;
+  --color-base-100: #2A1B10;
+  --accent-h: 136; --accent-s: 30%; --accent-l: 25%;
+
+  /* callouts, in the look's inks */
+  --callout-default: #2C5236; --callout-info: #2C5236; --callout-todo: #2C5236; --callout-summary: #2C5236; --callout-tip: #2C5236;
+  --callout-question: #8E1B2B; --callout-warning: #8E1B2B; --callout-important: #8E1B2B; --callout-fail: #8E1B2B; --callout-error: #8E1B2B; --callout-bug: #8E1B2B;
+  --callout-success: #997D40;
+  --callout-example: #665746; --callout-quote: #665746;
+  --text-on-accent: #F9F2E4;
+  --text-on-accent-inverted: #2A1B10;
+}
+
+:root body.theme-dark {
+  /* Night */
+  --shelf-paper: #1A1310;
+  --shelf-sheet: #251E19;
+  --shelf-ink: #EBDCBB;
+  --shelf-muted: #ACA088;
+  --shelf-faint: #6E6354;
+  --shelf-accent: #A9CBA2;
+  --shelf-accent-hover: #BAD5B5;
+  --shelf-mark: #C4524F;
+  --shelf-mark-text: #C9665E;
+  --shelf-h2: #A9CBA2;
+  --shelf-h3: #C9665E;
+  --shelf-gilt: #B98F45;
+  --shelf-rule: #B98F45;
+  --shelf-marker: #B98F45;
+  --shelf-quote: #B98F45;
+  --shelf-quote-bg: #281E15;
+  --shelf-secondary: #15100D;
+  --shelf-secondary-alt: #271F1A;
+  --shelf-primary-alt: #221B17;
+  --shelf-border: #3B332B;
+  --shelf-border-hover: #50473C;
+  --shelf-code-bg: #28251F;
+  --shelf-code-pre-bg: #241D19;
+  --shelf-code-keyword: #CD736A;
+  --shelf-code-string: #A9CBA2;
+  --shelf-code-comment: #ACA088;
+  --shelf-table-head: #281E15;
+  --shelf-highlight: rgba(255, 212, 59, 0.38);
+  --shelf-selection: color-mix(in srgb, #A9CBA2 30%, transparent);
+  --shelf-chrome: #18202E;
+  --shelf-chrome-hi: #28303D;
+  --shelf-chrome-deep: #131924;
+  --shelf-chrome-ink: #EBDCBB;
+  --shelf-chrome-ink-soft: #B0A794;
+  --shelf-band-rule: #B98F45;
+  --shelf-wave: #5D4726;
+  --shelf-paper-tex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cdefs%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.006' numOctaves='4' seed='5' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.2 0 0 0 -0.51'/%3E%3C/filter%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='9' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.09 0 0 0 -0.034'/%3E%3C/filter%3E%3C/defs%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --shelf-chrome-tex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='l' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.62' numOctaves='2' seed='3' stitchTiles='stitch'/%3E%3CfeDiffuseLighting surfaceScale='1.8' lighting-color='%23fff'%3E%3CfeDistantLight azimuth='225' elevation='58'/%3E%3C/feDiffuseLighting%3E%3CfeColorMatrix values='1.3 0 0 0 -0.6 1.3 0 0 0 -0.6 1.3 0 0 0 -0.6 0 0 0 0 0.722'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23l)'/%3E%3C/svg%3E");
+
+  /* Obsidian's neutral ramp, re-tinted from page to ink (menus, modals, settings) */
+  --color-base-00: #1A1310;
+  --color-base-05: #1E1713;
+  --color-base-10: #211A16;
+  --color-base-20: #251E19;
+  --color-base-25: #2B231E;
+  --color-base-30: #312923;
+  --color-base-35: #3B332B;
+  --color-base-40: #50473C;
+  --color-base-50: #655B4E;
+  --color-base-60: #8D826E;
+  --color-base-70: #ACA088;
+  --color-base-100: #EBDCBB;
+  --accent-h: 110; --accent-s: 28%; --accent-l: 72%;
+
+  /* callouts, in the look's inks */
+  --callout-default: #A9CBA2; --callout-info: #A9CBA2; --callout-todo: #A9CBA2; --callout-summary: #A9CBA2; --callout-tip: #A9CBA2;
+  --callout-question: #C9665E; --callout-warning: #C9665E; --callout-important: #C9665E; --callout-fail: #C9665E; --callout-error: #C9665E; --callout-bug: #C9665E;
+  --callout-success: #B98F45;
+  --callout-example: #ACA088; --callout-quote: #ACA088;
+  --text-on-accent: #1A1310;
+  --text-on-accent-inverted: #EBDCBB;
+}
+
+/* ── Obsidian variables, both modes (values come from the --shelf-* palette above) ── */
+:root body.theme-light, :root body.theme-dark {
+  --shelf-display: "IM Fell English", "EB Garamond", "Hoefler Text", "Iowan Old Style", Palatino, Georgia, serif;
+  --shelf-body: "Newsreader", "Iowan Old Style", Palatino, Georgia, serif;
+  --font-text-theme: var(--shelf-body);
+
+  --background-primary: var(--shelf-paper);
+  --background-primary-alt: var(--shelf-primary-alt);
+  --background-secondary: var(--shelf-secondary);
+  --background-secondary-alt: var(--shelf-secondary-alt);
+  --background-modifier-border: var(--shelf-border);
+  --background-modifier-border-hover: var(--shelf-border-hover);
+  --background-modifier-border-focus: var(--shelf-accent);
+  --background-modifier-hover: color-mix(in srgb, var(--shelf-ink) 7%, transparent);
+  --background-modifier-active-hover: color-mix(in srgb, var(--shelf-accent) 14%, transparent);
+  --background-modifier-form-field: var(--shelf-sheet);
+  --divider-color: var(--shelf-border);
+
+  --text-normal: var(--shelf-ink);
+  --text-muted: var(--shelf-muted);
+  --text-faint: var(--shelf-faint);
+  --text-accent: var(--shelf-accent);
+  --text-accent-hover: var(--shelf-accent-hover);
+  --text-selection: var(--shelf-selection);
+  --text-highlight-bg: var(--shelf-highlight);
+  --caret-color: var(--shelf-accent);
+  --interactive-accent: var(--shelf-accent);
+  --interactive-accent-hover: var(--shelf-accent-hover);
+  --bold-color: var(--shelf-ink);
+
+  --h1-font: var(--shelf-display); --h2-font: var(--shelf-display); --h3-font: var(--shelf-display);
+  --h4-font: var(--shelf-display); --h5-font: var(--shelf-display); --h6-font: var(--shelf-display);
+  --h1-weight: 400; --h2-weight: 400; --h3-weight: 400;
+  --h4-weight: 400; --h5-weight: 400; --h6-weight: 400;
+  --h1-size: 1.75em; --h2-size: 1.5em; --h3-size: 1.22em; --h4-size: 1.1em; --h5-size: 1em; --h6-size: 0.94em;
+  --h1-color: var(--shelf-ink); --h2-color: var(--shelf-h2); --h3-color: var(--shelf-h3);
+  --h4-color: var(--shelf-ink); --h5-color: var(--shelf-muted); --h6-color: var(--shelf-muted);
+  --heading-formatting: var(--shelf-faint);
+  --inline-title-color: var(--shelf-ink);
+
+  --link-color: var(--shelf-accent); --link-color-hover: var(--shelf-accent-hover);
+  --link-external-color: var(--shelf-accent); --link-external-color-hover: var(--shelf-accent-hover);
+  --link-unresolved-color: var(--shelf-mark-text);
+  --list-marker-color: var(--shelf-marker); --list-marker-color-hover: var(--shelf-accent);
+  --list-marker-color-collapsed: var(--shelf-accent);
+  --checkbox-color: var(--shelf-accent); --checkbox-color-hover: var(--shelf-accent-hover);
+  --checkbox-border-color: var(--shelf-faint);
+  --hr-color: var(--shelf-rule); --hr-thickness: 1px;
+
+  --blockquote-border-thickness: 3px;
+  --blockquote-border-color: var(--shelf-quote);
+  --blockquote-background-color: var(--shelf-quote-bg);
+  --blockquote-color: inherit;
+  --blockquote-font-style: normal;
+
+  --code-background: var(--shelf-code-bg);
+  --code-normal: var(--shelf-ink);
+  --code-comment: var(--shelf-code-comment);
+  --code-keyword: var(--shelf-code-keyword);
+  --code-important: var(--shelf-code-keyword);
+  --code-tag: var(--shelf-code-keyword);
+  --code-string: var(--shelf-code-string);
+  --code-function: var(--shelf-ink);
+  --code-property: var(--shelf-code-string);
+  --code-value: var(--shelf-code-keyword);
+  --code-operator: var(--shelf-muted);
+  --code-punctuation: var(--shelf-muted);
+
+  --table-border-color: var(--shelf-border);
+  --table-header-border-color: var(--shelf-border);
+  --table-header-background: var(--shelf-table-head);
+  --table-header-color: var(--shelf-ink);
+  --table-header-weight: 600;
+  --table-row-background-hover: color-mix(in srgb, var(--shelf-ink) 4%, transparent);
+
+  /* the bars: tooled leather with gilt fillets */
+  --titlebar-background: var(--shelf-chrome); --titlebar-background-focused: var(--shelf-chrome);
+  --titlebar-text-color: var(--shelf-chrome-ink-soft); --titlebar-text-color-focused: var(--shelf-chrome-ink);
+  --titlebar-border-color: var(--shelf-band-rule);
+  --ribbon-background: var(--shelf-chrome); --ribbon-background-collapsed: var(--shelf-chrome);
+  --status-bar-background: var(--shelf-chrome); --status-bar-text-color: var(--shelf-chrome-ink-soft);
+  --status-bar-border-color: var(--shelf-band-rule);
+  --tab-outline-color: var(--shelf-band-rule);
+  --tab-divider-color: color-mix(in srgb, var(--shelf-chrome-ink) 22%, transparent);
+  --tab-background-active: var(--shelf-paper);
+  --tab-text-color: var(--shelf-chrome-ink-soft);
+  --tab-text-color-active: var(--shelf-chrome-ink);
+  --tab-text-color-focused: var(--shelf-chrome-ink-soft);
+  --tab-text-color-focused-active: var(--shelf-chrome-ink);
+  --tab-text-color-focused-active-current: var(--shelf-chrome-ink);
+  --tab-text-color-focused-highlighted: var(--shelf-chrome-ink);
+}
+
+/* Reading text: a little more leading than Obsidian's 1.5, for a book page. */
+.markdown-source-view, .markdown-rendered { --line-height-normal: 1.6; }
+
+/* ── paper ── */
+.workspace-split.mod-root .view-content,
+.workspace-leaf-content.is-read-mode .markdown-preview-view {
+  background-image: var(--shelf-paper-tex);
+}
+
+/* ── bars: tab bars, ribbon, status bar ── */
+.workspace-tab-header-container {
+  --tab-container-background: var(--shelf-chrome);
+  /* a gilt fillet 4px above the bottom edge; the tab outline is the second; the open tab covers both */
+  background-image: linear-gradient(var(--shelf-gilt), var(--shelf-gilt)), var(--shelf-chrome-tex),
+    linear-gradient(180deg, var(--shelf-chrome-hi), var(--shelf-chrome) 55%, var(--shelf-chrome-deep));
+  background-size: 100% 1px, auto, auto;
+  background-position: 0 calc(100% - 4px), 0 0, 0 0;
+  background-repeat: no-repeat, repeat, no-repeat;
+  background-blend-mode: normal, overlay, normal;
+}
+.workspace-ribbon {
+  background-image: var(--shelf-chrome-tex), linear-gradient(90deg, var(--shelf-chrome-deep), var(--shelf-chrome-hi) 45%, var(--shelf-chrome-deep));
+  background-blend-mode: overlay, normal;
+  box-shadow: inset -1px 0 0 var(--shelf-gilt);
+}
+.status-bar {
+  background-image: var(--shelf-chrome-tex);
+  background-blend-mode: overlay;
+}
+/* icons and labels on the bars use the bar's ink */
+.workspace-tab-header-container, .workspace-ribbon, .status-bar, .titlebar, .sidebar-toggle-button {
+  --icon-color: var(--shelf-chrome-ink-soft);
+  --icon-color-hover: var(--shelf-chrome-ink);
+  --icon-color-focused: var(--shelf-chrome-ink);
+  --icon-color-active: var(--shelf-chrome-ink);
+  --text-normal: var(--shelf-chrome-ink);
+  --text-muted: var(--shelf-chrome-ink-soft);
+  --text-faint: var(--shelf-chrome-ink-soft);
+  --background-modifier-hover: color-mix(in srgb, var(--shelf-chrome-ink) 14%, transparent);
+}
+/* the open note's tab is cut from the page, so it takes the page's ink */
+.workspace-split.mod-root .workspace-tab-header.is-active {
+  --icon-color: var(--shelf-muted);
+  --icon-color-hover: var(--shelf-ink);
+  --icon-color-focused: var(--shelf-ink);
+  --text-normal: var(--shelf-ink);
+  --text-muted: var(--shelf-muted);
+  --text-faint: var(--shelf-faint);
+  --background-modifier-hover: color-mix(in srgb, var(--shelf-ink) 8%, transparent);
+  --tab-text-color-active: var(--shelf-muted);
+  --tab-text-color-focused-active: var(--shelf-muted);
+  --tab-text-color-focused-active-current: var(--shelf-ink);
+  --tab-text-color-focused-highlighted: var(--shelf-accent);
+}
+/* phone: no tab bar, so the note's header gets a thin band of the bars instead (kept off the iOS status bar) */
+.is-phone .workspace-leaf-content .view-header {
+  border-bottom: 4px solid var(--shelf-chrome);
+  box-shadow: 0 1px 0 var(--shelf-band-rule);
+}
+
+/* ── headings ── */
+/* H2 sits on a double gilt rule, like the fillets on a spine */
+.markdown-rendered h2,
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-header-2 {
+  border-bottom: 3px double var(--shelf-rule);
+  padding-bottom: 0.12em;
+}
+
+/* ── lists, code ── */
+.markdown-rendered pre { border: 1px solid var(--shelf-border); }
+.markdown-rendered pre, .markdown-source-view.mod-cm6 .cm-line.HyperMD-codeblock { background-color: var(--shelf-code-pre-bg); }
+/* a quote that opens a list item (a desk answer, "- >> yes") sits beside its bullet, not a line below it */
+.markdown-rendered li > .list-bullet + blockquote,
+.markdown-rendered li > .list-bullet + blockquote blockquote:first-child { margin-top: 0; }
