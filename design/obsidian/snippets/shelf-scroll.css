@@ -333,12 +333,12 @@
   background-position: 0 0, 100% 0, 0 0, 0 0;
   background-repeat: no-repeat, no-repeat, repeat, no-repeat;
 }
-/* Reading view only: a red drop cap on the note's first paragraph. The pusher check keeps it off whichever
-   paragraph happens to come first once Obsidian has unloaded the top of a long note. */
-.markdown-preview-pusher[style*="margin-bottom: 0px"] ~ .el-p:not(.el-p ~ .el-p) > p:first-child {
+/* Reading view only: a red drop cap on a paragraph that opens the note right under its H1. The H1 and that
+   paragraph render and unload together, so the cap never comes and goes, and resizes the page, as you scroll. */
+.el-h1 + .el-p > p:first-child {
   display: flow-root;
 }
-.markdown-preview-pusher[style*="margin-bottom: 0px"] ~ .el-p:not(.el-p ~ .el-p) > p:first-child::first-letter {
+.el-h1 + .el-p > p:first-child::first-letter {
   float: left;
   font-family: var(--shelf-display);
   font-weight: 400;
@@ -347,8 +347,8 @@
   padding: 0.08em 0.1em 0 0;
   color: var(--shelf-mark);
 }
-/* a wax seal under the last line, in both views: below the text, never over it */
-.mod-root .workspace-leaf-content[data-type="markdown"] .cm-sizer::after,
+/* a wax seal under the last line, in reading view: below the text, never over it. Not in the editor, whose
+   scroll height CodeMirror works out itself. */
 .mod-root .workspace-leaf-content[data-type="markdown"] .mod-footer::before {
   content: "";
   display: block;
