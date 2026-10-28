@@ -763,3 +763,14 @@ body:has(#noteBox:not(.hidden),#wordBox:not(.hidden)) #toast{top:calc(env(safe-a
 .sy-end .sy-next{color:var(--ink);font:600 1.2rem var(--display);margin-top:.5rem}
 /* wider screens: the card and its buttons sit together in the middle */
 @media (min-width:701px){.sy-main{justify-content:center}#syCard{margin:0;padding:2rem 0 .4rem}.sy-acts{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 2rem)}}
+
+/* ===== Listen (read aloud): the sentence and the word being read, as CSS Custom Highlights (the text's DOM is
+   untouched); without the API, the whole block. Tokens only, so every theme and Look colours them. ===== */
+#bListen[data-ls="on"]{background:color-mix(in srgb,var(--sea) 18%,transparent);color:var(--sea)}
+::highlight(listen){background-color:color-mix(in srgb,var(--sea) 16%,transparent)}
+::highlight(listen-word){background-color:color-mix(in srgb,var(--sea) 32%,transparent);text-decoration:underline 2px var(--sea)}
+.hp.ls-whole{background:color-mix(in srgb,var(--sea) 12%,transparent);border-radius:6px;box-shadow:0 0 0 .25em color-mix(in srgb,var(--sea) 12%,transparent)}
+body.focus .hp.ls-block{opacity:1}
+/* Listen makes seven buttons in the bar: phones narrow their sides */
+@media (max-width:440px){.bar-in .ib{padding-left:.3rem;padding-right:.3rem}}
+@media (max-width:360px){.bar-in .ib{padding-left:.16rem;padding-right:.16rem}.bar-in .home{padding-left:.55rem;padding-right:.7rem}}

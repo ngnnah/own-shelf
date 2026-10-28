@@ -105,6 +105,7 @@
   <div class="bar-in">
     <button class="home" id="bHome" title="Back to your shelf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="M16.5 5.2l3.6-1 3.4 15.4-3.6 1z"/></svg>Shelf</button>
     <button class="bar-title" id="barTitle" title="Edit details"></button>
+    <button class="ib hidden" id="bListen" title="Listen: read aloud from here" aria-label="Listen"></button>
     <button class="ib" id="bToc" title="Contents"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor"/></svg><span class="lbl">Contents</span></button>
     <button class="ib" id="bFind" title="Search this text"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span class="lbl">Search</span></button>
     <button class="ib" id="bFocus" aria-pressed="false" title="Focus mode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/></svg><span class="lbl">Focus</span></button>
@@ -254,6 +255,10 @@
     <div class="opt"><span id="sMeanH">Colour meanings</span>
       <div class="cm-list" id="sMeanings" role="group" aria-labelledby="sMeanH"></div>
       <p class="set-hint">What each highlight colour stands for. The toolbar, chips, groups and exports show these names.</p>
+    </div>
+    <div class="opt hidden" id="sListen"><span id="sRateH">Listen speed</span>
+      <div><div class="seg" id="sRate" role="group" aria-labelledby="sRateH"><button data-r="0.8">0.8×</button><button data-r="1">1×</button><button data-r="1.25">1.25×</button><button data-r="1.5">1.5×</button><button data-r="2">2×</button></div></div>
+      <p class="set-hint">How fast Listen reads aloud in the reader, on this device.</p>
     </div>
     <div class="opt"><span>Backup</span>
       <div class="set-row"><button class="btn ghost" id="backupBtn">Back up shelf</button><button class="btn ghost" id="restoreBtn">Restore from backup</button></div>
