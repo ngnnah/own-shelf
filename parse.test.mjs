@@ -137,4 +137,22 @@ const orig=[H('ha',1,[['b1',18,27]],{note:'a'})],copy=JSON.stringify(orig),f1=fr
 join(orig,f1);
 ok('join: changes neither the highlights nor the new one',JSON.stringify(orig)===copy&&JSON.stringify(f1)===fcopy);
 
+/* ---------- read aloud: the pieces Listen speaks ---------- */
+const {speechChunks,speechWord}=P.module.exports;
+const said=(t,...a)=>speechChunks(t,...a).map(([s,e])=>t.slice(s,e));
+const sp2='The tide came in over the long grey stones. The keeper lit the lamp at six o’clock!';
+ok('speech: one piece per sentence, offsets into the text',JSON.stringify(said(sp2))===JSON.stringify(['The tide came in over the long grey stones.','The keeper lit the lamp at six o’clock!']));
+ok('speech: closing quotes stay with their sentence',JSON.stringify(said('He said, “Hold the rope tight, all of you.” Then the wind rose over the harbour wall.'))===JSON.stringify(['He said, “Hold the rope tight, all of you.”','Then the wind rose over the harbour wall.']));
+ok('speech: abbreviations, initials and a lower-case next word don’t end a sentence',said('Mr. Hale met Dr. Ames and J. R. Tolkien at the U.S. office near St. Paul for lunch today. e.g. this is a fragment; it goes on.').length===1);
+ok('speech: a short sentence joins the next',JSON.stringify(said('Yes. No. The harbour was quiet that night, and nobody moved.'))===JSON.stringify(['Yes. No. The harbour was quiet that night, and nobody moved.']));
+const long='The keeper climbed the stairs slowly, counting each step under his breath, '.repeat(5)+'and at the top he rested.';
+const lc=speechChunks(long);
+ok('speech: a long sentence is cut under the limit, after a comma',lc.length>1&&lc.every(([s,e])=>e-s<=220)&&lc.slice(0,-1).every(([,e])=>long[e-1]===','));
+ok('speech: the pieces cover the text in order, without spaces at their ends',lc.every(([s,e],i)=>!/^\s|\s$/.test(long.slice(s,e))&&(!i||s>lc[i-1][1]))&&long.slice(lc.at(-1)[0],lc.at(-1)[1]).endsWith('rested.'));
+const nocomma='word '.repeat(80).trim();
+ok('speech: no comma, cut at a space',speechChunks(nocomma).every(([s,e])=>e-s<=220&&nocomma.slice(s,e).split(' ').every(w=>w==='word')));
+ok('speech: a line break ends a piece; empty text gives none',said('First line of the verse here\nSecond line of the verse there',220,0).length===2&&speechChunks('  ').length===0&&speechChunks('').length===0);
+ok('speech word: from the boundary’s index and length, punctuation trimmed',JSON.stringify(speechWord('He said, “Hold on.”',9,6))==='[10,14]'&&JSON.stringify(speechWord('Hello, world.',0,6))==='[0,5]');
+ok('speech word: without a length, to the next space',JSON.stringify(speechWord('the tide, rising',4))==='[4,8]'&&JSON.stringify(speechWord('a  b',1))==='[3,4]');
+
 done();
