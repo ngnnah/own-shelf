@@ -9,12 +9,13 @@
 //   { id, kind: 'fact', text, blank: {s, e} | null, note, bookId, hlId, pid, ws, we, title, section, added, srs }
 //     text is the highlight's text (its blocks joined with a space), blank the phrase the card hides, as offsets into
 //     text (null: a re-read card); hlId the highlight, pid/ws/we its first block's place; title and section the book's then.
-// Both may also hold (fact cards only pics and tried), filled by the dictionaries or by hand:
-//   pics  [{ src, credit?: {title, url} }]  up to 3 pictures, JPEG data URLs ≤640 px; credit: the Wikipedia page
+// A word may also hold, filled by the dictionaries or by hand:
 //   syn, ant  [term]                        synonyms and antonyms
 //   dex   [{ text, s, e, cite }]            the dictionary's examples: a sentence, the word's place in it (s = e: not
 //                                           found), and "year, author" when known
-//   tried { wiki, muse, wikt }              the query each source answered, found or not, so a miss isn't asked again
+//   tried { muse, wikt }                    the query each source answered, found or not, so a miss isn't asked again
+// Cards saved before 2026-10-29 may hold `pics` (pictures, since removed) and `tried.wiki`: never shown, and `pics` is
+// dropped when the card is next saved or restored.
 
 const DAY = 86400000;
 const djb2 = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
@@ -202,17 +203,7 @@ export function baseForms(term) {
   return out;
 }
 
-/* ---------- pictures, synonyms, antonyms and examples (free, no key, CORS-enabled) ---------- */
-// Wikipedia's page summary: its thumbnail, only for an article whose title is the word (any case, spaces or
-// underscores, or a base form), so "ephemeral" → "Ephemerality" brings no unrelated photo.
-export const wikiSummaryUrl = q => `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(normTerm(q).replace(/ /g, '_'))}`;
-export function parseWikiSummary(json, q) {
-  const th = json && json.thumbnail, k = s => termKey(String(s || '').replace(/_/g, ' '));
-  if (!json || json.type !== 'standard' || !th || !/^https:\/\//.test(th.source || '')) return null;
-  if (![termKey(q), ...baseForms(q)].includes(k(json.title))) return null;
-  const page = json.content_urls && json.content_urls.desktop && json.content_urls.desktop.page;
-  return { src: th.source, title: json.title, url: /^https:\/\//.test(page || '') ? page : `https://en.wikipedia.org/wiki/${encodeURIComponent(json.title.replace(/ /g, '_'))}` };
-}
+/* ---------- synonyms, antonyms and examples (free, no key, CORS-enabled) ---------- */
 // Datamuse synonyms (rel 'syn') and antonyms ('ant'): up to 6 words, not the word itself.
 export const datamuseRelUrl = (term, rel) => `https://api.datamuse.com/words?rel_${rel}=${encodeURIComponent(termKey(term))}&max=6`;
 export function parseDatamuseWords(json, term) {
@@ -384,10 +375,10 @@ export function parseExamples(s, old, term) {
     return { text, s: f.s, e: f.e, cite: o ? o.cite : '' };
   });
 }
-// For a word or fact card already here: the pictures, synonyms, antonyms and examples it lacks, from another copy (a
-// backup, the Trash), and the lookups either one tried. → the merged entry, or null when there's nothing to add.
+// For a word already here: the synonyms, antonyms and examples it lacks, from another copy (a backup, the Trash), and
+// the lookups either one tried. → the merged entry, or null when there's nothing to add.
 export function mergeExtras(have, from) {
-  const add = ['pics', 'syn', 'ant', 'dex'].filter(k => !(Array.isArray(have[k]) && have[k].length) && from && Array.isArray(from[k]) && from[k].length);
+  const add = ['syn', 'ant', 'dex'].filter(k => !(Array.isArray(have[k]) && have[k].length) && from && Array.isArray(from[k]) && from[k].length);
   if (!add.length) return null;
   const out = { ...have };
   add.forEach(k => { out[k] = from[k]; });

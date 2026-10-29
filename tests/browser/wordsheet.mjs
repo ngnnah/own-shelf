@@ -1,7 +1,7 @@
 // The word card on a phone, and deleting a word from the word card and from Study.
 // On a touch screen (a coarse pointer, as on an iPhone) at 390×844 and 375×667, with an iPhone keyboard faked
 // (visualViewport shrunk, then panned): the word card is a full-width sheet above the keyboard, its head (with Delete),
-// Save and Cancel always in view. A word with a long meaning, examples, synonyms, antonyms and a picture shows every
+// Save and Cancel always in view. A word with a long meaning, examples, synonyms and antonyms shows every
 // field whole; editing its antonyms (the case reported from an iPhone) keeps them in view at the caret as the keyboard
 // opens, as they grow and as the visible area pans. A long meaning fills the sheet and scrolls inside itself; an example
 // and a synonym grow as they're typed; a section opened with Add is in view above the keyboard. Save, a tap outside and
@@ -9,7 +9,7 @@
 // doesn't drag it. Then Delete: in the reader's word card (its underline goes, and "Moved to Trash · Undo" brings both
 // back) and on the back of a Study card, a word and a fact card (none on the front; the next card shows; Undo puts it
 // back next in the deck, after the last card too; the Trash and the Words tab follow), far from Save and the ratings.
-// Dictionaries and Wikipedia are mocked. Usage: node tests/browser/wordsheet.mjs [repo dir]
+// The dictionaries are mocked. Usage: node tests/browser/wordsheet.mjs [repo dir]
 // Screenshots (both sizes editing the antonyms above the keyboard, light and dark; Study's back with Delete, phone and
 // desktop) go to tests/browser/out/wordsheet/.
 import {start,enterLocalMode,addMarkdown,sleep} from './lib.mjs';
@@ -22,11 +22,10 @@ const t=await start('wordsheet',8157);
 const {page,ok,must,vis,text,until}=t;
 const shots=join(dirname(fileURLToPath(import.meta.url)),'out','wordsheet');mkdirSync(shots,{recursive:true});
 
-/* ---------- the dictionaries and Wikipedia, mocked: "obdurate" has everything, "lanterns" only a meaning ---------- */
+/* ---------- the dictionaries, mocked: "obdurate" has everything, "lanterns" only a meaning ---------- */
 const DEF='Unreasonably stubborn, refusing to change one’s opinion or course of action, especially when others plead or argue; hard of heart; resistant to persuasion, softening or pity.';
 const SYN=['stubborn','unyielding','obstinate','intransigent','inflexible','adamant'],ANT=['yielding','compliant','tractable','amenable','flexible','docile'];
 const WIKT=`==English==\n===Adjective===\n# Stubborn.\n#: {{ux|en|The '''obdurate''' keeper refused to leave the lighthouse when the storm came in.}}\n#* {{quote-book|en|year=1901|author=Sam Writer|title=Sea Days|passage=He was '''obdurate''' in the face of every plea his family could think of.}}`;
-const PNG=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=330;c.height=300;const x=c.getContext('2d');x.fillStyle='#2F5A43';x.fillRect(0,0,330,300);return c.toDataURL('image/png').split(',')[1];});
 const json=(req,status,body)=>req.respond({status,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:JSON.stringify(body)});
 await page.setBypassServiceWorker(true); // so every request reaches the interception below
 await page.setRequestInterception(true);
@@ -38,8 +37,6 @@ page.on('request',req=>{
     return json(req,200,(w==='obdurate'?syn?SYN:ANT:[]).map((word,i)=>({word,score:100-i})));
   }
   if(h==='en.wiktionary.org') return json(req,200,q.get('page')==='obdurate'?{parse:{title:'obdurate',pageid:1,wikitext:WIKT}}:{error:{code:'missingtitle'}});
-  if(h==='en.wikipedia.org') return /obdurate/i.test(u.pathname)?json(req,200,{type:'standard',title:'Obdurate',thumbnail:{source:'https://thumb.wikimedia.org/t/330px-Obdurate.png',width:330,height:300},content_urls:{desktop:{page:'https://en.wikipedia.org/wiki/Obdurate'}}}):json(req,404,{});
-  if(h==='thumb.wikimedia.org') return req.respond({status:200,contentType:'image/png',headers:{'Access-Control-Allow-Origin':'*'},body:Buffer.from(PNG,'base64')});
   req.continue();
 });
 
@@ -91,7 +88,7 @@ async function openCard(id){
     const b=u.getClientRects()[0];return {x:b.x+b.width/2,y:b.y+b.height/2};},id);
   await sleep(50);await tapAt(at.x,at.y);await shown('#wordBox');
 }
-const filled=()=>until(()=>!document.querySelector('#wordBox [data-x="ant"]').classList.contains('hidden')&&document.querySelectorAll('#wordBox [data-x="pics"] img').length===1&&document.querySelector('#wbDef').value);
+const filled=()=>until(()=>!document.querySelector('#wordBox [data-x="ant"]').classList.contains('hidden')&&document.querySelector('#wbDef').value);
 // Tap a field of the card (scrolled into the card's view first), then put the caret at its end.
 async function editField(sel){
   const at=await page.$eval(sel,e=>{e.scrollIntoView({block:'nearest'});const r=e.getBoundingClientRect();return {x:r.left+12,y:r.top+Math.min(10,r.height/2)};});
@@ -147,7 +144,7 @@ await t.run(async()=>{
   for(const [vw,vh,kb] of [[390,844,460],[375,667,363]]){
     const size=`${vw}×${vh}`;
     if(vw===390) await saveWord(P2,'obdurate'); else{await phone(vw,vh);await openCard(OBD);}
-    must('the card is filled: meaning, examples, synonyms, antonyms, a picture',await filled());await toastGone();await sleep(200);
+    must('the card is filled: meaning, examples, synonyms, antonyms',await filled());await toastGone();await sleep(200);
     let c=await card();
     ok(`${size}: the word card is a full-width sheet inside the screen, Save, Cancel and Delete in view`,c.sheet&&c.inside&&c.buttons&&c.width>=c.vw-24);
     ok(`${size}: every field shows its text whole: the meaning, examples, synonyms and antonyms`,c.whole&&!c.ta.scrolls);
@@ -194,7 +191,7 @@ await t.run(async()=>{
 
   /* ---------- 4. Add opens an empty section, in view above the keyboard; a tap outside saves it ---------- */
   await saveWord(P1,'lanterns');
-  must('the lookups are done: Add offers antonyms',await word(LAN,w=>w.tried&&w.tried.wiki&&w.tried.muse&&w.tried.wikt)&&await until(()=>!!document.querySelector('#wordBox [data-add="ant"]')));
+  must('the lookups are done: Add offers antonyms',await word(LAN,w=>w.tried&&w.tried.muse&&w.tried.wikt)&&await until(()=>!!document.querySelector('#wordBox [data-add="ant"]')));
   await toastGone();await sleep(100);
   await tap('#wordBox [data-add="ant"]');await iosKeyboard(363);c=await card();
   ok('Add → Antonyms: the empty section is focused and in view above the keyboard, the buttons too',editing(c)&&c.buttons&&(await page.evaluate(s=>document.activeElement===document.querySelector(s),ANT_F)));

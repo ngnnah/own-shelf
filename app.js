@@ -2,7 +2,7 @@
 import {makeLocal,makeCloud,exportShelf,importShelf} from './store.js';
 import {firebaseConfig,WORKER_URL} from './config.js';
 import {wordId,normTerm,termKey,sentenceAround,isDue,schedule,nextLabel,dayStart,progress,dueByDay,LOG_DAYS,logReview,newOn,pruneLog,reviewsByDay,streak,cloze,datamuseUrl,parseDatamuse,wiktionaryUrl,parseWiktionary,baseForms,isFact,factId,factCloze,wordsIn,snapWords,
-  wikiSummaryUrl,parseWikiSummary,datamuseRelUrl,parseDatamuseWords,wikitextUrl,parseWikitext,cleanText,parseList,parseExamples,mergeExtras} from './vocab.js';
+  datamuseRelUrl,parseDatamuseWords,wikitextUrl,parseWikitext,cleanText,parseList,parseExamples,mergeExtras} from './vocab.js';
 /* ================= utils ================= */
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -559,18 +559,12 @@ async function mergeInto(d,hl,quiet){
   if(open&&quiet) await openBook(id);
   return {added:r.added,dropped:r.dropped,recoloured:r.recoloured};
 }
-// drop anywhere; on a word or fact card (the word card, the Words tab), a picture goes to that card (addPics)
+// drop anywhere
 let dragDepth=0;
-const picHost=t=>{const el=t&&(t.nodeType===1?t:t.parentElement);return el?el.closest('#wordBox:not(.hidden),#wdList .wcard[data-id]'):null;};
-const picOver=h=>document.querySelectorAll('.pic-over').forEach(x=>{if(x!==h) x.classList.remove('pic-over');});
-addEventListener('dragenter',e=>{
-  if(!(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')&&$('#importM').classList.contains('hidden'))) return;
-  const h=picHost(e.target);dragDepth++;$('#dropAll').classList.toggle('on',!h);picOver(h);if(h) h.classList.add('pic-over');
-});
-addEventListener('dragleave',()=>{dragDepth=Math.max(0,dragDepth-1);if(!dragDepth){$('#dropAll').classList.remove('on');picOver();}});
+addEventListener('dragenter',e=>{if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')&&$('#importM').classList.contains('hidden')){dragDepth++;$('#dropAll').classList.add('on');}});
+addEventListener('dragleave',()=>{dragDepth=Math.max(0,dragDepth-1);if(!dragDepth)$('#dropAll').classList.remove('on');});
 addEventListener('dragover',e=>e.preventDefault());
-addEventListener('drop',e=>{e.preventDefault();dragDepth=0;$('#dropAll').classList.remove('on');picOver();const fs=[...((e.dataTransfer&&e.dataTransfer.files)||[])];
-  const h=picHost(e.target);if(h){if(fs.length) addPics(h.id==='wordBox'?CARD&&CARD.id:h.dataset.id,fs);return;}
+addEventListener('drop',e=>{e.preventDefault();dragDepth=0;$('#dropAll').classList.remove('on');const fs=[...((e.dataTransfer&&e.dataTransfer.files)||[])];
   if(!fs.length||!$('#importM').classList.contains('hidden')) return;if(fs.length>1) addMany(fs); else openImport(fs[0]);});
 
 /* ================= details ================= */
@@ -1396,7 +1390,7 @@ $('#nbTabs').onkeydown=e=>{if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;c
 
 /* ================= vocabulary ================= */
 // Words saved from the reader with the sentences they were found in (format: vocab.js). The toolbar's Word saves the
-// selection and shows its card; the meaning, synonyms, antonyms, examples and a picture are looked up in the
+// selection and shows its card; the meaning, synonyms, antonyms and examples are looked up in the
 // background (see enrich); saved places are underlined in the text
 // (inlineHTML); the Notebook's Words tab lists them all. WORDS caches the account's words (id → word): loaded on
 // first use, kept in step with every change made here, and reloaded each time the Notebook opens.
@@ -1408,7 +1402,9 @@ function loadWords(fresh){
   if(!wordsLoad){const db=DB;wordsLoad=db.all('word:').catch(()=>[]).then(list=>{if(db===DB){WORDS=new Map(list.filter(w=>w&&w.id).map(w=>[w.id,w]));WIDX=null;}return WORDS;});}
   return wordsLoad;
 }
-function putWord(w){WORDS.set(w.id,w);WIDX=null;DB.put('word:'+w.id,w);}
+// Saving a card (here and in Study's syRate) drops the pictures it may hold from before cards lost them; they're never
+// shown, and stay stored until the card is next saved.
+function putWord(w){delete w.pics;WORDS.set(w.id,w);WIDX=null;DB.put('word:'+w.id,w);}
 function wordIndex(){
   if(WIDX&&WIDX.book===DOC.id) return WIDX.map;
   const map={};
@@ -1503,33 +1499,21 @@ function showDef(w){
 }
 const exampleHTML=x=>esc(x.text.slice(0,x.s))+'<b>'+esc(x.text.slice(x.s,x.e))+'</b>'+esc(x.text.slice(x.e));
 
-/* pictures, synonyms, antonyms and the dictionary's examples (format: vocab.js) */
-// Looked up once per card and source: when a word is saved or a fact card made, and for older cards the first time
-// they're shown without them. Wikipedia gives the picture (a fact card's comes from its blank), Datamuse the synonyms
-// and antonyms, Wiktionary the examples (and synonyms and antonyms when Datamuse has none). w.tried keeps each source's
-// query once it answered, found or not, so a miss isn't asked again; a failure (offline, a service down) is tried
-// again the next time the card is shown. Two cards look up at a time; saving never waits.
-const PIC_MAX=3,WORD_BYTES=800*1024; // Firestore takes documents up to 1 MiB
-const fits=w=>new TextEncoder().encode(JSON.stringify(w)).length<=WORD_BYTES;
-const lookupQ=w=>termKey(isFact(w)?(factCloze(w)||{}).phrase:w.term);
-// the sources a card still needs
+/* synonyms, antonyms and the dictionary's examples (format: vocab.js) */
+// A word's, looked up once per word and source: when it's saved, and for older words the first time they're shown
+// without them. Datamuse gives the synonyms and antonyms, Wiktionary the examples (and synonyms and antonyms when
+// Datamuse has none). w.tried keeps each source's query once it answered, found or not, so a miss isn't asked again; a
+// failure (offline, a service down) is tried again the next time the word is shown. Two words look up at a time;
+// saving never waits. Fact cards have none of these.
+// the sources a word still needs
 function needs(w){
-  const q=lookupQ(w),t=w.tried||{},none=k=>!(w[k]||[]).length,out=[];
+  const q=isFact(w)?'':termKey(w.term),t=w.tried||{},none=k=>!(w[k]||[]).length,out=[];
   if(!q) return out;
-  if(none('pics')&&t.wiki!==q) out.push('wiki');
-  if(!isFact(w)&&(none('syn')||none('ant'))&&t.muse!==q) out.push('muse');
-  if(!isFact(w)&&(none('dex')||none('syn')||none('ant'))&&t.wikt!==q) out.push('wikt');
+  if((none('syn')||none('ant'))&&t.muse!==q) out.push('muse');
+  if((none('dex')||none('syn')||none('ant'))&&t.wikt!==q) out.push('wikt');
   return out;
 }
 // Each source → what it found; null when it has nothing; undefined when it failed.
-async function findPic(q){
-  try{
-    const s=parseWikiSummary(await getJSON(wikiSummaryUrl(q),true),q);if(!s) return null;
-    const r=await fetch(s.src,{signal:AbortSignal.timeout?.(8000)});if(!r.ok) throw new Error('HTTP '+r.status);
-    const src=await shrinkPic(await r.blob());
-    return src?{src,credit:{title:s.title,url:s.url}}:null;
-  }catch(e){return;}
-}
 async function findNyms(q){try{const [syn,ant]=await Promise.all(['syn','ant'].map(async r=>parseDatamuseWords(await getJSON(datamuseRelUrl(q,r)),q)));return {syn,ant};}catch(e){return;}}
 async function findWikt(q){try{return parseWikitext(await getJSON(wikitextUrl(q),true),q);}catch(e){return;}}
 const BUSY=new Set();
@@ -1537,14 +1521,13 @@ async function enrich(id){
   let w=WORDS&&WORDS.get(id);const want=w?needs(w):[];
   if(!want.length||BUSY.has(id)||navigator.onLine===false) return;
   BUSY.add(id);
-  const q=lookupQ(w),db=DB,has=s=>want.includes(s);
-  const [pic,nyms,wk]=await Promise.all([has('wiki')&&findPic(q),has('muse')&&findNyms(q),has('wikt')&&findWikt(q)]);
+  const q=termKey(w.term),db=DB,has=s=>want.includes(s);
+  const [nyms,wk]=await Promise.all([has('muse')&&findNyms(q),has('wikt')&&findWikt(q)]);
   BUSY.delete(id);
   w=db===DB&&WORDS&&WORDS.get(id);if(!w) return;
   const tried={...(w.tried||{})},none=k=>!(w[k]||[]).length;let changed=false;
   const got=(s,r)=>{if(!has(s)||r===undefined) return null;tried[s]=q;return r;}; // a failed source isn't marked tried
-  const p=got('wiki',pic),m=got('muse',nyms),x=got('wikt',wk);
-  if(p&&none('pics')&&fits({...w,pics:[p]})){w.pics=[p];changed=true;}
+  const m=got('muse',nyms),x=got('wikt',wk);
   ['syn','ant'].forEach(k=>{const l=m&&m[k].length?m[k]:x?x[k]:[];if(none(k)&&l.length){w[k]=l;changed=true;}});
   if(x&&none('dex')&&x.dex.length){w.dex=x.dex;changed=true;}
   if(!changed&&JSON.stringify(tried)===JSON.stringify(w.tried||{})) return;
@@ -1555,63 +1538,24 @@ function queueFill(w,first){
   if(w&&needs(w).length&&!BUSY.has(w.id)&&!FILLQ.includes(w.id)) first?FILLQ.unshift(w.id):FILLQ.push(w.id);
   while(filling<2&&FILLQ.length){filling++;enrich(FILLQ.shift()).catch(e=>console.warn('Lookup',e)).finally(()=>{filling--;queueFill();});}
 }
-// A picture for a card: at most 640 px on its long side, JPEG on white (a transparent PNG would turn black), about
-// 50–100 KB, redone smaller when it's still large. → a data URL, or null when it can't be read.
-function shrinkPic(blob){
-  return new Promise(res=>{
-    const u=URL.createObjectURL(blob),img=new Image();
-    img.onerror=()=>{URL.revokeObjectURL(u);res(null);};
-    img.onload=()=>{
-      URL.revokeObjectURL(u);const W=img.naturalWidth,H=img.naturalHeight;if(!W||!H){res(null);return;}
-      const draw=(max,q)=>{const k=Math.min(1,max/Math.max(W,H)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(W*k));c.height=Math.max(1,Math.round(H*k));
-        const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',q);};
-      let d=draw(640,.8);if(d.length>140*1024) d=draw(480,.7);res(d);
-    };
-    img.src=u;
-  });
-}
-// Pictures pasted, dropped or picked, up to 3 a card, each keeping the card well under Firestore's limit.
-async function addPics(id,files){
-  const w=id&&WORDS&&WORDS.get(id),imgs=[...files].filter(f=>f&&/^image\//.test(f.type));if(!w) return;
-  if(!imgs.length){toast('That isn’t a picture');return;}
-  let n=0,why='';
-  for(const f of imgs){
-    if((w.pics||[]).length>=PIC_MAX){why='Up to 3 pictures';break;}
-    const src=await shrinkPic(f);if(!src){why='Couldn’t read that picture';continue;}
-    const pics=[...(w.pics||[]),{src}];
-    if(!fits({...w,pics})){why='Too big for this card';break;}
-    w.pics=pics;n++;
-  }
-  if(n){putWord(w);showExtras(w);}
-  toast(why||(n>1?`${n} pictures added`:'Picture added'));
-}
-function removePic(id,i){const w=WORDS&&WORDS.get(id);if(!w||!(w.pics||[])[i]) return;w.pics=w.pics.filter((_,j)=>j!==i);putWord(w);showExtras(w);toast('Picture removed');}
 // Synonyms or antonyms as "a, b", examples one a line (vocab.js). → whether they changed.
 function setExtra(w,k,text){
   const v=k==='dex'?parseExamples(text,w.dex,w.term):parseList(text);
   if(JSON.stringify(v)===JSON.stringify(w[k]||[])) return false;
   w[k]=v;putWord(w);return true;
 }
-// A card's extras, in the word card and the Words tab: the dictionary's examples, synonyms and antonyms (edited in
-// place like the meaning; hidden when empty), the pictures (× removes one; the src is set by setPics), and Add for what's
-// missing: a section to type in, or a picture. A fact card has only pictures.
+// A word's extras, in the word card and the Words tab: the dictionary's examples, synonyms and antonyms (edited in
+// place like the meaning; hidden when empty), and Add for what's missing: a section to type in.
 const XL={dex:'Examples',syn:'Synonyms',ant:'Antonyms'};
 const markWord=x=>x.e>x.s&&x.e<=x.text.length?exampleHTML(x):esc(x.text);
 function extraHTML(w,k){
-  if(k==='pics'){
-    const ps=(w.pics||[]).map((p,i)=>[p,i]).filter(([p])=>p&&/^data:image\//.test(p.src||''));
-    return `<div class="w-pics${ps.length?'':' hidden'}" data-x="pics">${ps.map(([p,i])=>`<figure class="w-pic"><img alt="${esc(p.credit?p.credit.title:'')}" data-pi="${i}"><button class="w-unpic" data-unpic="${i}" aria-label="Remove this picture">×</button>`+
-      (p.credit&&/^https:\/\//.test(p.credit.url||'')?`<figcaption><a href="${esc(p.credit.url)}" target="_blank" rel="noopener">Wikipedia</a></figcaption>`:'')+'</figure>').join('')}</div>`;
-  }
   if(k==='add'){
-    const miss=isFact(w)?[]:['dex','syn','ant'].filter(k=>!(w[k]||[]).length),pic=(w.pics||[]).length<PIC_MAX;
-    return `<div class="w-add" data-x="add">${miss.length||pic?'<span class="w-addl">Add</span>':''}${miss.map(k=>`<button class="w-addb" data-add="${k}">${k==='dex'?'Example':XL[k]}</button>`).join('')}`+
-      (pic?'<label class="w-addb">Picture<input type="file" accept="image/*" multiple class="w-file"></label>':'')+'</div>';
+    const miss=['dex','syn','ant'].filter(k=>!(w[k]||[]).length);
+    return `<div class="w-add" data-x="add">${miss.length?'<span class="w-addl">Add</span>':''}${miss.map(k=>`<button class="w-addb" data-add="${k}">${k==='dex'?'Example':XL[k]}</button>`).join('')}</div>`;
   }
   const v=w[k]||[],val=k==='dex'?v.map(x=>markWord(x)+(x.cite?`<span class="wx-cite"> — ${esc(x.cite)}</span>`:'')).join('\n'):esc(v.join(', '));
   return `<section class="wx${v.length?'':' hidden'}" data-x="${k}"><h4 class="w-lbl">${XL[k]}</h4><p class="wx-f" data-k="${k}" contenteditable="plaintext-only" role="textbox" aria-label="${XL[k]} of ${esc(w.term)}"${k==='dex'?' aria-multiline="true" data-ph="One a line"':' data-ph="Separate them with commas"'}>${val}</p></section>`;
 }
-const setPics=(root,w)=>root.querySelectorAll('img[data-pi]').forEach(im=>{const p=(w.pics||[])[+im.dataset.pi];if(p) im.src=p.src;});
 // Redraws a card's extras where it shows (the word card, the Words tab), except a field being edited; `only` some.
 function showExtras(w,only){
   const box=CARD&&CARD.id===w.id?$('#wordBox'):null,c=document.querySelector(`#wdList .wcard[data-id="${CSS.escape(w.id)}"]`);
@@ -1619,7 +1563,6 @@ function showExtras(w,only){
     const k=el.dataset.x,f=el.querySelector('.wx-f');
     if((only&&!only.includes(k))||(f&&(f.dataset.dirty||f===document.activeElement))) return;
     el.outerHTML=extraHTML(w,k);
-    if(k==='pics') setPics(r.querySelector('[data-x="pics"]'),w);
   }));
   if(box){CARD.at=placeCard(box,CARD.at);growCard();} // grown: still inside the visible area
 }
@@ -1630,35 +1573,18 @@ function revealExtra(root,k){
   if(root.id==='wordBox') CARD.at=placeCard(root,CARD.at);
   s.querySelector('.wx-f').focus();
 }
-// A picture pasted into a card (when the clipboard holds no text, which goes into the field as usual).
-function pastePics(e){
-  const host=e.target.closest&&e.target.closest('#wordBox,#wdList .wcard[data-id]'),cd=e.clipboardData;
-  if(!host||!cd||(cd.getData('text/plain')||'').trim()) return;
-  const fs=[...(cd.files||[])];if(!fs.length) [...(cd.items||[])].forEach(i=>{if(i.kind==='file'){const f=i.getAsFile();if(f) fs.push(f);}});
-  const imgs=fs.filter(f=>/^image\//.test(f.type));if(!imgs.length) return;
-  e.preventDefault();addPics(host.id==='wordBox'?CARD&&CARD.id:host.dataset.id,imgs);
-}
-const lightbox=src=>{$('#lightbox img').src=src;$('#lightbox').classList.remove('hidden');};
-// the clicks, pastes and picks that both places share; → true when handled
-function extrasClick(e,root,id){
+// the clicks that both places share; → true when handled
+function extrasClick(e,root){
   const add=e.target.closest('[data-add]');if(add){revealExtra(root,add.dataset.add);return true;}
-  const un=e.target.closest('[data-unpic]');if(un){removePic(id,+un.dataset.unpic);return true;}
-  const im=e.target.closest('img[data-pi]');if(im){lightbox(im.src);return true;}
   return false;
 }
 ['#wordBox','#wdList'].forEach(s=>{
   const el=$(s);
-  el.addEventListener('paste',pastePics);
   el.addEventListener('input',e=>{const f=e.target.closest&&e.target.closest('.wx-f');if(f) f.dataset.dirty='1';});
-  el.addEventListener('change',e=>{
-    if(!e.target.matches('.w-file')) return;
-    const id=s==='#wordBox'?CARD&&CARD.id:e.target.closest('.wcard').dataset.id;addPics(id,e.target.files);e.target.value='';
-  });
 });
 
-// The word card: term, part of speech, the meaning to edit, the dictionary's examples, synonyms and antonyms, the
-// pictures, and the sentence from your reading (the one at `at`, else the newest). Delete sits in its head, away
-// from Save.
+// The word card: term, part of speech, the meaning to edit, the dictionary's examples, synonyms and antonyms, and the
+// sentence from your reading (the one at `at`, else the newest). Delete sits in its head, away from Save.
 let CARD=null; // {id, at: where placeCard put it} while open
 function openWordCard(id,at,rect){
   const w=WORDS&&WORDS.get(id);if(!w) return;
@@ -1668,7 +1594,7 @@ function openWordCard(id,at,rect){
   const box=$('#wordBox'),sheet=asSheet(box,$('#wbDef'));
   $('#wbTerm').textContent=w.term;$('#wbDel').setAttribute('aria-label',`Delete “${w.term}”`);
   $('#wbDef').value=w.def||'';$('#wbEx').innerHTML=ex?exampleHTML(ex):'';$('#wbRead').classList.toggle('hidden',!ex);
-  box.querySelectorAll('[data-x]').forEach(el=>{el.outerHTML=extraHTML(w,el.dataset.x);});setPics(box,w);
+  box.querySelectorAll('[data-x]').forEach(el=>{el.outerHTML=extraHTML(w,el.dataset.x);});
   showDef(w);fillDef(w);
   box.classList.remove('hidden');box.style.maxHeight='';$('#wbMore').scrollTop=$('#wbBody').scrollTop=0;
   // a sheet on phones; elsewhere under the word, or above it near the bottom (docked without a word to go by)
@@ -1722,7 +1648,7 @@ function keepCardsInView(){
 window.visualViewport?.addEventListener('resize',keepCardsInView);window.visualViewport?.addEventListener('scroll',keepCardsInView);
 addEventListener('resize',keepCardsInView);
 $('#wbClose').onclick=closeWordCard;
-// Save, a tap outside and Escape keep what was typed (Cancel drops it); pictures are kept as soon as they're added or removed
+// Save, a tap outside and Escape keep what was typed (Cancel drops it)
 function saveWordCard(){
   const w=CARD&&WORDS&&WORDS.get(CARD.id);
   if(w){
@@ -1732,7 +1658,7 @@ function saveWordCard(){
   closeWordCard();
 }
 $('#wbSave').onclick=saveWordCard;
-$('#wordBox').addEventListener('click',e=>{if(CARD) extrasClick(e,$('#wordBox'),CARD.id);});
+$('#wordBox').addEventListener('click',e=>{if(CARD) extrasClick(e,$('#wordBox'));});
 document.addEventListener('keydown',e=>{if(e.key==='Escape') saveWordCard();});
 // A tap outside the note box or the word card saves it, as Save does, once the tap has done what it does there (its
 // click, or 0.4 s when a tap makes none): saving redraws the drawer and the passage, which would swallow a tap on
@@ -1764,7 +1690,7 @@ let WD={run:0,f:'all'};
 const wordBook=x=>(META.find(m=>m.id===x.bookId)||x).title||'';
 // Shows the cached words at once; fresh: reloads them too (other devices, a restored backup) and redraws only on a
 // change, and not while a meaning is being edited.
-const wordsSig=()=>JSON.stringify([...WORDS.values()].sort((a,b)=>a.id<b.id?-1:1),(k,v)=>k==='src'&&typeof v==='string'?v.length+v.slice(-24):v); // a picture by its length and end
+const wordsSig=()=>JSON.stringify([...WORDS.values()].sort((a,b)=>a.id<b.id?-1:1),(k,v)=>k==='pics'?undefined:v); // pictures from before aren't shown
 async function openWords(fresh){
   const run=++WD.run,ready=!!WORDS&&wordsDb===DB,shown=ready?wordsSig():null;
   if(ready) renderWords();
@@ -1837,22 +1763,21 @@ $('#wpCharts').addEventListener('pointerout',e=>{const ol=e.target.closest('.wp-
 // The charts fold away: open at first on screens wider than a phone, then as last left (a tap on the summary).
 $('#wpMore').open=prefs.wpOpen??matchMedia('(min-width:601px)').matches;
 $('#wpMore>summary').addEventListener('click',()=>{prefs.wpOpen=!$('#wpMore').open;savePrefs();});
-// A fact card in the list: its text with the blanked phrase marked, where it's from (opens the highlight), its note,
-// its pictures. A card takes focus (tabindex -1), so a picture can be pasted into it.
+// A fact card in the list: its text with the blanked phrase marked, where it's from (opens the highlight), its note.
 const factQ=f=>{const c=factCloze(f);return c?esc(c.before)+`<span class="f-gap">${esc(c.phrase)}</span>`+esc(c.after):esc(f.text||'');};
 const factFrom=f=>[wordBook(f),f.section].filter(Boolean).join(' · ');
-const factHTML=f=>`<article class="wcard fcard" data-id="${esc(f.id)}" tabindex="-1"><div class="w-head"><span class="f-tag">Fact</span><button class="w-del" data-a="del" aria-label="Delete this fact card">Delete</button></div>`+
+const factHTML=f=>`<article class="wcard fcard" data-id="${esc(f.id)}"><div class="w-head"><span class="f-tag">Fact</span><button class="w-del" data-a="del" aria-label="Delete this fact card">Delete</button></div>`+
   `<button class="w-ex" data-book="${esc(f.bookId)}" data-hl="${esc(f.hlId)}" data-pid="${esc(f.pid)}"><span class="w-q">${factQ(f)}</span><span class="w-bk">${esc(factFrom(f))}</span></button>`+
-  (f.note?`<p class="f-note">${esc(f.note)}</p>`:'')+extraHTML(f,'pics')+extraHTML(f,'add')+'</article>';
-// A word: its meaning, the dictionary's examples, synonyms, antonyms and pictures, then the sentences from your reading.
+  (f.note?`<p class="f-note">${esc(f.note)}</p>`:'')+'</article>';
+// A word: its meaning, the dictionary's examples, synonyms and antonyms, then the sentences from your reading.
 const wordHTML=w=>{
   const xs=w.examples||[];
-  return `<article class="wcard" data-id="${esc(w.id)}" tabindex="-1"><div class="w-head"><h3 class="w-term">${esc(w.term)}</h3><span class="w-pos">${esc(w.pos||'')}</span><button class="w-del" data-a="del" aria-label="Delete “${esc(w.term)}”">Delete</button></div>`+
+  return `<article class="wcard" data-id="${esc(w.id)}"><div class="w-head"><h3 class="w-term">${esc(w.term)}</h3><span class="w-pos">${esc(w.pos||'')}</span><button class="w-del" data-a="del" aria-label="Delete “${esc(w.term)}”">Delete</button></div>`+
     `<p class="w-def" contenteditable="plaintext-only" role="textbox" aria-label="Meaning of ${esc(w.term)}" data-ph="${esc(defPh(w))}">${esc(w.def||'')}</p><p class="w-src">${esc(srcText(w))}</p>`+
-    ['dex','syn','ant','pics'].map(k=>extraHTML(w,k)).join('')+(xs.length?'<h4 class="w-lbl">From your reading</h4>':'')+
+    ['dex','syn','ant'].map(k=>extraHTML(w,k)).join('')+(xs.length?'<h4 class="w-lbl">From your reading</h4>':'')+
     xs.map(x=>`<button class="w-ex" data-book="${esc(x.bookId)}" data-pid="${esc(x.pid)}" data-ws="${x.ws}"><span class="w-q">${exampleHTML(x)}</span><span class="w-bk">${esc(wordBook(x))}</span></button>`).join('')+extraHTML(w,'add')+'</article>';
 };
-// Older cards look up their pictures, synonyms, antonyms and examples once they're on screen (see enrich).
+// Older words look up their synonyms, antonyms and examples once they're on screen (see enrich).
 const wdSeen=typeof IntersectionObserver==='function'?new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting) return;wdSeen.unobserve(e.target);queueFill(WORDS&&WORDS.get(e.target.dataset.id));}),{rootMargin:'200px 0px'}):null;
 function listWords(){
   wdSeen?.disconnect();
@@ -1865,7 +1790,7 @@ function listWords(){
     const h=nbFold((f?[w.text,w.note,wordBook(w),w.section]:[w.term,w.def,...(w.syn||[]),...(w.ant||[]),...(w.examples||[]).map(x=>x.text)]).join(' '));return terms.every(t=>h.includes(t));
   }).sort((a,b)=>(b.added||0)-(a.added||0));
   $('#wdList').innerHTML=list.length?list.map(w=>isFact(w)?factHTML(w):wordHTML(w)).join(''):'<div class="empty">Nothing matches.</div>';
-  $('#wdList').querySelectorAll('.wcard[data-id]').forEach(c=>{const w=WORDS.get(c.dataset.id);if(w) setPics(c,w);wdSeen?.observe(c);});
+  $('#wdList').querySelectorAll('.wcard[data-id]').forEach(c=>wdSeen?.observe(c));
   list.forEach(fillDef);
 }
 // Deleting asks nothing: the whole word or fact card goes to the Trash, and Restore puts it back. A fact card's
@@ -1878,12 +1803,12 @@ function deleteWord(id,w=WORDS&&WORDS.get(id)){
 // The open book's blocks where a word was saved, drawn again: its underline goes with a delete and comes back with Undo.
 function underline(w){if(DOC) rerender((w.examples||[]).filter(x=>x.bookId===DOC.id).map(x=>x.pid));}
 // A word back from the Trash. Saved again meanwhile: its examples are merged in, and the newer copy keeps its meaning
-// and flashcard schedule unless it has none, and its pictures, synonyms, antonyms and dictionary examples unless it
-// lacks them. A fact card made again meanwhile is the newer one and stays, with the old one's pictures if it has none.
+// and flashcard schedule unless it has none, and its synonyms, antonyms and dictionary examples unless it lacks them.
+// A fact card made again meanwhile is the newer one and stays.
 async function restoreWord(w){
   await loadWords();
   const have=await DB.get('word:'+w.id);
-  if(have&&isFact(w)) w=mergeExtras(have,w)||have;
+  if(have&&isFact(w)) w=have;
   else if(have){
     const key=x=>[x.bookId,x.pid,x.ws].join('|'),seen=new Set((have.examples||[]).map(key)),now=Date.now();
     w={...(mergeExtras(have,w)||have),def:have.def||w.def||'',pos:have.def?have.pos:(w.pos||have.pos||''),defSource:have.def?have.defSource:(w.defSource||''),
@@ -1919,7 +1844,7 @@ $('#wdList').addEventListener('click',e=>{
   const st=e.target.closest('[data-st]');if(st){if(st.dataset.st==='skipped'){SORT.skipped=!SORT.skipped;listSort();}else if(st.dataset.st==='rest') sortRest();return;}
   const c=e.target.closest('.wcard');if(!c) return;
   if(e.target.closest('[data-a="del"]')){deleteWord(c.dataset.id);renderWords();return;}
-  if(extrasClick(e,c,c.dataset.id)) return;
+  if(extrasClick(e,c)) return;
   const x=e.target.closest('.w-ex');if(!x||!getSelection().isCollapsed) return;
   if(x.dataset.hl) openAtHl(x.dataset.book,x.dataset.hl,x.dataset.pid); else openAtWord(x.dataset.book,x.dataset.pid,+x.dataset.ws,c.dataset.id);
 });
@@ -2056,12 +1981,10 @@ async function sortRest(){
   by.forEach((ids,id)=>editState(id,hl=>hl.forEach(h=>{if(ids.has(h.id)) h.study=v;}))); // one write per book
   toast(`Made ${plural(n,'fact card')}`);listSort();wdChips();
 }
-// A highlight's fact card (format: vocab.js), its picture looked up from its blank. Made again, it keeps its schedule
-// and pictures.
+// A highlight's fact card (format: vocab.js). Made again, it keeps its schedule.
 function makeFact(it,blank,at=Date.now()){
   const id=factId(it.bookId,it.h.id),have=WORDS.get(id),g=it.segs[0]||{};
   putWord({...have,id,kind:'fact',text:it.text,blank:blank||null,note:it.h.note||'',bookId:it.bookId,hlId:it.h.id,pid:g.pid,ws:g.s,we:g.e,title:it.title,section:it.section||'',added:(have&&have.added)||at});
-  queueFill(WORDS.get(id));
 }
 // Sorts a highlight (v: {as, at}, or null for not sorted): the list shows it at once, its book's state follows.
 function setStudy(it,v){
@@ -2351,19 +2274,18 @@ function syRender(){
   const more=xs.slice(1,3).map(y=>`<li><p class="sy-sent">${sySentence(y)}</p>${y.title?`<p class="sy-from">${esc(y.title)}</p>`:''}</li>`).join('');
   const lines=w.def&&w.def.includes('\n')?' lines':''; // a meaning with line breaks reads left-aligned
   const front=cl?`<p class="sy-ask">Which word fits?</p>${sent}${w.def?`<p class="sy-hint${lines}"><span>Meaning</span>${esc(w.def)}</p>`:''}`:term+sent;
-  const back=(cl?term:w.def?`<p class="sy-def${lines}">${esc(w.def)}</p>`:'<p class="sy-def none">No meaning saved yet</p>')+syNyms(w)+syPic(w)+(more?`<ul class="sy-more">${more}</ul>`:'');
+  const back=(cl?term:w.def?`<p class="sy-def${lines}">${esc(w.def)}</p>`:'<p class="sy-def none">No meaning saved yet</p>')+syNyms(w)+(more?`<ul class="sy-more">${more}</ul>`:'');
   syCard(w,now,front,back,cl?'Show word':'Show meaning');
 }
-// a word's synonyms and antonyms, and a card's first picture, for the back
+// a word's synonyms and antonyms, for the back
 const syNyms=w=>['syn','ant'].map(k=>(w[k]||[]).length?`<p class="sy-nyms"><span>${XL[k]}</span>${esc(w[k].join(', '))}</p>`:'').join('');
-const syPic=w=>{const p=(w.pics||[]).find(p=>p&&/^data:image\//.test(p.src||''));return p?`<img class="sy-pic" src="${esc(p.src)}" alt="">`:'';};
 // A fact card. With a blank: the text with the phrase blanked out, and the back fills it in. Without: the text to
-// recall, and the back gives the note and where it's from. A long text reads left-aligned. The back shows its picture.
+// recall, and the back gives the note and where it's from. A long text reads left-aligned.
 function syFact(f,now){
   const c=factCloze(f),t=String(f.text||'');
   const text=c?esc(c.before)+(SY.shown?`<b class="sy-fill">${esc(c.phrase)}</b>`:'<span class="sy-gap" aria-label="blank">_____</span>')+esc(c.after):esc(t);
   const front=`<p class="sy-ask">${c?'What’s missing?':'Remember this?'}</p><p class="sy-sent sy-fact${t.length>160?' long':''}">${text}</p>`;
-  const back=syPic(f)+(f.note?`<p class="sy-note">${esc(f.note)}</p>`:'')+`<p class="sy-book"><b>${esc(wordBook(f))}</b>${f.section?`<span>${esc(f.section)}</span>`:''}</p>`;
+  const back=(f.note?`<p class="sy-note">${esc(f.note)}</p>`:'')+`<p class="sy-book"><b>${esc(wordBook(f))}</b>${f.section?`<span>${esc(f.section)}</span>`:''}</p>`;
   syCard(f,now,front,back,c?'Show answer':f.note?'Show note':'Show source');
 }
 // the card, its back once shown (with Delete in the top corner), and the button that shows it or the three ratings
@@ -2378,7 +2300,7 @@ function syRate(r){
   const w=SY.queue[SY.i];if(!w||!SY.shown) return;
   syLog(!w.srs);
   w.srs=Object.assign(schedule(w.srs,r,Date.now()),{seen:((w.srs&&w.srs.seen)||0)+1});
-  DB.put('word:'+w.id,w);SY.done.add(w.id);
+  delete w.pics;DB.put('word:'+w.id,w);SY.done.add(w.id); // as putWord: pictures from before go
   const c=wordsDb===DB&&WORDS&&WORDS.get(w.id);if(c&&c!==w) c.srs=w.srs; // the cached copy, written again by a later lookup, keeps it
   if(r==='again') SY.queue.splice(Math.min(SY.queue.length,SY.i+1+STUDY_AGAIN),0,w);
   SY.i++;SY.shown=false;syRender();window.scrollTo(0,0);

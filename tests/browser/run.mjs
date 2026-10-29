@@ -38,10 +38,10 @@
 //                   back of a Study card, a word and a fact card (the next card shows, Undo puts it back in the deck)
 //   fastscroll.mjs  the fast-scroll handle under 1180 px: shown while scrolling, dragged by finger or mouse to any part
 //                   with the section and percentage beside it, the position saved, none at 1280 px or for short texts
-//   wordcard.mjs    the richer word card (lookups mocked): synonyms, antonyms, the dictionary's examples and Wikipedia's
-//                   picture on saving, a title mismatch giving none, fact cards' pictures from their blank, pictures pasted,
-//                   dropped or picked (3 at most, ×, the size guard), editing, meanings' line breaks, Study backs, older
-//                   cards filled once when shown, saving offline
+//   wordcard.mjs    the richer word card (lookups mocked): synonyms, antonyms and the dictionary's examples on saving,
+//                   editing, meanings' line breaks, Study backs, older words filled once when shown, saving offline,
+//                   fact cards never looked up; no pictures (Wikipedia never asked, a pasted one not taken), and a card
+//                   saved with pictures before shows none and loses them when next saved (an edit, a Study rating)
 //   migrate.mjs     the artifact's "Back up shelf" (legacy/app-artifact.html) → the app's "Restore from backup"
 //   study.mjs       Study flashcards: the queue (due first, the daily new-word cap), front and back, ratings and
 //                   their saved schedule, Again, keys, Sentence → word, done and empty states, ?study=1
