@@ -333,6 +333,8 @@ await t.run(async()=>{
   await p2.close();
 
   // collapse and expand: this device's choice, kept in its prefs; nothing goes to the shelf's storage
+  // a collapsed shelf's height: 43 px in Classic; a Look's heading font (IM Fell English) sets the name's line 2 px taller
+  const SLIM=46;
   await page.setViewport(PHONE);await reload();await spy();
   // each shelf on screen, - when collapsed, + when open
   const folds=()=>page.$$eval('#shelfBody .shelf-row',rs=>rs.map(r=>(r.classList.contains('shut')?'-':'+')+r.querySelector('.shelf-label :is(.sl-name,span)').textContent).join(' '));
@@ -340,7 +342,7 @@ await t.run(async()=>{
   ok('every shelf\'s heading has a ▾ before its name',(await page.$$eval('#shelfBody .shelf-row',rs=>rs.every(r=>r.querySelector('.shelf-label').firstElementChild.matches('.sl-fold')&&r.querySelector('.sl-fold').textContent==='▾'))));
   await page.click(fold('travel'));
   const strip=await page.$eval(rowSel('travel'),r=>({h:Math.round(r.getBoundingClientRect().height),covers:r.querySelectorAll('.cover').length,count:r.querySelector('small').textContent,arrow:r.querySelector('.sl-fold').textContent,label:r.querySelector('.sl-fold').getAttribute('aria-label')}));
-  ok('▾ collapses a shelf to a slim strip: its name, its count and the board',strip.covers===0&&strip.count==='1'&&strip.arrow==='▸'&&strip.label==='Expand Travel'&&strip.h<=44&&(await names()).startsWith('Travel|'));
+  ok('▾ collapses a shelf to a slim strip: its name, its count and the board',strip.covers===0&&strip.count==='1'&&strip.arrow==='▸'&&strip.label==='Expand Travel'&&strip.h<=SLIM&&(await names()).startsWith('Travel|'));
   ok('… and only that shelf',(await folds())==='-Travel +Adventure +Finance +Fantasy +Poetry +Philosophy');
   await page.click(fold('travel'));
   ok('▸ expands it again',(await folds()).startsWith('+Travel')&&(await on('Travel')).join()==='Salt and Sails');
@@ -356,7 +358,7 @@ await t.run(async()=>{
   await spy();await page.click('#foldAll');
   ok('Collapse all collapses every shelf, Unsorted too',(await folds())==='-Unsorted -Travel -Adventure -Finance -Fantasy -Poetry -Philosophy');
   const all=await page.evaluate(()=>{const rs=[...document.querySelectorAll('#shelfBody .shelf-row')],r=e=>e.getBoundingClientRect();return {hs:rs.map(x=>Math.round(r(x).height)),span:Math.round(r(rs.at(-1)).bottom-r(rs[0]).top)};});
-  ok('… into slim strips (about 40 px) that fit well within one phone screen',all.hs.every(h=>h<=44)&&all.span<=480);
+  ok('… into slim strips (about 40 px) that fit well within one phone screen',all.hs.every(h=>h<=SLIM)&&all.span<=480);
   ok('… and the button turns into Expand all',(await text('#foldAll'))==='Expand all');
   ok('Collapse all writes nothing to the shelf\'s storage',!Object.keys(await puts()).length);
   await reload();await spy();

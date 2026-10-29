@@ -82,9 +82,11 @@ await t.run(async()=>{
   ok('an entry without a count shows no length',!old.l&&old.a==='An Older Entry, 0% read');
   ok('no NaN or undefined on the shelf',!/NaN|undefined/.test(await page.$eval('#shelfBody',e=>e.innerHTML)));
   // the length line fits its cover and sits above the footer, the footer clears the gilt rule,
-  // and the title and author show their full clamp (5 and 2 lines) rather than being squeezed and cut mid-line
+  // and the title and author show their full clamp (5 and 2 lines) rather than being squeezed and cut mid-line.
+  // Counted in whole lines: a Look's heading font (IM Fell English) reaches a pixel or two past its lines, which adds
+  // to scrollHeight without a line more
   const fit=()=>page.$$eval('.cover',cs=>cs.every(c=>{const l=c.querySelector('.c-l'),f=c.querySelector('.c-f').getBoundingClientRect(),r=c.getBoundingClientRect();
-    const whole=[...c.querySelectorAll('.c-t,.c-a')].every(e=>{const s=getComputedStyle(e);return e.clientHeight>=Math.min(e.scrollHeight,parseInt(s.webkitLineClamp)*parseFloat(s.lineHeight))-1;});
+    const whole=[...c.querySelectorAll('.c-t,.c-a')].every(e=>{const s=getComputedStyle(e),lh=parseFloat(s.lineHeight);return e.clientHeight>=Math.min(Math.round(e.scrollHeight/lh),parseInt(s.webkitLineClamp))*lh-1;});
     return whole&&(!l||(l.scrollWidth<=l.clientWidth&&l.getBoundingClientRect().bottom<=f.top+.5))&&f.bottom<=r.bottom-14;}));
   ok('length line fits every cover, above the footer',await fit());
   const shortest=await page.addStyleTag({content:'.cover{--h:186px!important}'});
