@@ -71,7 +71,7 @@ function applyPrefs(){
   document.documentElement.style.setProperty('--fs',SIZES[prefs.size]);
   if(prefs.theme==='auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',prefs.theme);
   document.querySelectorAll('#segFmt button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.fmt===prefs.fmt));
-  document.querySelectorAll('#segGroup button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.g===prefs.group));
+  document.querySelectorAll('#segGroup button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.g===(prefs.view==='grid'?'shelf':prefs.group))); // Grid is always by shelf
   document.querySelectorAll('#segView button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===prefs.view));
   document.querySelectorAll('#nbGroup button,#drGroup button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.hg===(prefs.hlGroup==='color'?'color':'off')));
 }
@@ -146,6 +146,7 @@ function renderShelf(){
   $('#contWrap').innerHTML=cont?`<div class="cont"><span class="cv" style="background:${cover(cont.id)[0]}"></span><div class="ct"><small>Continue reading</small><b>${esc(cont.title)}</b><span>${Math.round(cont.progress*100)}%${cont.words?` · about ${Math.max(1,Math.round(cont.words*(1-cont.progress)/230))} min left`:''}</span></div><button class="btn" data-open="${cont.id}">Continue</button></div>`:'';
   const body=$('#shelfBody');
   $('#shTools').classList.toggle('hidden',!dragOn()||!!$('#q').value.trim()); // New shelf, Collapse all: not while searching
+  $('#foldAll').classList.toggle('hidden',prefs.view==='grid'); // Grid has nothing to collapse
   if(!all.length){
     body.innerHTML=`<div class="empty-shelf"><img src="icons/mark.svg" alt=""><h2>An empty shelf, for now.</h2><p>Add a PDF, a text file, or paste any article. It lands here as a book you can read, highlight and come back to.</p><button class="btn sea" data-add>Add your first text</button></div>`;
     return;
@@ -161,7 +162,13 @@ function renderShelf(){
       rows.map(m=>`<tr data-open="${m.id}" tabindex="0"><td><span class="tt">${isKindleId(m.id)?'<i class="nb"></i>':`<i style="background:${cover(m.id)[0]}"></i>`}${esc(m.title)}</span></td><td class="mut">${esc(m.author||'—')}</td><td class="mut c-shelf">${esc(shelfName(shelfOf(m)))}</td><td class="mut c-written">${esc(m.written||'—')}</td><td class="mut c-words">${fmtWords(m.words)||'—'}</td><td class="mut c-added">${fmtDay(m.added)}</td><td>${m.finished?'Finished':`<span class="pbar"><i style="width:${Math.round(m.progress*100)}%"></i></span>${Math.round(m.progress*100)}%`}</td><td class="mut c-hl">${m.hl}</td></tr>`).join('')}</tbody></table>`;
     return;
   }
-  if(prefs.group==='shelf'){
+  if(prefs.view==='grid'&&!$('#q').value.trim()){
+    if(!shelves().some(s=>s.id===gridPick)) gridPick=''; // the shelf in the tray was deleted
+    // the tray keeps its sideways scroll while it shows the same shelf, so the next book is where the moved one was
+    const was=body.querySelector('.g-tray'),x=was&&was.dataset.pick===gridPick?was.querySelector('.books')?.scrollLeft:0;
+    body.innerHTML=gridHTML(list);const row=body.querySelector('.g-tray .books');if(row&&x) row.scrollLeft=x;return;
+  }
+  if(prefs.group==='shelf'||prefs.view==='grid'){ // Grid shows the Shelves view's results while searching
     body.innerHTML=shelfRows(list);const rs=[...body.querySelectorAll('.shelf-row')];
     $('#foldAll').textContent=rs.length&&rs.every(r=>r.classList.contains('shut'))?'Expand all':'Collapse all';return;
   }
@@ -184,6 +191,27 @@ function shelfRows(list){
       `${s.id?`<button class="sl-name" data-shelf-edit="${esc(s.id)}" aria-label="${esc(s.name)}: rename, move or delete">${esc(s.name)}</button>`:'<span>Unsorted</span>'}${l.length?`<small>${l.length}</small>`:''}</h3>`+
       (fold?'':`<div class="books">${l.length?l.map(bookHTML).join(''):'<p class="sl-hint">Drag books here</p>'}</div>`)+'<div class="plank"></div></section>';}).join('');
 }
+// The Grid view, by shelf whatever Arrange by says: a tray of Unsorted's books, newest first, or of the shelf whose tile
+// was tapped (the tile stays marked; ← Unsorted or the tile again goes back), over a tile per shelf with its name, count
+// and first four covers. The tray's covers drag as on the shelves, onto a tile or ← Unsorted. Nothing collapses here.
+let gridPick=''; // the shelf in the tray ('' Unsorted); this page's only
+function gridHTML(list){
+  const by=new Map([['',[]],...shelves().map(s=>[s.id,[]])]);list.forEach(m=>by.get(shelfOf(m)).push(m));by.forEach(l=>l.sort((a,b)=>b.added-a.added));
+  const l=by.get(gridPick),name=shelfName(gridPick);
+  const mini=m=>`<i class="g-mini${isKindleId(m.id)?' nb':''}" style="height:${Math.round((186+parseInt(hash(m.id+'h'),36)%34)*.2)}px${isKindleId(m.id)?'':';background:'+coverOf(m)[0]}"></i>`;
+  return `<section class="g-tray" data-pick="${esc(gridPick)}" aria-label="${esc(name)}"><h3 class="shelf-label">`+
+    (gridPick?'<button class="g-back" data-tile="" data-shelf="">← Unsorted</button>':'')+`<span>${esc(name)}</span>${l.length?`<small>${l.length}</small>`:''}</h3>`+
+    (l.length?`<div class="books">${l.map(bookHTML).join('')}</div>`:`<p class="sl-hint g-hint">${gridPick?'No books on this shelf yet.':'Every book is on a shelf. Tap one to see its books here.'}</p>`)+
+    `<div class="plank"></div></section><div class="g-tiles">${shelves().map(s=>{const b=by.get(s.id);
+      return `<button class="g-tile" data-tile="${esc(s.id)}" data-shelf="${esc(s.id)}" aria-pressed="${s.id===gridPick}" aria-label="${esc(s.name)}, ${b.length?plural(b.length,'book'):'empty'}"><span class="g-name">${esc(s.name)}</span>${b.length?`<small>${b.length}</small>`:''}`+
+        `<span class="g-minis">${b.length?b.slice(0,4).map(mini).join(''):'<span class="sl-hint">Drag books here</span>'}</span></button>`;}).join('')}</div>`;
+}
+// A tile shows its shelf in the tray, scrolled into view; the focus stays on it
+function pickTile(id){
+  const key=document.activeElement&&document.activeElement.matches('.g-tile');gridPick=id===gridPick?'':id;renderShelf();
+  const tr=$('#shelfBody .g-tray');if(tr&&tr.getBoundingClientRect().top<0) tr.scrollIntoView({block:'nearest',behavior:'smooth'});
+  const b=key&&document.querySelector(`#shelfBody .g-tile[data-tile="${CSS.escape(id)}"]`);if(b) b.focus({preventScroll:true});
+}
 // Collapsed shelves are this device's (prefs.shut: their ids, '' for Unsorted), never synced. A new shelf isn't in the
 // list, so it starts expanded. Collapse all takes the shelves on screen; Expand all clears the list.
 const shutSet=()=>new Set(Array.isArray(prefs.shut)?prefs.shut:[]);
@@ -197,13 +225,14 @@ $('#shelf').addEventListener('click',e=>{
   const o=e.target.closest('[data-open]'); if(o){openBook(o.dataset.open);return;}
   const ed=e.target.closest('[data-edit]'); if(ed){openDetails(ed.dataset.edit);return;}
   if(e.target.closest('[data-add]')){resumeImport();return;}
+  const ti=e.target.closest('[data-tile]'); if(ti){pickTile(ti.dataset.tile);return;}
   const fo=e.target.closest('[data-fold]'); if(fo){foldShelf(fo.dataset.fold,fo);return;}
   const se=e.target.closest('[data-shelf-edit]'); if(se){openShelf(se.dataset.shelfEdit);return;}
   if(e.target.closest('[data-shelf-new]')){openShelf(null);return;}
   const s=e.target.closest('[data-sort]'); if(s){const c=s.dataset.sort;if(prefs.sort===c) prefs.dir*=-1; else {prefs.sort=c;prefs.dir=['title','author','shelf'].includes(c)?1:-1;}savePrefs();renderShelf();}
 });
 $('#shelf').addEventListener('keydown',e=>{if(e.key==='Enter'){const r=e.target.closest('tr[data-open]');if(r) openBook(r.dataset.open);}});
-$('#segGroup').onclick=e=>{const b=e.target.closest('button');if(!b)return;prefs.group=b.dataset.g;if(prefs.view==='list'){prefs.sort=prefs.group;prefs.dir=['author','title','shelf'].includes(prefs.group)?1:-1;}savePrefs();applyPrefs();renderShelf();};
+$('#segGroup').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(prefs.view==='grid'&&b.dataset.g!=='shelf') prefs.view='shelves';prefs.group=b.dataset.g;if(prefs.view==='list'){prefs.sort=prefs.group;prefs.dir=['author','title','shelf'].includes(prefs.group)?1:-1;}savePrefs();applyPrefs();renderShelf();};
 $('#segView').onclick=e=>{const b=e.target.closest('button');if(!b)return;prefs.view=b.dataset.v;savePrefs();applyPrefs();renderShelf();};
 $('#q').oninput=renderShelf;
 $('#addBtn').onclick=()=>resumeImport();
@@ -261,8 +290,9 @@ $('#shDel').onclick=e=>{
 // is a scroll, and a tap still opens the book or the shelf's dialog. The shelf a book would land on lights up, a collapsed
 // one too; a line shows where a shelf would go. Near the window's top or bottom edge the page scrolls. Touch uses touch
 // events: preventing touchmove is what stops iOS scrolling.
+// In the Grid view a cover in the tray drags onto a shelf's tile (or ← Unsorted) the same way.
 let DRAG=null,dragClick=false;
-const dragOn=()=>prefs.group==='shelf'&&prefs.view==='shelves';
+const dragOn=()=>prefs.view==='grid'||prefs.group==='shelf'&&prefs.view==='shelves';
 // el: a cover, or a shelf's name (not while searching, when some shelves are hidden). src fades; look is what's lifted.
 function dragStart(el,x,y,touch,pid){
   let d;
@@ -283,14 +313,16 @@ function lift(){
   const r=d.look.getBoundingClientRect(),g=d.ghost=d.look.cloneNode(true);d.dx=d.x-r.left;d.dy=d.y-r.top;
   g.querySelectorAll('.c-more').forEach(x=>x.remove());g.querySelectorAll('button').forEach(x=>{['data-open','data-shelf-edit','data-fold'].forEach(a=>x.removeAttribute(a));x.tabIndex=-1;});
   g.classList.add('drag-ghost');g.setAttribute('aria-hidden','true');document.body.appendChild(g);
+  // a book lifted from Grid's tray (smaller covers) stays its size: the ghost scales about its corner by the same ratio
+  const k=r.width/g.getBoundingClientRect().width;if(!d.shelf&&k<.98){d.k=k;g.style.transformOrigin='0 0';}
   if(d.shelf){d.mark=document.createElement('div');d.mark.className='shelf-mark hidden';document.body.appendChild(d.mark);}
   d.src.classList.add('lifted');document.body.classList.add('dragging');getSelection().removeAllRanges();
   placeGhost();d.raf=requestAnimationFrame(dragScroll);
 }
 function placeGhost(){
-  const d=DRAG;d.ghost.style.transform=`translate(${d.cx-d.dx}px,${d.cy-d.dy}px) rotate(${d.shelf?-1:-2}deg)`;
+  const d=DRAG;d.ghost.style.transform=`translate(${d.cx-d.dx}px,${d.cy-d.dy}px) rotate(${d.shelf?-1:-2}deg)${d.k?` scale(${d.k})`:''}`;
   if(d.shelf){placeMark();return;}
-  const el=document.elementFromPoint(d.cx,d.cy),row=el&&el.closest('#shelfBody .shelf-row'),to=row&&row.dataset.shelf!==d.from?row:null;
+  const el=document.elementFromPoint(d.cx,d.cy),row=el&&el.closest('#shelfBody :is(.shelf-row,.g-tile,.g-back)'),to=row&&row.dataset.shelf!==d.from?row:null;
   if(to!==d.over){if(d.over) d.over.classList.remove('drop');d.over=to;if(to) to.classList.add('drop');}
 }
 // A dragged shelf goes before the first named shelf whose middle is below the pointer, else last. d.order is the new
