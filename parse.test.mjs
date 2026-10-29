@@ -4,7 +4,7 @@ import {ok,done} from './test-util.mjs';
 
 // parse.js is a classic browser script; run it in a sandbox and pick up its globals.
 const P={};vm.runInNewContext(readFileSync(new URL('./parse.js',import.meta.url),'utf8'),Object.assign(P,{TextDecoder,module:{}}));
-const {firstUrl,isLoneUrl,decodeBody,mdToBlocks,finalize,parseDate,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights}=P.module.exports;
+const {firstUrl,isLoneUrl,decodeBody,mdToBlocks,finalize,parseDate,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,withDek}=P.module.exports;
 
 ok('firstUrl: bare link',firstUrl('https://example.com/a?b=1')==='https://example.com/a?b=1');
 ok('firstUrl: from shared text',firstUrl('Read this: “Great essay” https://example.com/x/y.html.')==='https://example.com/x/y.html');
@@ -136,6 +136,15 @@ ok('join: of several sorted or with a card, the earliest-made',join([H('ha',2,[[
 const orig=[H('ha',1,[['b1',18,27]],{note:'a'})],copy=JSON.stringify(orig),f1=fresh([['b1',12,22]]),fcopy=JSON.stringify(f1);
 join(orig,f1);
 ok('join: changes neither the highlights nor the new one',JSON.stringify(orig)===copy&&JSON.stringify(f1)===fcopy);
+
+/* ---------- link import: the subtitle ---------- */
+const P_=t=>({t:'p',text:t,marks:[]}),body=[P_('First paragraph of the story.'),P_('A second one, a little longer.')];
+const dek=[P_('A made-up subtitle about fog nets.')];
+ok('withDek: a subtitle missing from the article comes first',(r=>r.length===3&&r[0]===dek[0]&&r[1]===body[0])(withDek(body,dek)));
+ok('withDek: not when the article already holds it, whatever the spacing and punctuation',withDek([P_('A made-up subtitle — about fog nets!'),...body],dek).length===3);
+ok('withDek: not when it runs across two of the article’s paragraphs',withDek([P_('A made-up subtitle'),P_('about fog nets.'),...body],dek).length===4);
+ok('withDek: no subtitle, no change',withDek(body,[])===body);
+ok('withDek: letters of any script count',withDek([P_('霧の網についての物語。')],[P_('霧の網')]).length===1&&withDek([P_('霧の網についての物語。')],[P_('山の話。')]).length===2&&withDek([P_('Câu chuyện.')],[P_('Lưới sương mù.')]).length===2);
 
 /* ---------- read aloud: the pieces Listen speaks ---------- */
 const {speechChunks,speechWord}=P.module.exports;

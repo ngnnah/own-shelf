@@ -503,10 +503,45 @@ function liftArticleHeaders(doc){doc.querySelectorAll('article header').forEach(
 // higher); a sibling with the same non-empty class gets that fifth as a bonus. Some sites wrap each chunk of an
 // article in a bare <div> (no attributes, one element inside): a short chunk, such as a two-paragraph intro, scores
 // under 10 and, having no class, gets no bonus. One shared class makes such wrappers side by side count as alike.
-// The name matches none of Readability's class patterns, so no score changes.
+// Readability's clean-up also judges a wrapper by its own class: a classless one goes when over a fifth of its text
+// is links (and it has under 10 commas), though the chunk inside, with a class like "content", would stay; MIT
+// Technology Review's The Download lost its closing list of links that way. So a wrapper takes its chunk's standing:
+// "bare-wrapper bare-content" when the chunk's class or id is positive by Readability's own patterns (the wrapper's
+// score gets the 25 the chunk's gets), else "bare-wrapper", which matches none and changes no score.
 function markBareWrappers(doc){
-  doc.querySelectorAll('div').forEach(d=>{if(!d.attributes.length&&d.childElementCount===1&&![...d.childNodes].some(n=>n.nodeType===3&&n.nodeValue.trim())) d.className='bare-wrapper';});
+  const {positive,negative}=Readability.prototype.REGEXPS,weight=s=>s?(positive.test(s)?1:0)-(negative.test(s)?1:0):0;
+  doc.querySelectorAll('div').forEach(d=>{
+    if(d.attributes.length||d.childElementCount!==1||[...d.childNodes].some(n=>n.nodeType===3&&n.nodeValue.trim())) return;
+    const c=d.firstElementChild;d.className=weight(c.getAttribute('class'))+weight(c.id)>0?'bare-wrapper bare-content':'bare-wrapper';
+  });
   return doc;
+}
+// A page's subtitle (dek, standfirst) often sits in a header beside the article body, which Readability leaves out.
+// pageDek finds it before Readability runs: the element just under an <h1> (at most 200 letters of other text
+// between them) whose text is the page's own description (og:description, twitter:description or description).
+// → its paragraphs as blocks, or [] when the page shows no such element. withDek puts them first in the article's
+// blocks unless the article already holds that text.
+const textKey=s=>String(s||'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,'');
+function pageDek(doc){
+  const descs=new Set([...doc.querySelectorAll('meta[property="og:description"],meta[name="twitter:description"],meta[name="description"]')]
+    .map(m=>textKey(m.getAttribute('content'))).filter(k=>k.length>=20));
+  if(!descs.size||!doc.body) return [];
+  const all=[...doc.body.getElementsByTagName('*')],r=doc.createRange();
+  for(const h of doc.body.getElementsByTagName('h1')){
+    for(let i=all.indexOf(h)+1;i<all.length;i++){
+      let el=all[i];if(h.contains(el)) continue;
+      r.setStartAfter(h);r.setEndBefore(el);if(textKey(r.toString()).length>200) break;
+      const k=textKey(el.textContent);
+      if(!descs.has(k)||el.closest('[hidden],[aria-hidden="true"]')) continue;
+      for(let c;(c=[...el.children].find(c=>textKey(c.textContent)===k));) el=c;
+      return htmlToBlocks(el.innerHTML).filter(b=>b.text).map(b=>({t:'p',text:b.text,marks:b.marks}));
+    }
+  }
+  return [];
+}
+function withDek(blocks,dek){
+  const all=textKey(blocks.map(b=>b.text||'').join(' ')),k=textKey(dek.map(b=>b.text).join(' '));
+  return k&&!all.includes(k)?dek.concat(blocks):blocks;
 }
 // Fetched bytes → text, honouring the charset in the Content-Type header or a <meta> tag.
 function decodeBody(buf,type){
@@ -515,4 +550,4 @@ function decodeBody(buf,type){
   try{return new TextDecoder(cs||'utf-8').decode(buf);}catch(e){return new TextDecoder('utf-8').decode(buf);}
 }
 // ===== PARSE END =====
-if(typeof module!=='undefined') module.exports={linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,decodeBody,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,speechChunks,speechWord};
+if(typeof module!=='undefined') module.exports={linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,decodeBody,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,speechChunks,speechWord,withDek};

@@ -51,7 +51,9 @@
 //                   the study log: the last 30 days' reviews and the streak, written once when Study closes or the page
 //                   hides (never per card), another device's days on opening the Notebook, in the backup
 //   linkimport.mjs  link import's article extraction: a summary in the article's <header> survives Readability, and
-//                   so does a short intro chunk in a bare <div> beside the article's other chunks
+//                   so does a short intro chunk in a bare <div> beside the article's other chunks, and a closing chunk
+//                   of links in one; the subtitle shown under the title (the page's own description) opens the
+//                   article, once, and only when it is shown
 //   paste.mjs       Paste without touching a field (clipboard stubbed, Firebase and the link import helper faked): the
 //                   shelf's Paste beside Add (a link added straight away, text or a picture into Add, empty, refused,
 //                   readText only, local mode), Add's Paste link chip (fills the field, review step kept), Paste from
@@ -88,8 +90,8 @@
 // times, kept in out/times.json) and each file's output prints whole when it ends. The summary gives each
 // file's time and the wall time.
 // Fixtures are synthetic: legacy/test-fixture-rich-paste.html, tests/fixtures/kindle-notebook.html,
-// tests/fixtures/article-header-summary.html, tests/fixtures/chunked-article-intro.html and Markdown written to a
-// temp dir at run time.
+// tests/fixtures/article-header-summary.html, tests/fixtures/chunked-article-intro.html,
+// tests/fixtures/chunked-newsletter-links.html and Markdown written to a temp dir at run time.
 // Screenshots go to tests/browser/out/ (gitignored).
 import {spawn} from 'node:child_process';
 import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
