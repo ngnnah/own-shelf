@@ -36,6 +36,10 @@
 //                   caret as it grows and the keyboard opens or pans; Save, a tap outside, Escape, Cancel; still a
 //                   floating, draggable card with a mouse. Delete in the word card (the underline goes, Undo) and on the
 //                   back of a Study card, a word and a fact card (the next card shows, Undo puts it back in the deck)
+//   looks.mjs       Settings → Look (Classic and three Looks, Leather & vellum by default), per device and never synced,
+//                   day and night within a Look, only the chosen Look's font and textures loading, Classic pixel for
+//                   pixel as without the Looks' CSS, no SVG filters, the band clipped by #shelf, Scroll's edge curls,
+//                   ink on the highlight tints; screenshots beside the themes lab's mocks
 //   fastscroll.mjs  the fast-scroll handle under 1180 px: shown while scrolling, dragged by finger or mouse to any part
 //                   with the section and percentage beside it, the position saved, none at 1280 px or for short texts
 //   wordcard.mjs    the richer word card (lookups mocked): synonyms, antonyms and the dictionary's examples on saving,
@@ -98,7 +102,7 @@ import {fileURLToPath} from 'node:url';
 import {launch,quit} from './lib.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','shelves.mjs','grid.mjs','kindle.mjs','words.mjs','wordbox.mjs','notesheet.mjs','wordsheet.mjs','fastscroll.mjs','wordcard.mjs','study.mjs','progress.mjs','sort.mjs','migrate.mjs','linkimport.mjs','paste.mjs','setup.mjs','colours.mjs','signin.mjs','dialogs.mjs','overflow.mjs','listen.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','shelves.mjs','grid.mjs','kindle.mjs','words.mjs','wordbox.mjs','notesheet.mjs','wordsheet.mjs','fastscroll.mjs','wordcard.mjs','study.mjs','progress.mjs','sort.mjs','migrate.mjs','linkimport.mjs','paste.mjs','setup.mjs','colours.mjs','signin.mjs','dialogs.mjs','overflow.mjs','listen.mjs','looks.mjs'];
 const jobs=Math.max(1,Math.floor(Number(process.env.TEST_JOBS))||4),live=jobs===1;
 const timesFile=join(here,'out','times.json');
 let last={};try{last=JSON.parse(readFileSync(timesFile,'utf8'));}catch{}

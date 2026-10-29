@@ -343,7 +343,9 @@ function seigaiha(line, bg) {
 const waveFan = line => svgURL(`<svg xmlns='http://www.w3.org/2000/svg' width='38' height='22' viewBox='0 0 38 22'><g fill='none' stroke='${line}' stroke-width='1.5' stroke-linecap='round'>${[17, 12.5, 8, 3.5].map(r => `<path d='M${19 - r} 20a${r} ${r} 0 0 1 ${2 * r} 0'/>`).join('')}</g></svg>`);
 
 // ── tokens: every direction's values for the app's custom properties, day and night ──
-const FONT_STACK = f => `"${f}",${f === 'EB Garamond' ? '' : '"EB Garamond",'}Georgia,serif`;
+// Behind each Google font: EB Garamond (the app always loads it), then fonts that ship with macOS and iOS, as in design/obsidian
+const DEVICE_FONTS = { 'Zen Old Mincho': '"Hiragino Mincho ProN","Yu Mincho",', 'Shippori Mincho': '"Hiragino Mincho ProN","Yu Mincho",', 'Zen Antique': '"Hiragino Mincho ProN","Yu Mincho",' };
+const FONT_STACK = f => f === 'EB Garamond' ? '"EB Garamond",Georgia,serif' : `"${f}",${DEVICE_FONTS[f] || ''}"EB Garamond","Hoefler Text","Iowan Old Style",Palatino,Georgia,serif`;
 // The ink that reads best on a colour (and on its light end): the light or the dark candidate.
 function inkOn(bgs, light, dark) { const score = c => Math.min(...bgs.map(b => contrast(c, b))); return score(light) >= score(dark) ? light : dark; }
 function tokens(dir, c) {
@@ -407,20 +409,32 @@ function tokenJSON(dir, T) {
 }
 
 // ── the look's CSS: tokens for both modes, then the look's own rules (shared by both modes through the tokens) ──
+// One mode's custom properties as CSS declarations (textures as inline SVGs). design/export-looks.mjs uses it too.
+function lookVars(dir, mode, t) {
+  const vars = APP_KEYS.map(([k, f]) => `${k}:${t[f]}`).concat(NEW_KEYS.map(([k, f]) => `${k}:${typeof t[f] === 'object' ? t[f].css : t[f]}`));
+  if (dir === 'ukiyoe') vars.push(`--orn-img:${waveFan(t.sea)}`, `--wave-img:${seigaiha(mode === 'day' ? mix(t.chrome, t.paper, 0.15) : mix(t.sea, t.paper, 0.5), t.paper)}`, `--wave-land:${seigaiha(mix(t.chromeInk, t.chrome, 0.55), t.chrome)}`);
+  return vars;
+}
 function lookCSS(dir, c, T) {
   if (dir === 'today') return '';
   const L = `:root[data-look="${dir}"]`;
   let s = '';
   for (const [mode, theme] of [['day', 'light'], ['night', 'dark']]) {
     const t = T[mode];
-    const vars = APP_KEYS.map(([k, f]) => `${k}:${t[f]}`).concat(NEW_KEYS.map(([k, f]) => `${k}:${typeof t[f] === 'object' ? t[f].css : t[f]}`));
-    if (dir === 'ukiyoe') vars.push(`--orn-img:${waveFan(t.sea)}`, `--wave-img:${seigaiha(mode === 'day' ? mix(t.chrome, t.paper, 0.15) : mix(t.sea, t.paper, 0.5), t.paper)}`, `--wave-land:${seigaiha(mix(t.chromeInk, t.chrome, 0.55), t.chrome)}`);
-    s += `${L}[data-theme="${theme}"]{${vars.join(';')}}\n${L}[data-theme="${theme}"] .book{--leaf:${t.leaf}}\n`;
+    s += `${L}[data-theme="${theme}"]{${lookVars(dir, mode, t).join(';')}}\n${L}[data-theme="${theme}"] .book{--leaf:${t.leaf}}\n`;
   }
+  return s + lookRules(dir, c);
+}
+// The look's own rules, the same for day and night.
+function lookRules(dir, c) {
+  const L = `:root[data-look="${dir}"]`;
+  let s = '';
   const band = (bg, blend, shadow) => `${L}{--band:${bg};--band-blend:${blend};--band-shadow:${shadow}}`;
-  // shared by the three new looks
+  // shared by the three new looks. The band under the shelf's top bar bleeds to the screen's edges: #shelf spans the
+  // screen (its padding keeps the content where max-width put it) and clips the bleed, so the page never scrolls sideways
   s += `
 ${L}{font-synthesis:none}
+${L} #shelf{max-width:none;padding-inline:max(clamp(1rem,4vw,3rem),calc(50% - 620px + clamp(1rem,4vw,3rem)));overflow-x:clip}
 ${L} body{background:var(--paper-tex),var(--paper)}
 ${L} .cover::before,${L} .cover::after{border-block-color:color-mix(in srgb,var(--gilt) 62%,var(--bt))}
 ${L} .land::before{border-color:color-mix(in srgb,var(--gilt) 60%,transparent)}
@@ -672,10 +686,14 @@ const store = {
 };
 const hashArgs = Object.fromEntries(location.hash.slice(1).split('&').filter(Boolean).map(p => p.split('=').map(decodeURIComponent)));
 
-// #solo=dir/mode/screen[/text]: this page becomes that one mock (screenshots), at the window's own width.
+// For design/export-looks.mjs (#api): the tokens and CSS for a cfg, without the panel.
+window.themeLab = { defaults, tokens, lookVars, lookRules };
+if (hashArgs.api) return;
+// #solo=dir/mode/screen[/text][&cfg=<JSON>]: this page becomes that one mock (screenshots), at the window's own width,
+// on the direction's defaults or on cfg (a pin's, e.g. from looks.json).
 if (hashArgs.solo) {
   const [dir, mode, screen, pos] = hashArgs.solo.split('/');
-  const c = defaults(dir), T = tokens(dir, c);
+  const c = Object.assign(defaults(dir), hashArgs.cfg ? JSON.parse(hashArgs.cfg) : {}), T = tokens(dir, c);
   const html = mockDoc(dir, mode, screen, innerWidth < 600 ? 'phone' : 'desktop', lookCSS(dir, c, T));
   setTimeout(() => {
     document.open(); document.write(html); document.close();
