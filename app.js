@@ -91,7 +91,7 @@ function show(view){
   $('#notebook').classList.toggle('hidden',view!=='notebook');
   $('#study').classList.toggle('hidden',view!=='study');
   ['#bar','#rail','#scrub','#reader'].forEach(s=>$(s).classList.toggle('hidden',view!=='reader'));
-  hideTool();closeDrawers();
+  hideTool();closeDrawers();lsStop(); // leaving the reader, opening another book or signing out stops Listen
 }
 async function goShelf(){
   saveCards(); // an open note box or word card is saved, as by a tap outside
@@ -920,7 +920,7 @@ function rangeToSegs(range){
   return segs;
 }
 function segText(h){return h.segs.map(s=>blockIndex[s.pid]?blockIndex[s.pid].text.slice(s.s,s.e):'').join('\n\n');}
-function rerender(pids){new Set(pids).forEach(pid=>{const b=blockIndex[pid];if(!b||b.t==='code')return;document.querySelectorAll(`#col .hp[data-pid="${pid}"]`).forEach(el=>{el.innerHTML=inlineHTML(b);});});}
+function rerender(pids){new Set(pids).forEach(pid=>{const b=blockIndex[pid];if(!b||b.t==='code')return;document.querySelectorAll(`#col .hp[data-pid="${pid}"]`).forEach(el=>{el.innerHTML=inlineHTML(b);});});if(LS) lsMark(null,null,false);}
 function commit(){ST.hl=HL;saveState();updateCount();if($('#drawer').classList.contains('open'))renderDrawer();}
 // A new highlight joins the ones it overlaps or touches (joinHighlights in parse.js); "Joined N highlights · Undo".
 // color null (the toolbar's Note): the colour of the one it joins, else Sunny. said: the toast when nothing joins.
@@ -1269,6 +1269,140 @@ $('#findQ').addEventListener('keydown',e=>{
   if(e.key==='Enter'&&!e.isComposing){e.preventDefault();runFind();openHit(0);}
 });
 $('#findList').onclick=e=>{const b=e.target.closest('[data-i]');if(b) openHit(+b.dataset.i);};
+
+/* ================= listen: read aloud with the device's voices ================= */
+// The bar's Listen reads the open text aloud (speechSynthesis; no voice set, so the system's default speaks) from the
+// selection, else the first sentence on screen: headings, paragraphs, lists and quotes in order, code skipped, the
+// Notes only when started there. One short utterance at a time (speechChunks in parse.js: long ones stall or get cut
+// off), the next spoken on the last one's end, the current one kept in LS.u so iOS fires its events. Listen → Pause →
+// Resume. Pause cancels (pause() and resume() are unreliable); Resume says that sentence again, or starts from the
+// screen if it has left it, or from a selection. The sentence and the word being read are CSS Custom Highlights, so
+// the text's DOM (which highlight offsets depend on) never changes; without the API the block gets a class. The page
+// follows unless you scrolled in the last 4 s, a note or word card is open or text is selected. show() stops it.
+// Listening counts as reading for finishing a book: each sentence and word marks you active (markActive).
+const TTS=window.speechSynthesis&&window.SpeechSynthesisUtterance?window.speechSynthesis:null;
+const HLAPI=!!(window.Highlight&&window.CSS&&CSS.highlights);
+const LS_UI={
+  '':['Listen','Listen: read aloud from here','<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4.5 4.5 0 010 6M18.5 6.5a8 8 0 010 11"/>'],
+  on:['Pause','Pause reading aloud','<path d="M8 5.5v13M16 5.5v13" stroke-width="2.8"/>'],
+  paused:['Resume','Resume reading aloud','<path d="M7.5 5.5l11 6.5-11 6.5z" fill="currentColor"/>']};
+let LS=null; // {pids: blocks to read, bi, cs: the block's pieces [[s,e]], ci, u: the utterance speaking, on, heard, quiet, userAt, ownAt}
+function lsBtn(){
+  const b=$('#bListen'),st=!LS?'':LS.on?'on':'paused',[label,title,icon]=LS_UI[st];
+  b.dataset.ls=st;b.title=title;b.setAttribute('aria-label',label);
+  b.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg><span class="lbl">${label}</span>`;
+}
+const lsEl=pid=>[...document.querySelectorAll(`#col .hp[data-pid="${pid}"]`)].find(x=>!x.closest('.fn-card'));
+function lsRange(el,s,e){const r=document.createRange();r.setStart(...textPoint(el,s));r.setEnd(...textPoint(el,e,true));return r;}
+const lsReadable=pid=>{const b=blockIndex[pid];return !!b&&b.t!=='code'&&!!(b.text||'').trim();};
+// the blocks to read from pid on, in reading order (the Notes only when starting in them)
+function lsBlocks(pid){
+  const all=Object.keys(order).sort((x,y)=>order[x]-order[y]),i=all.indexOf(pid),notes=secOf[pid]===-1;
+  return i<0?[]:all.slice(i).filter(p=>lsReadable(p)&&(notes||secOf[p]!==-1));
+}
+const barBottom=()=>$('#bar').getBoundingClientRect().bottom;
+// Where Listen starts: the selection's start (the toolbar's, if a tap has just cleared it), else the first sentence
+// whose top is on screen. {pid, from} or null.
+function lsSelPoint(){
+  const sel=getSelection();let segs=null;
+  if(sel.rangeCount&&!sel.isCollapsed&&$('#col').contains(sel.getRangeAt(0).commonAncestorContainer)) segs=rangeToSegs(sel.getRangeAt(0));
+  const g=(segs&&segs[0])||(pendingSegs&&pendingSegs[0]);return g?{pid:g.pid,from:g.s}:null;
+}
+function lsScreenPoint(){
+  const top=barBottom();
+  for(const el of document.querySelectorAll('#col .hp[data-pid]')){
+    if(el.closest('.fn-card')) continue;const r=el.getBoundingClientRect();if(r.bottom<=top+4) continue;if(r.top>=innerHeight) break;
+    const pid=el.dataset.pid;if(!lsReadable(pid)) continue;
+    const cs=speechChunks(blockIndex[pid].text),box=c=>lsRange(el,c[0],c[1]).getBoundingClientRect();
+    const c=cs.find(c=>box(c).top>=top-2)||cs.find(c=>box(c).bottom>top+4);
+    if(c) return {pid,from:c[0]};
+  }
+  return null;
+}
+// the current block's pieces from offset `from` (moved to the start of its word)
+function lsLoad(from=0){
+  const t=blockIndex[LS.pids[LS.bi]].text;
+  while(from<t.length&&/\s/.test(t[from])) from++;while(from>0&&/\S/.test(t[from-1])) from--;
+  LS.cs=speechChunks(t).filter(c=>c[1]>from).map(c=>[Math.max(c[0],from),c[1]]);LS.ci=0;
+}
+function lsStart(p){
+  const pids=p&&lsBlocks(p.pid);
+  if(!pids||!pids.length){toast('Nothing to read aloud from here');return;}
+  if(TTS.speaking||TTS.pending) TTS.cancel();
+  LS={pids,bi:0,cs:[],ci:0,u:null,on:true,heard:false,quiet:0,userAt:0,ownAt:0};
+  lsLoad(p.pid===pids[0]?p.from:0);lsSpeak();
+}
+function lsSpeak(){
+  while(LS.ci>=LS.cs.length){if(++LS.bi>=LS.pids.length){lsStop();toast('Finished reading aloud');return;}lsLoad();}
+  const [s,e]=LS.cs[LS.ci],text=blockIndex[LS.pids[LS.bi]].text.slice(s,e),u=new SpeechSynthesisUtterance(text);
+  u.rate=prefs.rate||1;LS.u=u;LS.on=true;LS.heard=false;LS.quiet=0;
+  u.onstart=()=>{if(LS&&LS.u===u){LS.heard=true;markActive();}};
+  u.onboundary=ev=>{if(!LS||LS.u!==u||(ev.name&&ev.name!=='word')) return;LS.heard=true;markActive();const [a,b]=speechWord(text,ev.charIndex,ev.charLength);lsMark(s+a,s+b);};
+  u.onend=()=>{if(!LS||LS.u!==u) return;LS.ci++;lsSpeak();};
+  // our own cancel() clears LS.u first, so an error here came from outside (a call, another app's audio, no voice)
+  u.onerror=ev=>{if(!LS||LS.u!==u) return;lsPause();toast(/interrupted|canceled/.test(ev.error)?'Reading aloud paused':'Couldn’t read this aloud'+(ev.error?` (${ev.error})`:''));};
+  lsMark();lsBtn();TTS.speak(u);
+}
+// follow false: just redraw, as after rerender() replaced the block's contents (and the ranges in the marks with them)
+function lsMark(ws,we,follow=true){
+  if(!LS) return;const el=lsEl(LS.pids[LS.bi]);if(!el) return;const [s,e]=LS.cs[LS.ci];
+  document.querySelectorAll('#col .ls-block').forEach(x=>{if(x!==el) x.classList.remove('ls-block','ls-whole');});
+  el.classList.add('ls-block');
+  const r=lsRange(el,s,e),w=ws!=null&&we>ws?lsRange(el,ws,we):null;
+  if(HLAPI){
+    const h=new Highlight(r);h.priority=-2;CSS.highlights.set('listen',h);
+    if(w){const x=new Highlight(w);x.priority=-1;CSS.highlights.set('listen-word',x);}else CSS.highlights.delete('listen-word');
+  }else el.classList.add('ls-whole');
+  if(follow) lsFollow(w||r);
+}
+function lsUnmark(){if(HLAPI){CSS.highlights.delete('listen');CSS.highlights.delete('listen-word');}document.querySelectorAll('#col .ls-block').forEach(x=>x.classList.remove('ls-block','ls-whole'));}
+// Keep what's being read in view: when it leaves the area under the bar, scroll it to a quarter of the way down.
+function lsFollow(r){
+  const now=Date.now();
+  if(now-LS.userAt<4000||now-LS.ownAt<800||!getSelection().isCollapsed||noteTarget||CARD) return;
+  const b=r.getBoundingClientRect(),top=barBottom(),bot=innerHeight;
+  if(!b.height||(b.top>=top+4&&b.bottom<=bot-8)) return;
+  LS.ownAt=now;
+  scrollTo({top:Math.max(0,scrollY+b.top-top-(bot-top)*.25),behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+}
+function lsPause(){if(!LS) return;LS.on=false;LS.u=null;TTS.cancel();if(HLAPI) CSS.highlights.delete('listen-word');lsBtn();}
+// A paused Listen was cancelled when it paused: cancelling again just before the next speak() can cost that utterance
+// its events in WebKit (bug 238189), so only speech still going is cancelled.
+function lsStop(){if(!LS) return;const on=LS.on;LS=null;if(on||TTS.speaking||TTS.pending) TTS.cancel();lsUnmark();lsBtn();}
+// is the paused sentence still on screen?
+function lsShown(){
+  const el=LS&&lsEl(LS.pids[LS.bi]),c=LS&&LS.cs[LS.ci];if(!el||!c) return false;
+  const b=lsRange(el,c[0],c[1]).getBoundingClientRect();return b.bottom>barBottom()&&b.top<innerHeight;
+}
+if(TTS){
+  $('#bListen').classList.remove('hidden');$('#sListen').classList.remove('hidden');lsBtn();
+  $('#bListen').addEventListener('mousedown',e=>e.preventDefault()); // keeps a selection to start from
+  $('#bListen').onclick=()=>{
+    if(!DOC) return;
+    if(LS&&LS.on){lsPause();return;}
+    const p=lsSelPoint();
+    if(p){getSelection().removeAllRanges();hideTool();}
+    if(LS&&!p&&lsShown()){lsSpeak();return;}
+    const q=p||lsScreenPoint();lsStop();lsStart(q);
+  };
+  // a scroll of yours (not the follow's own) pauses following for 4 s
+  const mine=()=>{if(LS) LS.userAt=Date.now();};
+  addEventListener('wheel',mine,{passive:true});addEventListener('touchmove',mine,{passive:true});
+  addEventListener('scroll',()=>{if(LS&&Date.now()-LS.ownAt>1200) LS.userAt=Date.now();},{passive:true});
+  // Safari doesn't always fire an utterance's end: checked every 2 s, speech gone quiet after it started counts as
+  // ended; one that never started pauses. iOS stops speech when the phone locks or the app goes to the background:
+  // coming back finds it paused at that sentence.
+  setInterval(()=>{
+    if(!LS||!LS.on||!LS.u||document.visibilityState!=='visible'||TTS.speaking||TTS.pending){if(LS) LS.quiet=0;return;}
+    if(++LS.quiet<2) return;
+    if(LS.heard){LS.ci++;lsSpeak();}else{lsPause();toast('Reading aloud stopped · tap Resume');}
+  },2000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&LS&&LS.on&&!TTS.speaking&&!TTS.pending) lsPause();});
+  addEventListener('pagehide',lsStop);
+  // the speed, per device (Settings)
+  const rates=()=>document.querySelectorAll('#sRate [data-r]').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.r===(prefs.rate||1)));
+  rates();$('#sRate').onclick=e=>{const b=e.target.closest('[data-r]');if(!b) return;prefs.rate=+b.dataset.r;savePrefs();rates();};
+}
 
 /* ================= link import ================= */
 // The Worker (worker/worker.js) fetches the page; Readability extracts the article here.
