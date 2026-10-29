@@ -245,16 +245,19 @@ export async function importShelf(db, data, existing, metaFor, shelves = []) {
     res.metas.push(meta); res.merged++; res.highlights += extra.length;
   }
   // words: add missing ones; for words already saved, add examples they don't have (same book, block and place), a
-  // missing meaning, and missing pictures, synonyms, antonyms and dictionary examples (mergeExtras); the rest stays.
-  // Fact cards (kind 'fact', no term) are stored with the words: added when missing, else only their pictures filled.
-  for (const w of Array.isArray(data.words) ? data.words : []) {
-    if (!w || !w.id || !(w.term || w.kind === 'fact')) continue;
+  // missing meaning, and missing synonyms, antonyms and dictionary examples (mergeExtras); the rest stays.
+  // Fact cards (kind 'fact', no term) are stored with the words: added when missing, else left alone.
+  // Pictures from an older backup (`pics`, since removed) aren't restored, and a word written here loses its own.
+  for (const raw of Array.isArray(data.words) ? data.words : []) {
+    if (!raw || !raw.id || !(raw.term || raw.kind === 'fact')) continue;
+    const { pics, ...w } = raw;
     const have = await db.get('word:' + w.id);
     if (!have) { await db.put('word:' + w.id, w); res.words++; continue; }
     const key = x => [x.bookId, x.pid, x.ws].join('|'), seen = new Set((have.examples || []).map(key));
     const extra = (w.examples || []).filter(x => !seen.has(key(x))), def = !have.def && w.def, more = mergeExtras(have, w);
     if (!extra.length && !def && !more) continue;
     const out = { ...(more || have) };
+    delete out.pics;
     if (extra.length) out.examples = [...(have.examples || []), ...extra];
     if (def) out.def = w.def;
     await db.put('word:' + w.id, out); res.words++;

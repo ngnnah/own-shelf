@@ -204,6 +204,8 @@ await t.run(async()=>{
   // + New shelf in Grid: a tile at the end
   await page.click('#shTools [data-shelf-new]');await page.waitForSelector('#shelfM:not(.hidden)');await page.type('#shName','Poetry');await page.click('#shSave');
   await until(()=>document.querySelector('#shelfM').classList.contains('hidden'));
+  // the page smooth-scrolls to the new tile; a drag measured mid-scroll misses its cover, so wait for it to stop
+  await until(()=>new Promise(r=>{const y=scrollY;setTimeout(()=>r(scrollY===y),150);}));
   const poetry=(await tiles()).at(-1);
   ok('+ New shelf adds a tile at the end, empty',poetry.name==='Poetry'&&poetry.hint&&(await tiles()).length===7);
 

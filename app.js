@@ -2,7 +2,7 @@
 import {makeLocal,makeCloud,exportShelf,importShelf} from './store.js';
 import {firebaseConfig,WORKER_URL} from './config.js';
 import {wordId,normTerm,termKey,sentenceAround,isDue,schedule,nextLabel,dayStart,progress,dueByDay,LOG_DAYS,logReview,newOn,pruneLog,reviewsByDay,streak,cloze,datamuseUrl,parseDatamuse,wiktionaryUrl,parseWiktionary,baseForms,isFact,factId,factCloze,wordsIn,snapWords,
-  wikiSummaryUrl,parseWikiSummary,datamuseRelUrl,parseDatamuseWords,wikitextUrl,parseWikitext,cleanText,parseList,parseExamples,mergeExtras} from './vocab.js';
+  datamuseRelUrl,parseDatamuseWords,wikitextUrl,parseWikitext,cleanText,parseList,parseExamples,mergeExtras} from './vocab.js';
 /* ================= utils ================= */
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -110,7 +110,7 @@ function show(view){
   $('#notebook').classList.toggle('hidden',view!=='notebook');
   $('#study').classList.toggle('hidden',view!=='study');
   ['#bar','#rail','#scrub','#reader'].forEach(s=>$(s).classList.toggle('hidden',view!=='reader'));
-  hideTool();closeDrawers();
+  hideTool();closeDrawers();lsStop(); // leaving the reader, opening another book or signing out stops Listen
 }
 async function goShelf(){
   saveCards(); // an open note box or word card is saved, as by a tap outside
@@ -578,18 +578,12 @@ async function mergeInto(d,hl,quiet){
   if(open&&quiet) await openBook(id);
   return {added:r.added,dropped:r.dropped,recoloured:r.recoloured};
 }
-// drop anywhere; on a word or fact card (the word card, the Words tab), a picture goes to that card (addPics)
+// drop anywhere
 let dragDepth=0;
-const picHost=t=>{const el=t&&(t.nodeType===1?t:t.parentElement);return el?el.closest('#wordBox:not(.hidden),#wdList .wcard[data-id]'):null;};
-const picOver=h=>document.querySelectorAll('.pic-over').forEach(x=>{if(x!==h) x.classList.remove('pic-over');});
-addEventListener('dragenter',e=>{
-  if(!(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')&&$('#importM').classList.contains('hidden'))) return;
-  const h=picHost(e.target);dragDepth++;$('#dropAll').classList.toggle('on',!h);picOver(h);if(h) h.classList.add('pic-over');
-});
-addEventListener('dragleave',()=>{dragDepth=Math.max(0,dragDepth-1);if(!dragDepth){$('#dropAll').classList.remove('on');picOver();}});
+addEventListener('dragenter',e=>{if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')&&$('#importM').classList.contains('hidden')){dragDepth++;$('#dropAll').classList.add('on');}});
+addEventListener('dragleave',()=>{dragDepth=Math.max(0,dragDepth-1);if(!dragDepth)$('#dropAll').classList.remove('on');});
 addEventListener('dragover',e=>e.preventDefault());
-addEventListener('drop',e=>{e.preventDefault();dragDepth=0;$('#dropAll').classList.remove('on');picOver();const fs=[...((e.dataTransfer&&e.dataTransfer.files)||[])];
-  const h=picHost(e.target);if(h){if(fs.length) addPics(h.id==='wordBox'?CARD&&CARD.id:h.dataset.id,fs);return;}
+addEventListener('drop',e=>{e.preventDefault();dragDepth=0;$('#dropAll').classList.remove('on');const fs=[...((e.dataTransfer&&e.dataTransfer.files)||[])];
   if(!fs.length||!$('#importM').classList.contains('hidden')) return;if(fs.length>1) addMany(fs); else openImport(fs[0]);});
 
 /* ================= details ================= */
@@ -948,7 +942,7 @@ function rangeToSegs(range){
   return segs;
 }
 function segText(h){return h.segs.map(s=>blockIndex[s.pid]?blockIndex[s.pid].text.slice(s.s,s.e):'').join('\n\n');}
-function rerender(pids){new Set(pids).forEach(pid=>{const b=blockIndex[pid];if(!b||b.t==='code')return;document.querySelectorAll(`#col .hp[data-pid="${pid}"]`).forEach(el=>{el.innerHTML=inlineHTML(b);});});}
+function rerender(pids){new Set(pids).forEach(pid=>{const b=blockIndex[pid];if(!b||b.t==='code')return;document.querySelectorAll(`#col .hp[data-pid="${pid}"]`).forEach(el=>{el.innerHTML=inlineHTML(b);});});if(LS) lsMark(null,null,false);}
 function commit(){ST.hl=HL;saveState();updateCount();if($('#drawer').classList.contains('open'))renderDrawer();}
 // A new highlight joins the ones it overlaps or touches (joinHighlights in parse.js); "Joined N highlights · Undo".
 // color null (the toolbar's Note): the colour of the one it joins, else Sunny. said: the toast when nothing joins.
@@ -1058,8 +1052,8 @@ function openNote(h,rect){
   noteAt=placeCard(nb,sheet||!rect?null:{x:rect.left,y:Math.min(innerHeight-220,Math.max(70,rect.top))});
   setTimeout(()=>$('#noteTa').focus(),30);
 }
-function growNote(){if($('#noteBox').classList.contains('sheet')) growTa($('#noteTa'));}
-$('#noteTa').addEventListener('input',growNote);
+function growNote(end){if($('#noteBox').classList.contains('sheet')) growTa($('#noteTa'),Infinity,end);}
+$('#noteTa').addEventListener('input',()=>growNote());
 function closeNote(){$('#noteBox').classList.add('hidden');noteTarget=null;}
 $('#noteCancel').onclick=closeNote;
 // Save, a tap outside and Escape save the note; a cleared one goes to the Trash. Nothing changed: it just closes.
@@ -1298,6 +1292,140 @@ $('#findQ').addEventListener('keydown',e=>{
 });
 $('#findList').onclick=e=>{const b=e.target.closest('[data-i]');if(b) openHit(+b.dataset.i);};
 
+/* ================= listen: read aloud with the device's voices ================= */
+// The bar's Listen reads the open text aloud (speechSynthesis; no voice set, so the system's default speaks) from the
+// selection, else the first sentence on screen: headings, paragraphs, lists and quotes in order, code skipped, the
+// Notes only when started there. One short utterance at a time (speechChunks in parse.js: long ones stall or get cut
+// off), the next spoken on the last one's end, the current one kept in LS.u so iOS fires its events. Listen → Pause →
+// Resume. Pause cancels (pause() and resume() are unreliable); Resume says that sentence again, or starts from the
+// screen if it has left it, or from a selection. The sentence and the word being read are CSS Custom Highlights, so
+// the text's DOM (which highlight offsets depend on) never changes; without the API the block gets a class. The page
+// follows unless you scrolled in the last 4 s, a note or word card is open or text is selected. show() stops it.
+// Listening counts as reading for finishing a book: each sentence and word marks you active (markActive).
+const TTS=window.speechSynthesis&&window.SpeechSynthesisUtterance?window.speechSynthesis:null;
+const HLAPI=!!(window.Highlight&&window.CSS&&CSS.highlights);
+const LS_UI={
+  '':['Listen','Listen: read aloud from here','<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4.5 4.5 0 010 6M18.5 6.5a8 8 0 010 11"/>'],
+  on:['Pause','Pause reading aloud','<path d="M8 5.5v13M16 5.5v13" stroke-width="2.8"/>'],
+  paused:['Resume','Resume reading aloud','<path d="M7.5 5.5l11 6.5-11 6.5z" fill="currentColor"/>']};
+let LS=null; // {pids: blocks to read, bi, cs: the block's pieces [[s,e]], ci, u: the utterance speaking, on, heard, quiet, userAt, ownAt}
+function lsBtn(){
+  const b=$('#bListen'),st=!LS?'':LS.on?'on':'paused',[label,title,icon]=LS_UI[st];
+  b.dataset.ls=st;b.title=title;b.setAttribute('aria-label',label);
+  b.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg><span class="lbl">${label}</span>`;
+}
+const lsEl=pid=>[...document.querySelectorAll(`#col .hp[data-pid="${pid}"]`)].find(x=>!x.closest('.fn-card'));
+function lsRange(el,s,e){const r=document.createRange();r.setStart(...textPoint(el,s));r.setEnd(...textPoint(el,e,true));return r;}
+const lsReadable=pid=>{const b=blockIndex[pid];return !!b&&b.t!=='code'&&!!(b.text||'').trim();};
+// the blocks to read from pid on, in reading order (the Notes only when starting in them)
+function lsBlocks(pid){
+  const all=Object.keys(order).sort((x,y)=>order[x]-order[y]),i=all.indexOf(pid),notes=secOf[pid]===-1;
+  return i<0?[]:all.slice(i).filter(p=>lsReadable(p)&&(notes||secOf[p]!==-1));
+}
+const barBottom=()=>$('#bar').getBoundingClientRect().bottom;
+// Where Listen starts: the selection's start (the toolbar's, if a tap has just cleared it), else the first sentence
+// whose top is on screen. {pid, from} or null.
+function lsSelPoint(){
+  const sel=getSelection();let segs=null;
+  if(sel.rangeCount&&!sel.isCollapsed&&$('#col').contains(sel.getRangeAt(0).commonAncestorContainer)) segs=rangeToSegs(sel.getRangeAt(0));
+  const g=(segs&&segs[0])||(pendingSegs&&pendingSegs[0]);return g?{pid:g.pid,from:g.s}:null;
+}
+function lsScreenPoint(){
+  const top=barBottom();
+  for(const el of document.querySelectorAll('#col .hp[data-pid]')){
+    if(el.closest('.fn-card')) continue;const r=el.getBoundingClientRect();if(r.bottom<=top+4) continue;if(r.top>=innerHeight) break;
+    const pid=el.dataset.pid;if(!lsReadable(pid)) continue;
+    const cs=speechChunks(blockIndex[pid].text),box=c=>lsRange(el,c[0],c[1]).getBoundingClientRect();
+    const c=cs.find(c=>box(c).top>=top-2)||cs.find(c=>box(c).bottom>top+4);
+    if(c) return {pid,from:c[0]};
+  }
+  return null;
+}
+// the current block's pieces from offset `from` (moved to the start of its word)
+function lsLoad(from=0){
+  const t=blockIndex[LS.pids[LS.bi]].text;
+  while(from<t.length&&/\s/.test(t[from])) from++;while(from>0&&/\S/.test(t[from-1])) from--;
+  LS.cs=speechChunks(t).filter(c=>c[1]>from).map(c=>[Math.max(c[0],from),c[1]]);LS.ci=0;
+}
+function lsStart(p){
+  const pids=p&&lsBlocks(p.pid);
+  if(!pids||!pids.length){toast('Nothing to read aloud from here');return;}
+  if(TTS.speaking||TTS.pending) TTS.cancel();
+  LS={pids,bi:0,cs:[],ci:0,u:null,on:true,heard:false,quiet:0,userAt:0,ownAt:0};
+  lsLoad(p.pid===pids[0]?p.from:0);lsSpeak();
+}
+function lsSpeak(){
+  while(LS.ci>=LS.cs.length){if(++LS.bi>=LS.pids.length){lsStop();toast('Finished reading aloud');return;}lsLoad();}
+  const [s,e]=LS.cs[LS.ci],text=blockIndex[LS.pids[LS.bi]].text.slice(s,e),u=new SpeechSynthesisUtterance(text);
+  u.rate=prefs.rate||1;LS.u=u;LS.on=true;LS.heard=false;LS.quiet=0;
+  u.onstart=()=>{if(LS&&LS.u===u){LS.heard=true;markActive();}};
+  u.onboundary=ev=>{if(!LS||LS.u!==u||(ev.name&&ev.name!=='word')) return;LS.heard=true;markActive();const [a,b]=speechWord(text,ev.charIndex,ev.charLength);lsMark(s+a,s+b);};
+  u.onend=()=>{if(!LS||LS.u!==u) return;LS.ci++;lsSpeak();};
+  // our own cancel() clears LS.u first, so an error here came from outside (a call, another app's audio, no voice)
+  u.onerror=ev=>{if(!LS||LS.u!==u) return;lsPause();toast(/interrupted|canceled/.test(ev.error)?'Reading aloud paused':'Couldn’t read this aloud'+(ev.error?` (${ev.error})`:''));};
+  lsMark();lsBtn();TTS.speak(u);
+}
+// follow false: just redraw, as after rerender() replaced the block's contents (and the ranges in the marks with them)
+function lsMark(ws,we,follow=true){
+  if(!LS) return;const el=lsEl(LS.pids[LS.bi]);if(!el) return;const [s,e]=LS.cs[LS.ci];
+  document.querySelectorAll('#col .ls-block').forEach(x=>{if(x!==el) x.classList.remove('ls-block','ls-whole');});
+  el.classList.add('ls-block');
+  const r=lsRange(el,s,e),w=ws!=null&&we>ws?lsRange(el,ws,we):null;
+  if(HLAPI){
+    const h=new Highlight(r);h.priority=-2;CSS.highlights.set('listen',h);
+    if(w){const x=new Highlight(w);x.priority=-1;CSS.highlights.set('listen-word',x);}else CSS.highlights.delete('listen-word');
+  }else el.classList.add('ls-whole');
+  if(follow) lsFollow(w||r);
+}
+function lsUnmark(){if(HLAPI){CSS.highlights.delete('listen');CSS.highlights.delete('listen-word');}document.querySelectorAll('#col .ls-block').forEach(x=>x.classList.remove('ls-block','ls-whole'));}
+// Keep what's being read in view: when it leaves the area under the bar, scroll it to a quarter of the way down.
+function lsFollow(r){
+  const now=Date.now();
+  if(now-LS.userAt<4000||now-LS.ownAt<800||!getSelection().isCollapsed||noteTarget||CARD) return;
+  const b=r.getBoundingClientRect(),top=barBottom(),bot=innerHeight;
+  if(!b.height||(b.top>=top+4&&b.bottom<=bot-8)) return;
+  LS.ownAt=now;
+  scrollTo({top:Math.max(0,scrollY+b.top-top-(bot-top)*.25),behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+}
+function lsPause(){if(!LS) return;LS.on=false;LS.u=null;TTS.cancel();if(HLAPI) CSS.highlights.delete('listen-word');lsBtn();}
+// A paused Listen was cancelled when it paused: cancelling again just before the next speak() can cost that utterance
+// its events in WebKit (bug 238189), so only speech still going is cancelled.
+function lsStop(){if(!LS) return;const on=LS.on;LS=null;if(on||TTS.speaking||TTS.pending) TTS.cancel();lsUnmark();lsBtn();}
+// is the paused sentence still on screen?
+function lsShown(){
+  const el=LS&&lsEl(LS.pids[LS.bi]),c=LS&&LS.cs[LS.ci];if(!el||!c) return false;
+  const b=lsRange(el,c[0],c[1]).getBoundingClientRect();return b.bottom>barBottom()&&b.top<innerHeight;
+}
+if(TTS){
+  $('#bListen').classList.remove('hidden');$('#sListen').classList.remove('hidden');lsBtn();
+  $('#bListen').addEventListener('mousedown',e=>e.preventDefault()); // keeps a selection to start from
+  $('#bListen').onclick=()=>{
+    if(!DOC) return;
+    if(LS&&LS.on){lsPause();return;}
+    const p=lsSelPoint();
+    if(p){getSelection().removeAllRanges();hideTool();}
+    if(LS&&!p&&lsShown()){lsSpeak();return;}
+    const q=p||lsScreenPoint();lsStop();lsStart(q);
+  };
+  // a scroll of yours (not the follow's own) pauses following for 4 s
+  const mine=()=>{if(LS) LS.userAt=Date.now();};
+  addEventListener('wheel',mine,{passive:true});addEventListener('touchmove',mine,{passive:true});
+  addEventListener('scroll',()=>{if(LS&&Date.now()-LS.ownAt>1200) LS.userAt=Date.now();},{passive:true});
+  // Safari doesn't always fire an utterance's end: checked every 2 s, speech gone quiet after it started counts as
+  // ended; one that never started pauses. iOS stops speech when the phone locks or the app goes to the background:
+  // coming back finds it paused at that sentence.
+  setInterval(()=>{
+    if(!LS||!LS.on||!LS.u||document.visibilityState!=='visible'||TTS.speaking||TTS.pending){if(LS) LS.quiet=0;return;}
+    if(++LS.quiet<2) return;
+    if(LS.heard){LS.ci++;lsSpeak();}else{lsPause();toast('Reading aloud stopped · tap Resume');}
+  },2000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&LS&&LS.on&&!TTS.speaking&&!TTS.pending) lsPause();});
+  addEventListener('pagehide',lsStop);
+  // the speed, per device (Settings)
+  const rates=()=>document.querySelectorAll('#sRate [data-r]').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.r===(prefs.rate||1)));
+  rates();$('#sRate').onclick=e=>{const b=e.target.closest('[data-r]');if(!b) return;prefs.rate=+b.dataset.r;savePrefs();rates();};
+}
+
 /* ================= link import ================= */
 // The Worker (worker/worker.js) fetches the page; Readability extracts the article here.
 const workerUrl=()=>(SETTINGS.workerUrl||WORKER_URL||'').trim().replace(/\/+$/,'');
@@ -1342,21 +1470,39 @@ async function importLink(raw){
 }
 $('#linkGo').onclick=()=>importLink($('#link').value);
 $('#link').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();importLink($('#link').value);}});
-$('#pasteBtn').onclick=async()=>{
+// The clipboard → {html, txt, imgs}; rejects when the read is refused or unsupported. Call it from a tap with no await
+// before it: iOS reads the clipboard only while the tap is fresh, and shows its own Paste bubble for it.
+async function readClip(){
   let html='',txt='';const imgs=[];
-  try{
-    if(navigator.clipboard&&navigator.clipboard.read){
-      for(const it of await navigator.clipboard.read()){
-        if(!html&&it.types.includes('text/html')) html=await (await it.getType('text/html')).text();
-        if(!txt&&it.types.includes('text/plain')) txt=await (await it.getType('text/plain')).text();
-        const im=it.types.find(t=>/^image\//.test(t));if(im) imgs.push(new File([await it.getType(im)],'clipboard',{type:im}));
-      }
-    } else txt=await navigator.clipboard.readText();
-  }catch(e){toast('Couldn’t read the clipboard. Paste into the box instead.');pasteBox.focus();return;}
-  if(isLoneUrl(txt)){$('#link').value=txt.trim();importLink(txt);return;}
-  if(!html.trim()&&!txt.trim()&&!imgs.length){toast('The clipboard is empty');return;}
-  await insertClip(html,txt,imgs);
-};
+  if(navigator.clipboard&&navigator.clipboard.read){
+    for(const it of await navigator.clipboard.read()){
+      if(!html&&it.types.includes('text/html')) html=await (await it.getType('text/html')).text();
+      if(!txt&&it.types.includes('text/plain')) txt=await (await it.getType('text/plain')).text();
+      const im=it.types.find(t=>/^image\//.test(t));if(im) imgs.push(new File([await it.getType(im)],'clipboard',{type:im}));
+    }
+  } else txt=await navigator.clipboard.readText();
+  return {html,txt,imgs};
+}
+const clipEmpty=c=>!c.html.trim()&&!c.txt.trim()&&!c.imgs.length;
+// Paste: a lone link imports as a link, anything else goes into the paste box. From the shelf (add), the Add dialog
+// opens fresh first, and a link's book is added straight away, as a deep link's is.
+async function pasteClip(add){
+  let c;
+  try{c=await readClip();}
+  catch(e){if(add) openImport();toast('Couldn’t read the clipboard. Paste into the box instead.');pasteBox.focus();return;}
+  if(isLoneUrl(c.txt)){if(add) addLink(c.txt.trim()); else{$('#link').value=c.txt.trim();importLink(c.txt);}return;}
+  if(clipEmpty(c)){toast('The clipboard is empty');return;}
+  if(add) openImport();
+  await insertClip(c.html,c.txt,c.imgs);
+}
+$('#pasteBtn').onclick=()=>pasteClip(false);
+$('#addPaste').onclick=()=>pasteClip(true);
+// Paste link: the clipboard's link fills the link field and is fetched for review.
+$('#linkPaste').onclick=()=>readClip().then(c=>{
+  if(clipEmpty(c)){toast('The clipboard is empty');return;}
+  const url=firstUrl(c.txt);if(url) $('#link').value=url;
+  importLink(c.txt);
+},()=>{toast('Couldn’t read the clipboard. Paste the link into the field instead.');$('#link').focus();});
 
 /* ================= notebook ================= */
 // Every highlight on the shelf, newest first. Read-only; the books are reloaded each time it opens.
@@ -1418,7 +1564,7 @@ $('#nbTabs').onkeydown=e=>{if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;c
 
 /* ================= vocabulary ================= */
 // Words saved from the reader with the sentences they were found in (format: vocab.js). The toolbar's Word saves the
-// selection and shows its card; the meaning, synonyms, antonyms, examples and a picture are looked up in the
+// selection and shows its card; the meaning, synonyms, antonyms and examples are looked up in the
 // background (see enrich); saved places are underlined in the text
 // (inlineHTML); the Notebook's Words tab lists them all. WORDS caches the account's words (id → word): loaded on
 // first use, kept in step with every change made here, and reloaded each time the Notebook opens.
@@ -1430,7 +1576,9 @@ function loadWords(fresh){
   if(!wordsLoad){const db=DB;wordsLoad=db.all('word:').catch(()=>[]).then(list=>{if(db===DB){WORDS=new Map(list.filter(w=>w&&w.id).map(w=>[w.id,w]));WIDX=null;}return WORDS;});}
   return wordsLoad;
 }
-function putWord(w){WORDS.set(w.id,w);WIDX=null;DB.put('word:'+w.id,w);}
+// Saving a card (here and in Study's syRate) drops the pictures it may hold from before cards lost them; they're never
+// shown, and stay stored until the card is next saved.
+function putWord(w){delete w.pics;WORDS.set(w.id,w);WIDX=null;DB.put('word:'+w.id,w);}
 function wordIndex(){
   if(WIDX&&WIDX.book===DOC.id) return WIDX.map;
   const map={};
@@ -1525,33 +1673,21 @@ function showDef(w){
 }
 const exampleHTML=x=>esc(x.text.slice(0,x.s))+'<b>'+esc(x.text.slice(x.s,x.e))+'</b>'+esc(x.text.slice(x.e));
 
-/* pictures, synonyms, antonyms and the dictionary's examples (format: vocab.js) */
-// Looked up once per card and source: when a word is saved or a fact card made, and for older cards the first time
-// they're shown without them. Wikipedia gives the picture (a fact card's comes from its blank), Datamuse the synonyms
-// and antonyms, Wiktionary the examples (and synonyms and antonyms when Datamuse has none). w.tried keeps each source's
-// query once it answered, found or not, so a miss isn't asked again; a failure (offline, a service down) is tried
-// again the next time the card is shown. Two cards look up at a time; saving never waits.
-const PIC_MAX=3,WORD_BYTES=800*1024; // Firestore takes documents up to 1 MiB
-const fits=w=>new TextEncoder().encode(JSON.stringify(w)).length<=WORD_BYTES;
-const lookupQ=w=>termKey(isFact(w)?(factCloze(w)||{}).phrase:w.term);
-// the sources a card still needs
+/* synonyms, antonyms and the dictionary's examples (format: vocab.js) */
+// A word's, looked up once per word and source: when it's saved, and for older words the first time they're shown
+// without them. Datamuse gives the synonyms and antonyms, Wiktionary the examples (and synonyms and antonyms when
+// Datamuse has none). w.tried keeps each source's query once it answered, found or not, so a miss isn't asked again; a
+// failure (offline, a service down) is tried again the next time the word is shown. Two words look up at a time;
+// saving never waits. Fact cards have none of these.
+// the sources a word still needs
 function needs(w){
-  const q=lookupQ(w),t=w.tried||{},none=k=>!(w[k]||[]).length,out=[];
+  const q=isFact(w)?'':termKey(w.term),t=w.tried||{},none=k=>!(w[k]||[]).length,out=[];
   if(!q) return out;
-  if(none('pics')&&t.wiki!==q) out.push('wiki');
-  if(!isFact(w)&&(none('syn')||none('ant'))&&t.muse!==q) out.push('muse');
-  if(!isFact(w)&&(none('dex')||none('syn')||none('ant'))&&t.wikt!==q) out.push('wikt');
+  if((none('syn')||none('ant'))&&t.muse!==q) out.push('muse');
+  if((none('dex')||none('syn')||none('ant'))&&t.wikt!==q) out.push('wikt');
   return out;
 }
 // Each source → what it found; null when it has nothing; undefined when it failed.
-async function findPic(q){
-  try{
-    const s=parseWikiSummary(await getJSON(wikiSummaryUrl(q),true),q);if(!s) return null;
-    const r=await fetch(s.src,{signal:AbortSignal.timeout?.(8000)});if(!r.ok) throw new Error('HTTP '+r.status);
-    const src=await shrinkPic(await r.blob());
-    return src?{src,credit:{title:s.title,url:s.url}}:null;
-  }catch(e){return;}
-}
 async function findNyms(q){try{const [syn,ant]=await Promise.all(['syn','ant'].map(async r=>parseDatamuseWords(await getJSON(datamuseRelUrl(q,r)),q)));return {syn,ant};}catch(e){return;}}
 async function findWikt(q){try{return parseWikitext(await getJSON(wikitextUrl(q),true),q);}catch(e){return;}}
 const BUSY=new Set();
@@ -1559,14 +1695,13 @@ async function enrich(id){
   let w=WORDS&&WORDS.get(id);const want=w?needs(w):[];
   if(!want.length||BUSY.has(id)||navigator.onLine===false) return;
   BUSY.add(id);
-  const q=lookupQ(w),db=DB,has=s=>want.includes(s);
-  const [pic,nyms,wk]=await Promise.all([has('wiki')&&findPic(q),has('muse')&&findNyms(q),has('wikt')&&findWikt(q)]);
+  const q=termKey(w.term),db=DB,has=s=>want.includes(s);
+  const [nyms,wk]=await Promise.all([has('muse')&&findNyms(q),has('wikt')&&findWikt(q)]);
   BUSY.delete(id);
   w=db===DB&&WORDS&&WORDS.get(id);if(!w) return;
   const tried={...(w.tried||{})},none=k=>!(w[k]||[]).length;let changed=false;
   const got=(s,r)=>{if(!has(s)||r===undefined) return null;tried[s]=q;return r;}; // a failed source isn't marked tried
-  const p=got('wiki',pic),m=got('muse',nyms),x=got('wikt',wk);
-  if(p&&none('pics')&&fits({...w,pics:[p]})){w.pics=[p];changed=true;}
+  const m=got('muse',nyms),x=got('wikt',wk);
   ['syn','ant'].forEach(k=>{const l=m&&m[k].length?m[k]:x?x[k]:[];if(none(k)&&l.length){w[k]=l;changed=true;}});
   if(x&&none('dex')&&x.dex.length){w.dex=x.dex;changed=true;}
   if(!changed&&JSON.stringify(tried)===JSON.stringify(w.tried||{})) return;
@@ -1577,63 +1712,24 @@ function queueFill(w,first){
   if(w&&needs(w).length&&!BUSY.has(w.id)&&!FILLQ.includes(w.id)) first?FILLQ.unshift(w.id):FILLQ.push(w.id);
   while(filling<2&&FILLQ.length){filling++;enrich(FILLQ.shift()).catch(e=>console.warn('Lookup',e)).finally(()=>{filling--;queueFill();});}
 }
-// A picture for a card: at most 640 px on its long side, JPEG on white (a transparent PNG would turn black), about
-// 50–100 KB, redone smaller when it's still large. → a data URL, or null when it can't be read.
-function shrinkPic(blob){
-  return new Promise(res=>{
-    const u=URL.createObjectURL(blob),img=new Image();
-    img.onerror=()=>{URL.revokeObjectURL(u);res(null);};
-    img.onload=()=>{
-      URL.revokeObjectURL(u);const W=img.naturalWidth,H=img.naturalHeight;if(!W||!H){res(null);return;}
-      const draw=(max,q)=>{const k=Math.min(1,max/Math.max(W,H)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(W*k));c.height=Math.max(1,Math.round(H*k));
-        const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',q);};
-      let d=draw(640,.8);if(d.length>140*1024) d=draw(480,.7);res(d);
-    };
-    img.src=u;
-  });
-}
-// Pictures pasted, dropped or picked, up to 3 a card, each keeping the card well under Firestore's limit.
-async function addPics(id,files){
-  const w=id&&WORDS&&WORDS.get(id),imgs=[...files].filter(f=>f&&/^image\//.test(f.type));if(!w) return;
-  if(!imgs.length){toast('That isn’t a picture');return;}
-  let n=0,why='';
-  for(const f of imgs){
-    if((w.pics||[]).length>=PIC_MAX){why='Up to 3 pictures';break;}
-    const src=await shrinkPic(f);if(!src){why='Couldn’t read that picture';continue;}
-    const pics=[...(w.pics||[]),{src}];
-    if(!fits({...w,pics})){why='Too big for this card';break;}
-    w.pics=pics;n++;
-  }
-  if(n){putWord(w);showExtras(w);}
-  toast(why||(n>1?`${n} pictures added`:'Picture added'));
-}
-function removePic(id,i){const w=WORDS&&WORDS.get(id);if(!w||!(w.pics||[])[i]) return;w.pics=w.pics.filter((_,j)=>j!==i);putWord(w);showExtras(w);toast('Picture removed');}
 // Synonyms or antonyms as "a, b", examples one a line (vocab.js). → whether they changed.
 function setExtra(w,k,text){
   const v=k==='dex'?parseExamples(text,w.dex,w.term):parseList(text);
   if(JSON.stringify(v)===JSON.stringify(w[k]||[])) return false;
   w[k]=v;putWord(w);return true;
 }
-// A card's extras, in the word card and the Words tab: the dictionary's examples, synonyms and antonyms (edited in
-// place like the meaning; hidden when empty), the pictures (× removes one; the src is set by setPics), and Add for what's
-// missing: a section to type in, or a picture. A fact card has only pictures.
+// A word's extras, in the word card and the Words tab: the dictionary's examples, synonyms and antonyms (edited in
+// place like the meaning; hidden when empty), and Add for what's missing: a section to type in.
 const XL={dex:'Examples',syn:'Synonyms',ant:'Antonyms'};
 const markWord=x=>x.e>x.s&&x.e<=x.text.length?exampleHTML(x):esc(x.text);
 function extraHTML(w,k){
-  if(k==='pics'){
-    const ps=(w.pics||[]).map((p,i)=>[p,i]).filter(([p])=>p&&/^data:image\//.test(p.src||''));
-    return `<div class="w-pics${ps.length?'':' hidden'}" data-x="pics">${ps.map(([p,i])=>`<figure class="w-pic"><img alt="${esc(p.credit?p.credit.title:'')}" data-pi="${i}"><button class="w-unpic" data-unpic="${i}" aria-label="Remove this picture">×</button>`+
-      (p.credit&&/^https:\/\//.test(p.credit.url||'')?`<figcaption><a href="${esc(p.credit.url)}" target="_blank" rel="noopener">Wikipedia</a></figcaption>`:'')+'</figure>').join('')}</div>`;
-  }
   if(k==='add'){
-    const miss=isFact(w)?[]:['dex','syn','ant'].filter(k=>!(w[k]||[]).length),pic=(w.pics||[]).length<PIC_MAX;
-    return `<div class="w-add" data-x="add">${miss.length||pic?'<span class="w-addl">Add</span>':''}${miss.map(k=>`<button class="w-addb" data-add="${k}">${k==='dex'?'Example':XL[k]}</button>`).join('')}`+
-      (pic?'<label class="w-addb">Picture<input type="file" accept="image/*" multiple class="w-file"></label>':'')+'</div>';
+    const miss=['dex','syn','ant'].filter(k=>!(w[k]||[]).length);
+    return `<div class="w-add" data-x="add">${miss.length?'<span class="w-addl">Add</span>':''}${miss.map(k=>`<button class="w-addb" data-add="${k}">${k==='dex'?'Example':XL[k]}</button>`).join('')}</div>`;
   }
   const v=w[k]||[],val=k==='dex'?v.map(x=>markWord(x)+(x.cite?`<span class="wx-cite"> — ${esc(x.cite)}</span>`:'')).join('\n'):esc(v.join(', '));
   return `<section class="wx${v.length?'':' hidden'}" data-x="${k}"><h4 class="w-lbl">${XL[k]}</h4><p class="wx-f" data-k="${k}" contenteditable="plaintext-only" role="textbox" aria-label="${XL[k]} of ${esc(w.term)}"${k==='dex'?' aria-multiline="true" data-ph="One a line"':' data-ph="Separate them with commas"'}>${val}</p></section>`;
 }
-const setPics=(root,w)=>root.querySelectorAll('img[data-pi]').forEach(im=>{const p=(w.pics||[])[+im.dataset.pi];if(p) im.src=p.src;});
 // Redraws a card's extras where it shows (the word card, the Words tab), except a field being edited; `only` some.
 function showExtras(w,only){
   const box=CARD&&CARD.id===w.id?$('#wordBox'):null,c=document.querySelector(`#wdList .wcard[data-id="${CSS.escape(w.id)}"]`);
@@ -1641,7 +1737,6 @@ function showExtras(w,only){
     const k=el.dataset.x,f=el.querySelector('.wx-f');
     if((only&&!only.includes(k))||(f&&(f.dataset.dirty||f===document.activeElement))) return;
     el.outerHTML=extraHTML(w,k);
-    if(k==='pics') setPics(r.querySelector('[data-x="pics"]'),w);
   }));
   if(box){CARD.at=placeCard(box,CARD.at);growCard();} // grown: still inside the visible area
 }
@@ -1652,35 +1747,18 @@ function revealExtra(root,k){
   if(root.id==='wordBox') CARD.at=placeCard(root,CARD.at);
   s.querySelector('.wx-f').focus();
 }
-// A picture pasted into a card (when the clipboard holds no text, which goes into the field as usual).
-function pastePics(e){
-  const host=e.target.closest&&e.target.closest('#wordBox,#wdList .wcard[data-id]'),cd=e.clipboardData;
-  if(!host||!cd||(cd.getData('text/plain')||'').trim()) return;
-  const fs=[...(cd.files||[])];if(!fs.length) [...(cd.items||[])].forEach(i=>{if(i.kind==='file'){const f=i.getAsFile();if(f) fs.push(f);}});
-  const imgs=fs.filter(f=>/^image\//.test(f.type));if(!imgs.length) return;
-  e.preventDefault();addPics(host.id==='wordBox'?CARD&&CARD.id:host.dataset.id,imgs);
-}
-const lightbox=src=>{$('#lightbox img').src=src;$('#lightbox').classList.remove('hidden');};
-// the clicks, pastes and picks that both places share; → true when handled
-function extrasClick(e,root,id){
+// the clicks that both places share; → true when handled
+function extrasClick(e,root){
   const add=e.target.closest('[data-add]');if(add){revealExtra(root,add.dataset.add);return true;}
-  const un=e.target.closest('[data-unpic]');if(un){removePic(id,+un.dataset.unpic);return true;}
-  const im=e.target.closest('img[data-pi]');if(im){lightbox(im.src);return true;}
   return false;
 }
 ['#wordBox','#wdList'].forEach(s=>{
   const el=$(s);
-  el.addEventListener('paste',pastePics);
   el.addEventListener('input',e=>{const f=e.target.closest&&e.target.closest('.wx-f');if(f) f.dataset.dirty='1';});
-  el.addEventListener('change',e=>{
-    if(!e.target.matches('.w-file')) return;
-    const id=s==='#wordBox'?CARD&&CARD.id:e.target.closest('.wcard').dataset.id;addPics(id,e.target.files);e.target.value='';
-  });
 });
 
-// The word card: term, part of speech, the meaning to edit, the dictionary's examples, synonyms and antonyms, the
-// pictures, and the sentence from your reading (the one at `at`, else the newest). Delete sits in its head, away
-// from Save.
+// The word card: term, part of speech, the meaning to edit, the dictionary's examples, synonyms and antonyms, and the
+// sentence from your reading (the one at `at`, else the newest). Delete sits in its head, away from Save.
 let CARD=null; // {id, at: where placeCard put it} while open
 function openWordCard(id,at,rect){
   const w=WORDS&&WORDS.get(id);if(!w) return;
@@ -1690,7 +1768,7 @@ function openWordCard(id,at,rect){
   const box=$('#wordBox'),sheet=asSheet(box,$('#wbDef'));
   $('#wbTerm').textContent=w.term;$('#wbDel').setAttribute('aria-label',`Delete “${w.term}”`);
   $('#wbDef').value=w.def||'';$('#wbEx').innerHTML=ex?exampleHTML(ex):'';$('#wbRead').classList.toggle('hidden',!ex);
-  box.querySelectorAll('[data-x]').forEach(el=>{el.outerHTML=extraHTML(w,el.dataset.x);});setPics(box,w);
+  box.querySelectorAll('[data-x]').forEach(el=>{el.outerHTML=extraHTML(w,el.dataset.x);});
   showDef(w);fillDef(w);
   box.classList.remove('hidden');box.style.maxHeight='';$('#wbMore').scrollTop=$('#wbBody').scrollTop=0;
   // a sheet on phones; elsewhere under the word, or above it near the bottom (docked without a word to go by)
@@ -1706,13 +1784,13 @@ function closeWordCard(){$('#wordBox').classList.add('hidden');CARD=null;}
 // The word card as a sheet: the meaning grows with its text up to the room between the head and the buttons, then
 // scrolls inside itself (to its end only while you type there), and so do the other fields (--room); the middle
 // scrolls so the field being edited stays in view at its caret. Run on opening, typing, focusing a field and whenever
-// the visible area changes.
-function growCard(){
+// the visible area changes (end: whether the meaning follows its end; by default while the caret is there).
+function growCard(end){
   const box=$('#wordBox'),body=$('#wbBody'),ta=$('#wbDef');if(!CARD||box.classList.contains('hidden')||!box.classList.contains('sheet')) return;
   const cs=getComputedStyle(body),st=body.scrollTop,f=document.activeElement;
   const room=Math.max(80,(parseFloat(getComputedStyle(box).maxHeight)||innerHeight)-(box.offsetHeight-body.clientHeight)-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom));
   box.style.setProperty('--room',room+'px');
-  growTa(ta,room,f===ta&&ta.selectionEnd===ta.value.length);body.scrollTop=st; // the field's moment at no height mustn't scroll the middle
+  growTa(ta,room,f===ta&&(end??ta.selectionEnd===ta.value.length));body.scrollTop=st; // the field's moment at no height mustn't scroll the middle
   if(!f||!body.contains(f)) return;
   let r=f.getBoundingClientRect();const s=getSelection();
   if(f.isContentEditable&&s.rangeCount&&f.contains(s.focusNode)){const c=s.getRangeAt(0).cloneRange();c.collapse(false);r=c.getClientRects()[0]||r;}
@@ -1720,8 +1798,8 @@ function growCard(){
   if(r.bottom>b.bottom-pad) body.scrollTop+=r.bottom-b.bottom+pad;
   else if(r.top<b.top+pad) body.scrollTop-=b.top+pad-r.top;
 }
-$('#wordBox').addEventListener('input',growCard);
-$('#wordBox').addEventListener('focusin',()=>requestAnimationFrame(growCard));
+$('#wordBox').addEventListener('input',()=>growCard());
+$('#wordBox').addEventListener('focusin',()=>requestAnimationFrame(()=>growCard()));
 // Delete: the word goes to the Trash, with what was typed into the card left out; Undo brings it back.
 $('#wbDel').onclick=()=>{const id=CARD&&CARD.id;closeWordCard();if(id) deleteWord(id);};
 // Dragging the card by its head moves it anywhere inside the visible area, until it closes. Not a sheet.
@@ -1735,16 +1813,18 @@ wbHead.addEventListener('pointerdown',e=>{
 });
 wbHead.addEventListener('pointermove',e=>{if(wbDrag&&CARD&&e.pointerId===wbDrag.id) CARD.at=placeCard($('#wordBox'),{x:e.clientX-wbDrag.dx,y:e.clientY-wbDrag.dy});});
 wbHead.addEventListener('pointerup',endWbDrag);wbHead.addEventListener('pointercancel',endWbDrag);
-// Both cards follow the visible area: the keyboard opening or closing, iOS panning to the field, a resize.
+// Both cards follow the visible area: the keyboard opening or closing, iOS panning it (to the field, or as the page
+// scrolls), a resize. A field showing its end with the caret there keeps showing it; one scrolled up to read stays put.
+const showsEnd=ta=>ta.selectionEnd===ta.value.length&&ta.scrollTop+ta.clientHeight>=ta.scrollHeight-2;
 function keepCardsInView(){
   const nb=$('#noteBox');
-  if(!nb.classList.contains('hidden')){noteAt=placeCard(nb,noteAt);growNote();}
-  if(CARD){CARD.at=placeCard($('#wordBox'),CARD.at);growCard();}
+  if(!nb.classList.contains('hidden')){const end=showsEnd($('#noteTa'));noteAt=placeCard(nb,noteAt);growNote(end);}
+  if(CARD){const end=showsEnd($('#wbDef'));CARD.at=placeCard($('#wordBox'),CARD.at);growCard(end);}
 }
 window.visualViewport?.addEventListener('resize',keepCardsInView);window.visualViewport?.addEventListener('scroll',keepCardsInView);
 addEventListener('resize',keepCardsInView);
 $('#wbClose').onclick=closeWordCard;
-// Save, a tap outside and Escape keep what was typed (Cancel drops it); pictures are kept as soon as they're added or removed
+// Save, a tap outside and Escape keep what was typed (Cancel drops it)
 function saveWordCard(){
   const w=CARD&&WORDS&&WORDS.get(CARD.id);
   if(w){
@@ -1754,7 +1834,7 @@ function saveWordCard(){
   closeWordCard();
 }
 $('#wbSave').onclick=saveWordCard;
-$('#wordBox').addEventListener('click',e=>{if(CARD) extrasClick(e,$('#wordBox'),CARD.id);});
+$('#wordBox').addEventListener('click',e=>{if(CARD) extrasClick(e,$('#wordBox'));});
 document.addEventListener('keydown',e=>{if(e.key==='Escape') saveWordCard();});
 // A tap outside the note box or the word card saves it, as Save does, once the tap has done what it does there (its
 // click, or 0.4 s when a tap makes none): saving redraws the drawer and the passage, which would swallow a tap on
@@ -1786,7 +1866,7 @@ let WD={run:0,f:'all'};
 const wordBook=x=>(META.find(m=>m.id===x.bookId)||x).title||'';
 // Shows the cached words at once; fresh: reloads them too (other devices, a restored backup) and redraws only on a
 // change, and not while a meaning is being edited.
-const wordsSig=()=>JSON.stringify([...WORDS.values()].sort((a,b)=>a.id<b.id?-1:1),(k,v)=>k==='src'&&typeof v==='string'?v.length+v.slice(-24):v); // a picture by its length and end
+const wordsSig=()=>JSON.stringify([...WORDS.values()].sort((a,b)=>a.id<b.id?-1:1),(k,v)=>k==='pics'?undefined:v); // pictures from before aren't shown
 async function openWords(fresh){
   const run=++WD.run,ready=!!WORDS&&wordsDb===DB,shown=ready?wordsSig():null;
   if(ready) renderWords();
@@ -1859,22 +1939,21 @@ $('#wpCharts').addEventListener('pointerout',e=>{const ol=e.target.closest('.wp-
 // The charts fold away: open at first on screens wider than a phone, then as last left (a tap on the summary).
 $('#wpMore').open=prefs.wpOpen??matchMedia('(min-width:601px)').matches;
 $('#wpMore>summary').addEventListener('click',()=>{prefs.wpOpen=!$('#wpMore').open;savePrefs();});
-// A fact card in the list: its text with the blanked phrase marked, where it's from (opens the highlight), its note,
-// its pictures. A card takes focus (tabindex -1), so a picture can be pasted into it.
+// A fact card in the list: its text with the blanked phrase marked, where it's from (opens the highlight), its note.
 const factQ=f=>{const c=factCloze(f);return c?esc(c.before)+`<span class="f-gap">${esc(c.phrase)}</span>`+esc(c.after):esc(f.text||'');};
 const factFrom=f=>[wordBook(f),f.section].filter(Boolean).join(' · ');
-const factHTML=f=>`<article class="wcard fcard" data-id="${esc(f.id)}" tabindex="-1"><div class="w-head"><span class="f-tag">Fact</span><button class="w-del" data-a="del" aria-label="Delete this fact card">Delete</button></div>`+
+const factHTML=f=>`<article class="wcard fcard" data-id="${esc(f.id)}"><div class="w-head"><span class="f-tag">Fact</span><button class="w-del" data-a="del" aria-label="Delete this fact card">Delete</button></div>`+
   `<button class="w-ex" data-book="${esc(f.bookId)}" data-hl="${esc(f.hlId)}" data-pid="${esc(f.pid)}"><span class="w-q">${factQ(f)}</span><span class="w-bk">${esc(factFrom(f))}</span></button>`+
-  (f.note?`<p class="f-note">${esc(f.note)}</p>`:'')+extraHTML(f,'pics')+extraHTML(f,'add')+'</article>';
-// A word: its meaning, the dictionary's examples, synonyms, antonyms and pictures, then the sentences from your reading.
+  (f.note?`<p class="f-note">${esc(f.note)}</p>`:'')+'</article>';
+// A word: its meaning, the dictionary's examples, synonyms and antonyms, then the sentences from your reading.
 const wordHTML=w=>{
   const xs=w.examples||[];
-  return `<article class="wcard" data-id="${esc(w.id)}" tabindex="-1"><div class="w-head"><h3 class="w-term">${esc(w.term)}</h3><span class="w-pos">${esc(w.pos||'')}</span><button class="w-del" data-a="del" aria-label="Delete “${esc(w.term)}”">Delete</button></div>`+
+  return `<article class="wcard" data-id="${esc(w.id)}"><div class="w-head"><h3 class="w-term">${esc(w.term)}</h3><span class="w-pos">${esc(w.pos||'')}</span><button class="w-del" data-a="del" aria-label="Delete “${esc(w.term)}”">Delete</button></div>`+
     `<p class="w-def" contenteditable="plaintext-only" role="textbox" aria-label="Meaning of ${esc(w.term)}" data-ph="${esc(defPh(w))}">${esc(w.def||'')}</p><p class="w-src">${esc(srcText(w))}</p>`+
-    ['dex','syn','ant','pics'].map(k=>extraHTML(w,k)).join('')+(xs.length?'<h4 class="w-lbl">From your reading</h4>':'')+
+    ['dex','syn','ant'].map(k=>extraHTML(w,k)).join('')+(xs.length?'<h4 class="w-lbl">From your reading</h4>':'')+
     xs.map(x=>`<button class="w-ex" data-book="${esc(x.bookId)}" data-pid="${esc(x.pid)}" data-ws="${x.ws}"><span class="w-q">${exampleHTML(x)}</span><span class="w-bk">${esc(wordBook(x))}</span></button>`).join('')+extraHTML(w,'add')+'</article>';
 };
-// Older cards look up their pictures, synonyms, antonyms and examples once they're on screen (see enrich).
+// Older words look up their synonyms, antonyms and examples once they're on screen (see enrich).
 const wdSeen=typeof IntersectionObserver==='function'?new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting) return;wdSeen.unobserve(e.target);queueFill(WORDS&&WORDS.get(e.target.dataset.id));}),{rootMargin:'200px 0px'}):null;
 function listWords(){
   wdSeen?.disconnect();
@@ -1887,7 +1966,7 @@ function listWords(){
     const h=nbFold((f?[w.text,w.note,wordBook(w),w.section]:[w.term,w.def,...(w.syn||[]),...(w.ant||[]),...(w.examples||[]).map(x=>x.text)]).join(' '));return terms.every(t=>h.includes(t));
   }).sort((a,b)=>(b.added||0)-(a.added||0));
   $('#wdList').innerHTML=list.length?list.map(w=>isFact(w)?factHTML(w):wordHTML(w)).join(''):'<div class="empty">Nothing matches.</div>';
-  $('#wdList').querySelectorAll('.wcard[data-id]').forEach(c=>{const w=WORDS.get(c.dataset.id);if(w) setPics(c,w);wdSeen?.observe(c);});
+  $('#wdList').querySelectorAll('.wcard[data-id]').forEach(c=>wdSeen?.observe(c));
   list.forEach(fillDef);
 }
 // Deleting asks nothing: the whole word or fact card goes to the Trash, and Restore puts it back. A fact card's
@@ -1900,12 +1979,12 @@ function deleteWord(id,w=WORDS&&WORDS.get(id)){
 // The open book's blocks where a word was saved, drawn again: its underline goes with a delete and comes back with Undo.
 function underline(w){if(DOC) rerender((w.examples||[]).filter(x=>x.bookId===DOC.id).map(x=>x.pid));}
 // A word back from the Trash. Saved again meanwhile: its examples are merged in, and the newer copy keeps its meaning
-// and flashcard schedule unless it has none, and its pictures, synonyms, antonyms and dictionary examples unless it
-// lacks them. A fact card made again meanwhile is the newer one and stays, with the old one's pictures if it has none.
+// and flashcard schedule unless it has none, and its synonyms, antonyms and dictionary examples unless it lacks them.
+// A fact card made again meanwhile is the newer one and stays.
 async function restoreWord(w){
   await loadWords();
   const have=await DB.get('word:'+w.id);
-  if(have&&isFact(w)) w=mergeExtras(have,w)||have;
+  if(have&&isFact(w)) w=have;
   else if(have){
     const key=x=>[x.bookId,x.pid,x.ws].join('|'),seen=new Set((have.examples||[]).map(key)),now=Date.now();
     w={...(mergeExtras(have,w)||have),def:have.def||w.def||'',pos:have.def?have.pos:(w.pos||have.pos||''),defSource:have.def?have.defSource:(w.defSource||''),
@@ -1941,7 +2020,7 @@ $('#wdList').addEventListener('click',e=>{
   const st=e.target.closest('[data-st]');if(st){if(st.dataset.st==='skipped'){SORT.skipped=!SORT.skipped;listSort();}else if(st.dataset.st==='rest') sortRest();return;}
   const c=e.target.closest('.wcard');if(!c) return;
   if(e.target.closest('[data-a="del"]')){deleteWord(c.dataset.id);renderWords();return;}
-  if(extrasClick(e,c,c.dataset.id)) return;
+  if(extrasClick(e,c)) return;
   const x=e.target.closest('.w-ex');if(!x||!getSelection().isCollapsed) return;
   if(x.dataset.hl) openAtHl(x.dataset.book,x.dataset.hl,x.dataset.pid); else openAtWord(x.dataset.book,x.dataset.pid,+x.dataset.ws,c.dataset.id);
 });
@@ -2078,12 +2157,10 @@ async function sortRest(){
   by.forEach((ids,id)=>editState(id,hl=>hl.forEach(h=>{if(ids.has(h.id)) h.study=v;}))); // one write per book
   toast(`Made ${plural(n,'fact card')}`);listSort();wdChips();
 }
-// A highlight's fact card (format: vocab.js), its picture looked up from its blank. Made again, it keeps its schedule
-// and pictures.
+// A highlight's fact card (format: vocab.js). Made again, it keeps its schedule.
 function makeFact(it,blank,at=Date.now()){
   const id=factId(it.bookId,it.h.id),have=WORDS.get(id),g=it.segs[0]||{};
   putWord({...have,id,kind:'fact',text:it.text,blank:blank||null,note:it.h.note||'',bookId:it.bookId,hlId:it.h.id,pid:g.pid,ws:g.s,we:g.e,title:it.title,section:it.section||'',added:(have&&have.added)||at});
-  queueFill(WORDS.get(id));
 }
 // Sorts a highlight (v: {as, at}, or null for not sorted): the list shows it at once, its book's state follows.
 function setStudy(it,v){
@@ -2373,19 +2450,18 @@ function syRender(){
   const more=xs.slice(1,3).map(y=>`<li><p class="sy-sent">${sySentence(y)}</p>${y.title?`<p class="sy-from">${esc(y.title)}</p>`:''}</li>`).join('');
   const lines=w.def&&w.def.includes('\n')?' lines':''; // a meaning with line breaks reads left-aligned
   const front=cl?`<p class="sy-ask">Which word fits?</p>${sent}${w.def?`<p class="sy-hint${lines}"><span>Meaning</span>${esc(w.def)}</p>`:''}`:term+sent;
-  const back=(cl?term:w.def?`<p class="sy-def${lines}">${esc(w.def)}</p>`:'<p class="sy-def none">No meaning saved yet</p>')+syNyms(w)+syPic(w)+(more?`<ul class="sy-more">${more}</ul>`:'');
+  const back=(cl?term:w.def?`<p class="sy-def${lines}">${esc(w.def)}</p>`:'<p class="sy-def none">No meaning saved yet</p>')+syNyms(w)+(more?`<ul class="sy-more">${more}</ul>`:'');
   syCard(w,now,front,back,cl?'Show word':'Show meaning');
 }
-// a word's synonyms and antonyms, and a card's first picture, for the back
+// a word's synonyms and antonyms, for the back
 const syNyms=w=>['syn','ant'].map(k=>(w[k]||[]).length?`<p class="sy-nyms"><span>${XL[k]}</span>${esc(w[k].join(', '))}</p>`:'').join('');
-const syPic=w=>{const p=(w.pics||[]).find(p=>p&&/^data:image\//.test(p.src||''));return p?`<img class="sy-pic" src="${esc(p.src)}" alt="">`:'';};
 // A fact card. With a blank: the text with the phrase blanked out, and the back fills it in. Without: the text to
-// recall, and the back gives the note and where it's from. A long text reads left-aligned. The back shows its picture.
+// recall, and the back gives the note and where it's from. A long text reads left-aligned.
 function syFact(f,now){
   const c=factCloze(f),t=String(f.text||'');
   const text=c?esc(c.before)+(SY.shown?`<b class="sy-fill">${esc(c.phrase)}</b>`:'<span class="sy-gap" aria-label="blank">_____</span>')+esc(c.after):esc(t);
   const front=`<p class="sy-ask">${c?'What’s missing?':'Remember this?'}</p><p class="sy-sent sy-fact${t.length>160?' long':''}">${text}</p>`;
-  const back=syPic(f)+(f.note?`<p class="sy-note">${esc(f.note)}</p>`:'')+`<p class="sy-book"><b>${esc(wordBook(f))}</b>${f.section?`<span>${esc(f.section)}</span>`:''}</p>`;
+  const back=(f.note?`<p class="sy-note">${esc(f.note)}</p>`:'')+`<p class="sy-book"><b>${esc(wordBook(f))}</b>${f.section?`<span>${esc(f.section)}</span>`:''}</p>`;
   syCard(f,now,front,back,c?'Show answer':f.note?'Show note':'Show source');
 }
 // the card, its back once shown (with Delete in the top corner), and the button that shows it or the three ratings
@@ -2400,7 +2476,7 @@ function syRate(r){
   const w=SY.queue[SY.i];if(!w||!SY.shown) return;
   syLog(!w.srs);
   w.srs=Object.assign(schedule(w.srs,r,Date.now()),{seen:((w.srs&&w.srs.seen)||0)+1});
-  DB.put('word:'+w.id,w);SY.done.add(w.id);
+  delete w.pics;DB.put('word:'+w.id,w);SY.done.add(w.id); // as putWord: pictures from before go
   const c=wordsDb===DB&&WORDS&&WORDS.get(w.id);if(c&&c!==w) c.srs=w.srs; // the cached copy, written again by a later lookup, keeps it
   if(r==='again') SY.queue.splice(Math.min(SY.queue.length,SY.i+1+STUDY_AGAIN),0,w);
   SY.i++;SY.shown=false;syRender();window.scrollTo(0,0);
@@ -2554,10 +2630,12 @@ async function runIncoming(){
   const q=new URLSearchParams(location.search);['add','url','text','title','study'].forEach(k=>q.delete(k));
   history.replaceState(null,'',location.pathname+(q.toString()?'?'+q:'')+location.hash);
   if(x.study){openStudy();return;}
-  openImport();
-  if(x.url){$('#link').value=x.url;if(await importLink(x.url)) $('#impGo').click();}
-  else await insertClip('',x.text,[]);
+  if(x.url) await addLink(x.url);
+  else{openImport();await insertClip('',x.text,[]);}
 }
+// A link fetched in a fresh Add dialog and its book added straight away (a deep link, the shelf's Paste); an error
+// stays in the dialog.
+async function addLink(url){openImport();$('#link').value=url;if(await importLink(url)) $('#impGo').click();}
 
 /* ================= keep changes when the tab is hidden or closed ================= */
 function persist(){syFlush();(async()=>{if(DOC&&ST){ST.pos=scrollY;await saveState(true);}if(DB) await DB.flush();})();}

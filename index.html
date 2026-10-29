@@ -45,6 +45,7 @@
     <button class="ib" id="setBtn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></button>
     <button class="btn ghost" id="nbBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7c-2.6-1.8-5.6-2.3-9-1.6v12.8c3.4-.7 6.4-.2 9 1.6 2.6-1.8 5.6-2.3 9-1.6V5.4c-3.4-.7-6.4-.2-9 1.6zM12 7v12.8"/></svg>Notebook</button>
     <button class="btn sea" id="addBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg>Add to shelf</button>
+    <button class="btn ghost" id="addPaste" type="button" aria-label="Paste from clipboard" title="Paste a copied link or article"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg><span class="lbl">Paste</span></button>
   </div>
   <div class="sh-hero">
     <div><h1>Your shelf</h1><p class="motto sh-motto">Knowledge is power. Wisdom in the margins.</p><p class="sh-stats" id="stats"></p></div>
@@ -105,6 +106,7 @@
   <div class="bar-in">
     <button class="home" id="bHome" title="Back to your shelf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="M16.5 5.2l3.6-1 3.4 15.4-3.6 1z"/></svg>Shelf</button>
     <button class="bar-title" id="barTitle" title="Edit details"></button>
+    <button class="ib hidden" id="bListen" title="Listen: read aloud from here" aria-label="Listen"></button>
     <button class="ib" id="bToc" title="Contents"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor"/></svg><span class="lbl">Contents</span></button>
     <button class="ib" id="bFind" title="Search this text"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span class="lbl">Search</span></button>
     <button class="ib" id="bFocus" aria-pressed="false" title="Focus mode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/></svg><span class="lbl">Focus</span></button>
@@ -132,7 +134,7 @@
   <div class="wb-head"><h2 id="wbTerm"></h2><span id="wbPos"></span><button class="w-del" id="wbDel">Delete</button></div>
   <div id="wbBody"><textarea class="f" id="wbDef" aria-label="Meaning" placeholder="Write the meaning"></textarea>
     <p id="wbSrc"></p>
-    <div id="wbMore"><div data-x="dex"></div><div data-x="syn"></div><div data-x="ant"></div><div data-x="pics"></div>
+    <div id="wbMore"><div data-x="dex"></div><div data-x="syn"></div><div data-x="ant"></div>
       <div id="wbRead"><h4 class="w-lbl">From your reading</h4><p id="wbEx"></p></div></div>
     <div data-x="add"></div></div>
   <div class="row"><button class="btn ghost" id="wbClose">Cancel</button><button class="btn" id="wbSave">Save</button></div></div>
@@ -170,7 +172,7 @@
       <span class="hint" id="dzHint">PDF, .txt, .md, .html or a Kindle notebook — or drop them here</span>
       <input type="file" id="file" accept="application/pdf,.pdf,.txt,.md,.markdown,.html,.htm,text/plain,text/markdown,text/html" multiple hidden>
     </div>
-    <div class="or">or import a link</div>
+    <div class="or">or import a link<button class="chip" id="linkPaste" type="button">Paste link</button></div>
     <div class="link-row"><input class="f" id="link" type="url" inputmode="url" autocomplete="off" placeholder="https://…" aria-label="Link to import"><button class="btn ghost" id="linkGo">Import</button></div>
     <div class="or">or paste<button class="chip" id="pasteBtn" type="button">Paste from clipboard</button></div>
     <div class="paste empty" id="paste" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Paste content" data-ph="Paste an article here. Headings, bullet lists, bold, links and images are kept."></div>
@@ -256,6 +258,10 @@
     <div class="opt"><span id="sMeanH">Colour meanings</span>
       <div class="cm-list" id="sMeanings" role="group" aria-labelledby="sMeanH"></div>
       <p class="set-hint">What each highlight colour stands for. The toolbar, chips, groups and exports show these names.</p>
+    </div>
+    <div class="opt hidden" id="sListen"><span id="sRateH">Listen speed</span>
+      <div><div class="seg" id="sRate" role="group" aria-labelledby="sRateH"><button data-r="0.8">0.8×</button><button data-r="1">1×</button><button data-r="1.25">1.25×</button><button data-r="1.5">1.5×</button><button data-r="2">2×</button></div></div>
+      <p class="set-hint">How fast Listen reads aloud in the reader, on this device.</p>
     </div>
     <div class="opt"><span>Backup</span>
       <div class="set-row"><button class="btn ghost" id="backupBtn">Back up shelf</button><button class="btn ghost" id="restoreBtn">Restore from backup</button></div>

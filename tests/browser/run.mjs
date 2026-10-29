@@ -42,10 +42,10 @@
 //                   ink on the highlight tints; screenshots beside the themes lab's mocks
 //   fastscroll.mjs  the fast-scroll handle under 1180 px: shown while scrolling, dragged by finger or mouse to any part
 //                   with the section and percentage beside it, the position saved, none at 1280 px or for short texts
-//   wordcard.mjs    the richer word card (lookups mocked): synonyms, antonyms, the dictionary's examples and Wikipedia's
-//                   picture on saving, a title mismatch giving none, fact cards' pictures from their blank, pictures pasted,
-//                   dropped or picked (3 at most, ×, the size guard), editing, meanings' line breaks, Study backs, older
-//                   cards filled once when shown, saving offline
+//   wordcard.mjs    the richer word card (lookups mocked): synonyms, antonyms and the dictionary's examples on saving,
+//                   editing, meanings' line breaks, Study backs, older words filled once when shown, saving offline,
+//                   fact cards never looked up; no pictures (Wikipedia never asked, a pasted one not taken), and a card
+//                   saved with pictures before shows none and loses them when next saved (an edit, a Study rating)
 //   migrate.mjs     the artifact's "Back up shelf" (legacy/app-artifact.html) → the app's "Restore from backup"
 //   study.mjs       Study flashcards: the queue (due first, the daily new-word cap), front and back, ratings and
 //                   their saved schedule, Again, keys, Sentence → word, done and empty states, ?study=1
@@ -56,6 +56,10 @@
 //                   hides (never per card), another device's days on opening the Notebook, in the backup
 //   linkimport.mjs  link import's article extraction: a summary in the article's <header> survives Readability, and
 //                   so does a short intro chunk in a bare <div> beside the article's other chunks
+//   paste.mjs       Paste without touching a field (clipboard stubbed, Firebase and the link import helper faked): the
+//                   shelf's Paste beside Add (a link added straight away, text or a picture into Add, empty, refused,
+//                   readText only, local mode), Add's Paste link chip (fills the field, review step kept), Paste from
+//                   clipboard; the read starting inside the tap (iOS); the button at 320, 390 and 1280 px
 //   sort.mjs        To sort: Coral highlights (Kindle red and pink) become words (tap) or fact cards (a
 //                   selected phrase as the blank), Skip and Show skipped, Make the rest facts, the sorting surviving
 //                   a Kindle re-import, the Facts chip, the Trash, fact cards in Study
@@ -70,6 +74,11 @@
 //   overflow.mjs    the page never scrolls sideways on a phone (375 and 320 px, touch): every screen, drawer, dialog
 //                   and card, with unbroken links and titles, long words, a wide table and picture; the overflow-x:clip
 //                   backstop, the window's scroll and Study's sticky buttons under it; text fields at 16 px or more
+//   listen.mjs      Listen (read aloud) with a fake speechSynthesis: where it starts (the screen, a selection), the
+//                   sentence and word marks (across highlights, which stay unchanged), Pause and Resume, reading on
+//                   through blocks (code skipped), following and holding off after a scroll, Focus mode, the speed,
+//                   the 2 s check, stopping on leaving or opening another book; hidden without speechSynthesis; the
+//                   whole-block fallback without window.Highlight
 // Every file also fails on any page error.
 //
 // Run: `npm install` once, then `npm run test:browser`. One file: `node tests/browser/search.mjs`.
@@ -93,7 +102,7 @@ import {fileURLToPath} from 'node:url';
 import {launch,quit} from './lib.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','shelves.mjs','grid.mjs','kindle.mjs','words.mjs','wordbox.mjs','notesheet.mjs','wordsheet.mjs','fastscroll.mjs','wordcard.mjs','study.mjs','progress.mjs','sort.mjs','migrate.mjs','linkimport.mjs','setup.mjs','colours.mjs','signin.mjs','dialogs.mjs','overflow.mjs','looks.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','shelves.mjs','grid.mjs','kindle.mjs','words.mjs','wordbox.mjs','notesheet.mjs','wordsheet.mjs','fastscroll.mjs','wordcard.mjs','study.mjs','progress.mjs','sort.mjs','migrate.mjs','linkimport.mjs','paste.mjs','setup.mjs','colours.mjs','signin.mjs','dialogs.mjs','overflow.mjs','listen.mjs','looks.mjs'];
 const jobs=Math.max(1,Math.floor(Number(process.env.TEST_JOBS))||4),live=jobs===1;
 const timesFile=join(here,'out','times.json');
 let last={};try{last=JSON.parse(readFileSync(timesFile,'utf8'));}catch{}

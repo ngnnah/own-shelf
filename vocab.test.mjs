@@ -1,5 +1,5 @@
 import {normTerm,termKey,wordId,sentenceAround,cloze,newSrs,isDue,schedule,nextLabel,dayStart,progress,dueByDay,dayKey,logReview,newOn,pruneLog,reviewsByDay,streak,mergeLog,parseDatamuse,parseWiktionary,baseForms,isFact,factId,factBlank,factCloze,wordsIn,snapWords,
-  wikiSummaryUrl,parseWikiSummary,datamuseRelUrl,parseDatamuseWords,wikitextUrl,parseWikitext,stripWiki,findWord,cleanText,parseList,exampleLine,parseExamples,mergeExtras} from './vocab.js';
+  datamuseRelUrl,parseDatamuseWords,wikitextUrl,parseWikitext,stripWiki,findWord,cleanText,parseList,exampleLine,parseExamples,mergeExtras} from './vocab.js';
 import {ok,done} from './test-util.mjs';
 
 ok('normTerm trims spaces and punctuation',normTerm('  “Ephemeral,” ')==='Ephemeral'&&normTerm('well-known.')==='well-known');
@@ -96,15 +96,6 @@ ok('snapWords: spaces and punctuation around the words are dropped',st.slice(sp.
 ok('snapWords: nothing but spaces and punctuation, or nothing selected, is no phrase',snapWords(st,su+6,su+8)===null&&snapWords(st,5,5)===null);
 ok('baseForms: plural, past, -ing, -ly',baseForms('studies').includes('study')&&baseForms('ships').includes('ship')&&baseForms('walked').includes('walk')&&baseForms('making').includes('make')&&baseForms('quickly').includes('quick')&&baseForms('glass').length===0);
 
-// pictures: Wikipedia's page summary
-const sum=(title,type='standard',thumb='https://thumb.wikimedia.org/x/330px-X.jpg')=>({type,title,thumbnail:thumb?{source:thumb,width:330,height:300}:undefined,content_urls:{desktop:{page:'https://en.wikipedia.org/wiki/'+title.replace(/ /g,'_')}}});
-const ws=parseWikiSummary(sum('Barometer'),'barometer');
-ok('parseWikiSummary: the thumbnail and its page when the title is the word',ws&&ws.src==='https://thumb.wikimedia.org/x/330px-X.jpg'&&ws.title==='Barometer'&&ws.url==='https://en.wikipedia.org/wiki/Barometer');
-ok('parseWikiSummary: any case, spaces or underscores, or a base form',!!parseWikiSummary(sum('Baltic states'),'baltic states')&&!!parseWikiSummary(sum('Baltic_states'),'Baltic States')&&!!parseWikiSummary(sum('Lighthouse'),'lighthouses'));
-ok('parseWikiSummary: another title ("ephemeral" → "Ephemerality") gives none',parseWikiSummary(sum('Ephemerality'),'ephemeral')===null);
-ok('parseWikiSummary: none for a disambiguation page, no thumbnail, or nothing',parseWikiSummary(sum('Mole','disambiguation'),'mole')===null&&parseWikiSummary(sum('Mole','standard',null),'mole')===null&&parseWikiSummary(null,'mole')===null&&parseWikiSummary(sum('Mole','standard','http://x/y.jpg'),'mole')===null);
-ok('wikiSummaryUrl: spaces as underscores, encoded',wikiSummaryUrl(' Baltic states ')==='https://en.wikipedia.org/api/rest_v1/page/summary/Baltic_states'&&wikiSummaryUrl('sudden, violent gust')==='https://en.wikipedia.org/api/rest_v1/page/summary/sudden%2C_violent_gust');
-
 // synonyms and antonyms: Datamuse
 ok('parseDatamuseWords: up to 6 words, not the word itself, no repeats',JSON.stringify(parseDatamuseWords([{word:'transient'},{word:'ephemeral'},{word:'transitory'},{word:'transient'},{word:'fugacious'},{word:'a'},{word:'b'},{word:'c'},{word:'d'}],'Ephemeral'))===JSON.stringify(['transient','transitory','fugacious','a','b','c']));
 ok('parseDatamuseWords: nothing for nothing',parseDatamuseWords([],'x').length===0&&parseDatamuseWords(null,'x').length===0);
@@ -160,8 +151,8 @@ const pe=parseExamples('Our ephemeral joy faded.\nIts ephemeral cheer was gone, 
 ok('parseExamples: an unchanged line keeps its example; an edited one keeps its cite; a new one is added',pe.length===3&&pe[0]===old[0]&&pe[1].cite==='1821, Ann Example'&&pe[1].text==='Its ephemeral cheer was gone, mostly.'&&pe[2].cite===''&&pe[2].text.slice(pe[2].s,pe[2].e)==='ephemeral');
 ok('exampleLine: the sentence, then its cite',exampleLine(old[1])==='Its ephemeral cheer was gone. — 1821, Ann Example'&&exampleLine(old[0])==='Our ephemeral joy faded.');
 const mine={id:'w1',term:'calm',def:'still',syn:['quiet'],srs:{reps:3},tried:{muse:'calm'}};
-const mx=mergeExtras(mine,{id:'w1',term:'calm',def:'other',syn:['x'],ant:['stormy'],pics:[{src:'data:image/jpeg;base64,AA'}],dex:[],tried:{wiki:'calm',muse:'other'}});
-ok('mergeExtras: fills only the missing ones, keeps the rest',mx.syn[0]==='quiet'&&mx.ant[0]==='stormy'&&mx.pics.length===1&&!('dex' in mx)&&mx.def==='still'&&mx.srs.reps===3&&mx.tried.muse==='calm'&&mx.tried.wiki==='calm');
-ok('mergeExtras: nothing to add is null',mergeExtras(mine,{syn:['y']})===null&&mergeExtras(mine,null)===null);
+const mx=mergeExtras(mine,{id:'w1',term:'calm',def:'other',syn:['x'],ant:['stormy'],pics:[{src:'data:image/jpeg;base64,AA'}],dex:[],tried:{wikt:'calm',muse:'other'}});
+ok('mergeExtras: fills only the missing ones, keeps the rest, never pictures',mx.syn[0]==='quiet'&&mx.ant[0]==='stormy'&&!('pics' in mx)&&!('dex' in mx)&&mx.def==='still'&&mx.srs.reps===3&&mx.tried.muse==='calm'&&mx.tried.wikt==='calm');
+ok('mergeExtras: nothing to add is null, pictures included',mergeExtras(mine,{syn:['y']})===null&&mergeExtras(mine,null)===null&&mergeExtras(mine,{pics:[{src:'data:image/jpeg;base64,AA'}]})===null);
 
 done();

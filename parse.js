@@ -449,6 +449,49 @@ function joinHighlights(hl,fresh,texts,order,linked){
   return {h,hit,n:inside?0:hit.length+1};
 }
 
+/* ---------- read aloud ---------- */
+// A block's text as the pieces Listen speaks, [[s,e],…] as offsets into it: a sentence each (a short one joins the
+// next), one over `max` characters cut after a comma, semicolon, colon or dash, else at a space. iOS and Chrome stall
+// or cut off long utterances, and a sentence at a time lets the reader mark it. A line break ends a piece too.
+const SPEECH_ABBR=/(?:^|[^\p{L}])(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|Mt|vs|cf|e\.g|i\.e|Fig|Vol|\p{Lu})\.$/u;
+function speechChunks(text,max=220,min=40){
+  text=String(text||'');
+  const trim=(s,e)=>{while(s<e&&/\s/.test(text[s]))s++;while(e>s&&/\s/.test(text[e-1]))e--;return [s,e];};
+  const ends=[],END=/[.!?…]+["'”’)\]]*(?=\s)|\n/g;let m;
+  while((m=END.exec(text))){
+    const at=m.index+m[0].length,next=/^\s*(\S)/.exec(text.slice(at));if(!next) break;
+    if(m[0]!=='\n'&&(/\p{Ll}/u.test(next[1])||m[0]==='.'&&SPEECH_ABBR.test(text.slice(Math.max(0,at-7),at)))) continue;
+    ends.push(at);
+  }
+  const sents=[];let a=0;
+  [...ends,text.length].forEach(e=>{const p=trim(a,e);if(p[1]>p[0]) sents.push(p);a=e;});
+  const joined=[];
+  for(const p of sents){const l=joined[joined.length-1];if(l&&l[1]-l[0]<min&&p[1]-l[0]<=max) l[1]=p[1];else joined.push([...p]);}
+  const out=[];
+  for(let [s,e] of joined){
+    while(e-s>max){
+      const part=text.slice(s,s+max),re=/[,;:](?=\s)|[—–]/g;let cut=-1;
+      while((m=re.exec(part))) if(m.index+1>=max*.4) cut=m.index+1;
+      if(cut<0){const sp=part.lastIndexOf(' ');cut=sp>max*.4?sp:max;}
+      const p=trim(s,s+cut);if(p[1]>p[0]) out.push(p);
+      s=trim(s+cut,e)[0];
+    }
+    if(e>s) out.push([s,e]);
+  }
+  return out;
+}
+// The word a speech `boundary` event points at in an utterance's text, [s,e] without the punctuation around it.
+// Without a length (older Safari, some Chrome voices), the word runs to the next space.
+function speechWord(text,i,len){
+  text=String(text||'');i=Math.max(0,Math.min(i|0,text.length));
+  let e;
+  if(len>0) e=Math.min(text.length,i+len);
+  else{while(i<text.length&&/\s/.test(text[i]))i++;e=i+(/^\S*/.exec(text.slice(i))[0].length);}
+  while(i<e&&/[\s"'“‘(\[«¿¡]/.test(text[i]))i++;
+  while(e>i&&/[\s.,;:!?…"'”’)\]»]/.test(text[e-1]))e--;
+  return [i,e];
+}
+
 /* ---------- links ---------- */
 // First http(s) link in shared text, without trailing punctuation or brackets.
 function firstUrl(s){const m=String(s||'').match(/https?:\/\/[^\s<>"'“”‘’]+/i);return m?m[0].replace(/[.,;:!?)\]}>]+$/,''):'';}
@@ -472,4 +515,4 @@ function decodeBody(buf,type){
   try{return new TextDecoder(cs||'utf-8').decode(buf);}catch(e){return new TextDecoder('utf-8').decode(buf);}
 }
 // ===== PARSE END =====
-if(typeof module!=='undefined') module.exports={linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,decodeBody,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights};
+if(typeof module!=='undefined') module.exports={linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,decodeBody,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,speechChunks,speechWord};
