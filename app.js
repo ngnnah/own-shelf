@@ -79,7 +79,12 @@ function applyLook(){
     const l=document.createElement('link');l.rel='stylesheet';l.dataset.lookFont=f;l.href=`https://fonts.googleapis.com/css2?family=${f}&display=swap`;document.head.append(l);
   }
   const sel=document.getElementById('sLook');if(sel) sel.value=look;
+  // the browser's bar takes the Look's chrome (the bands at the top), in the mode on screen; Classic keeps index.html's
+  const chrome=look==='classic'?'':getComputedStyle(root).getPropertyValue('--chrome').trim();
+  for(const [m,c] of THEME_COLORS) m.content=chrome||c;
 }
+const THEME_COLORS=[...document.querySelectorAll('meta[name="theme-color"]')].map(m=>[m,m.content]);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyLook);
 function applyPrefs(){
   document.documentElement.style.setProperty('--fs',SIZES[prefs.size]);
   if(prefs.theme==='auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',prefs.theme);
