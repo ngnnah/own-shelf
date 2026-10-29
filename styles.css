@@ -171,6 +171,30 @@ body.dragging,body.dragging *{cursor:grabbing!important;-webkit-user-select:none
 .empty-shelf img{display:block;width:120px;height:120px;margin:0 auto .2rem}
 .empty-shelf h2{font:500 2.2rem/1.1 var(--display);margin:0 0 .6rem;text-wrap:balance}
 .empty-shelf p{color:var(--muted);font-size:1.15rem;margin:0 auto 1.4rem;max-width:44ch;line-height:1.5}
+/* Grid view: the tray (Unsorted's books, or the shelf tapped, on a board, scrolling sideways inside itself; its covers
+   smaller, so the tray and the tiles of seven or eight shelves fit one phone screen) over a tile per shelf, two
+   columns on a phone. The tile shown in the tray is marked; one under a dragged cover lights up as a shelf does */
+.g-tray{margin-bottom:1.6rem;border-radius:14px}
+.g-tray .shelf-label{margin:0;align-items:center;flex-wrap:wrap}
+.g-tray .books{gap:.8rem;padding-top:.7rem}
+.g-tray .book{zoom:.72}
+.g-hint{padding:1.1rem .4rem .8rem}
+.g-back{border:1px solid var(--rule);background:var(--sheet);border-radius:999px;font:500 .85rem var(--ui);padding:.5rem .85rem;color:var(--ink);
+  outline:2px dashed transparent;outline-offset:3px;transition:outline-color .15s,background-color .15s}
+.g-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:.75rem}
+@media (min-width:700px){.g-tiles{grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:1rem}}
+.g-tile{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 .45rem;min-width:0;text-align:left;border:1.5px solid var(--rule);background:var(--sheet);border-radius:14px;padding:.65rem .75rem .75rem;color:var(--ink);
+  outline:2px dashed transparent;outline-offset:4px;transition:outline-color .15s,background-color .15s,border-color .15s;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.g-name{font:600 1.15rem/1.15 var(--display);overflow-wrap:anywhere;min-width:0}
+.g-tile small{font:500 .8rem var(--ui);color:var(--muted)}
+/* up to four small covers standing on a board */
+.g-minis{flex:1 0 100%;display:flex;gap:3px;align-items:flex-end;height:52px;margin-top:.4rem;padding:0 5px;border-bottom:6px solid var(--plank);border-radius:0 0 3px 3px}
+.g-mini{width:25px;flex:none;border-radius:2px 4px 4px 2px;box-shadow:inset 3px 0 0 rgba(0,0,0,.18)}
+.g-minis .sl-hint{align-self:center;line-height:1.2}
+@media (hover:hover){.g-tile:hover,.g-back:hover{border-color:var(--sea)}}
+.g-tile[aria-pressed="true"]{border-color:var(--sea);box-shadow:inset 0 0 0 1.5px var(--sea)}
+.g-tile[aria-pressed="true"] .g-name{color:var(--sea)}
+.g-tile.drop,.g-back.drop{outline-color:var(--sea);background:color-mix(in srgb,var(--sea) 12%,var(--sheet))}
 /* list view */
 .tbl{width:100%;border-collapse:separate;border-spacing:0;background:var(--sheet);border-radius:18px;overflow:hidden;border:1.5px solid var(--rule)}
 .tbl th{text-align:left;padding:0;border-bottom:1.5px solid var(--rule)}
@@ -182,7 +206,7 @@ body.dragging,body.dragging *{cursor:grabbing!important;-webkit-user-select:none
 .tbl tbody tr:hover td{background:color-mix(in srgb,var(--sea) 6%,transparent)}
 .tbl .tt{display:flex;align-items:center;gap:.7rem;font:600 1.08rem/1.25 var(--display)}
 .tbl .tt i{width:12px;height:18px;border-radius:2px 4px 4px 2px;flex:none}
-.tbl .tt i.nb{background:repeating-linear-gradient(180deg,transparent 0 3px,rgba(74,110,165,.45) 3px 4px) #F5EFDF;box-shadow:inset 0 0 0 1px rgba(60,45,25,.3)}
+.tbl .tt i.nb,.g-mini.nb{background:repeating-linear-gradient(180deg,transparent 0 3px,rgba(74,110,165,.45) 3px 4px) #F5EFDF;box-shadow:inset 0 0 0 1px rgba(60,45,25,.3)}
 .tbl .mut{color:var(--muted)}
 .tbl .c-words{white-space:nowrap}
 .pbar{display:inline-block;width:70px;height:6px;border-radius:9px;background:var(--rule);vertical-align:middle;margin-right:.4rem;overflow:hidden}

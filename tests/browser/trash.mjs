@@ -43,6 +43,9 @@ async function restore(i=0){
   await until(n=>document.querySelectorAll('#trashList .tr-row').length===n-1,before);
 }
 async function closeTrash(){await page.click('#trashM [data-cancel]');await hidden('#trashM');}
+// the shelves on screen, each with its books: "Unsorted: The Quiet Engine|Travel|…"
+const shelvesNow=()=>page.$$eval('#shelfBody .shelf-row',rs=>rs.map(r=>{const b=[...r.querySelectorAll('.c-t')].map(x=>x.textContent).join(', ');
+  return r.querySelector('.shelf-label :is(.sl-name,span)').textContent.trim()+(b?': '+b:'');}).join('|'));
 async function openBook(title){await toShelf();await page.click(`.cover[aria-label^="${title}"]`);await t.reader();}
 const openQuiet=()=>openBook('The Quiet Engine');
 async function removeBook(title,typed){
@@ -208,6 +211,58 @@ await t.run(async()=>{
   k=await keysUntil(k=>!n(k,'trash:'));
   ok('restoring a backup takes a book it brings back out of the Trash',(await page.$$('.book')).length===1&&!n(k,'trash:'));
 
+  // a deleted shelf: in the Trash with its place; Restore puts it back there, and its books show on it again
+  const delShelf=async id=>{await page.click(`#shelfBody [data-shelf-edit="${id}"]`);await page.waitForSelector('#shelfM:not(.hidden)');await page.click('#shDel');await page.click('#shDel');await hidden('#shelfM');};
+  const shelfId=name=>page.$$eval('#shelfBody .sl-name',(bs,name)=>bs.find(b=>b.textContent===name).dataset.shelfEdit,name);
+  await toShelf();await page.click('.c-more[aria-label="Details for The Quiet Engine"]');await page.waitForSelector('#detM:not(.hidden)');
+  await page.select('#dShelf','history');await page.click('#dSave');await hidden('#detM');
+  must('the book on History',(await shelvesNow())==='Travel|Adventure|History: The Quiet Engine|Finance|Fantasy|Philosophy');
+  await delShelf('history');
+  ok('deleting a shelf: "Moved to Trash · Undo", its book in Unsorted',(await toast())==='Moved to Trash · Undo'&&(await shelvesNow())==='Unsorted: The Quiet Engine|Travel|Adventure|Finance|Fantasy|Philosophy');
+  label=await openTrash();r=await rows();
+  ok('the Trash lists the shelf with the books still on it',label==='Trash · 1 item'&&r.length===1&&r[0].sec==='Shelf · History'&&r[0].text.includes('1 book deleted just now · 30 days left'));
+  await shot('trash-shelf-light');
+  await restore(0);
+  ok('Restore empties the Trash',(await toast())==='Restored'&&(await text('#trashList')).includes('The Trash is empty'));
+  await closeTrash();
+  ok('Restore puts the shelf back in its place, with its book',(await shelvesNow())==='Travel|Adventure|History: The Quiet Engine|Finance|Fantasy|Philosophy');
+  // a place past the end of a shorter list: the end
+  await delShelf('philosophy');await delShelf('fantasy');
+  await openTrash();
+  must('two shelves in the Trash, newest first',(await rows()).map(x=>x.sec).join()==='Shelf · Fantasy,Shelf · Philosophy');
+  await restore(1);
+  ok('a shelf whose place is past the end goes to the end',(await shelvesNow())==='Travel|Adventure|History: The Quiet Engine|Finance|Philosophy');
+  await restore(0);await closeTrash();
+  ok('… and the next one back to its own place',(await shelvesNow())==='Travel|Adventure|History: The Quiet Engine|Finance|Fantasy|Philosophy');
+  // a backup that has the shelf brings it back (at the end, as restore adds shelves), and it leaves the Trash
+  await delShelf('history');
+  must('shelf in the Trash',n(await keysUntil(k=>n(k,'trash:')===1),'trash:')===1);
+  await openSettings();await (await page.$('#restoreFile')).uploadFile(join(t.dl,bk));
+  await until(()=>document.querySelector('#setM').classList.contains('hidden'));
+  k=await keysUntil(k=>!n(k,'trash:'));
+  ok('restoring a backup that has the shelf takes it out of the Trash',(await shelvesNow())==='Travel|Adventure|Finance|Fantasy|Philosophy|History: The Quiet Engine'&&!n(k,'trash:'));
+  // a newer shelf with its name: it can't come back until that one is renamed. Delete forever: the book stays Unsorted
+  await delShelf('history');
+  await page.click('#shTools [data-shelf-new]');await page.waitForSelector('#shelfM:not(.hidden)');await page.type('#shName','History');await page.click('#shSave');await hidden('#shelfM');
+  await openTrash();
+  await page.click('#trashList .tr-row [data-a="restore"]');
+  await until(()=>document.querySelector('#toast').textContent.startsWith('Can’t restore'));
+  ok('a shelf whose name is taken can’t be restored, and stays',(await toast())==='Can’t restore: there’s already a shelf called History. Rename that one first.'&&(await rows()).length===1);
+  const forget='#trashList .tr-row [data-a="forget"]';
+  await page.click(forget);await page.click(forget);await until(()=>!document.querySelector('#trashList .tr-row'));
+  k=await keysUntil(k=>!n(k,'trash:'));
+  ok('Delete forever drops the shelf',(await toast())==='Deleted for good'&&!n(k,'trash:'));
+  await closeTrash();
+  ok('… and its book stays Unsorted',(await shelvesNow())==='Unsorted: The Quiet Engine|Travel|Adventure|Finance|Fantasy|Philosophy|History');
+  // Empty Trash takes shelves too
+  await delShelf(await shelfId('History'));
+  label=await openTrash();r=await rows();
+  ok('an empty shelf’s row says it had no books',label==='Trash · 1 item'&&r[0].sec==='Shelf · History'&&r[0].text.includes('No books'));
+  await page.click('#trashEmpty');await page.waitForSelector('#confirmM:not(.hidden)');await page.type('#cfInput','yes');await page.click('#cfGo');await hidden('#confirmM');
+  k=await keysUntil(k=>!n(k,'trash:'));
+  ok('Empty Trash takes shelves too',(await toast())==='Trash emptied'&&!n(k,'trash:'));
+  await closeTrash();
+
   // the 30-day purge, at start
   const now=Date.now(),day=864e5;
   await putRaw([
@@ -215,13 +270,15 @@ await t.run(async()=>{
     ['trash:bOld',{id:'bOld',kind:'book',deletedAt:now-30*day-6e4,bookId:'zzold',title:'An old book',meta:{id:'zzold',title:'An old book',author:'Nobody',color:2},hl:1,notes:0}],
     ['doc:zzold',{id:'zzold',title:'An old book',blocks:[],sections:[],notes:[]}],
     ['state:zzold',{hl:[],pos:0,maxP:0,done:[]}],
-    ['trash:nNew',{id:'nNew',kind:'note',deletedAt:now-29*day,bookId:'zzgone',title:'A book deleted for good',hlId:'hy',text:'A recent note',quote:'A recent quote',color:'sky'}]
+    ['trash:nNew',{id:'nNew',kind:'note',deletedAt:now-29*day,bookId:'zzgone',title:'A book deleted for good',hlId:'hy',text:'A recent note',quote:'A recent quote',color:'sky'}],
+    ['trash:sOld',{id:'sOld',kind:'shelf',deletedAt:now-31*day,title:'History',shelf:{id:'history',name:'History'},at:2}] // The Quiet Engine's shelf
   ]);
   await page.reload({waitUntil:'networkidle0'});await page.waitForSelector('#shelf:not(.hidden),#reader:not(.hidden)');
-  const old=['trash:hOld','trash:bOld','doc:zzold','state:zzold'];
+  const old=['trash:hOld','trash:bOld','doc:zzold','state:zzold','trash:sOld'];
   k=await keysUntil(k=>!old.some(x=>k.includes(x)));
-  ok('the purge deletes entries older than 30 days, with a book’s content',!old.some(x=>k.includes(x)));
+  ok('the purge deletes entries older than 30 days, with a book’s content, and shelves',!old.some(x=>k.includes(x)));
   ok('and keeps newer ones',k.includes('trash:nNew'));
+  ok('a purged shelf’s book stays Unsorted',(await shelvesNow()).startsWith('Unsorted: The Quiet Engine|'));
   label=await openTrash();r=await rows();
   ok('a 29-day-old entry has 1 day left',label==='Trash · 1 item'&&r[0].text.includes('deleted 29 days ago · 1 day left'));
   await page.click('#trashList .tr-row [data-a="restore"]');

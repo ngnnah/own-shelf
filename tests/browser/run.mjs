@@ -19,6 +19,9 @@
 //                   with a mouse and a finger (hold, swipe, tap, the page scrolling at the edges), the Shelf picker in
 //                   Details, new, rename, move and delete, search, the List view's Shelf column, a backup round trip;
 //                   collapsing shelves (one, all, kept per device, dropping on a collapsed one); dragging a shelf by its name
+//   grid.mjs        the Grid view (kept per device): Unsorted's tray over a tile per shelf, covers dragged onto tiles by
+//                   mouse and finger (one write each to the shelf entry and the state), a tile's shelf in the tray and
+//                   back, a tap opening a book, search as in the Shelves view, an empty Unsorted, 320 to 1280 px
 //   kindle.mjs      Kindle notebook exports: review step, highlights and notes, merging, several files at once, the notebook cover
 //   words.mjs       vocabulary: Word in the toolbar, the word card and its looked-up meaning (dictionaries mocked), the
 //                   underline in the text, the Notebook's Words tab (search, book filter, open at the word), the Trash
@@ -90,7 +93,7 @@ import {fileURLToPath} from 'node:url';
 import {launch,quit} from './lib.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','shelves.mjs','kindle.mjs','words.mjs','wordbox.mjs','notesheet.mjs','wordsheet.mjs','fastscroll.mjs','wordcard.mjs','study.mjs','progress.mjs','sort.mjs','migrate.mjs','linkimport.mjs','paste.mjs','setup.mjs','colours.mjs','signin.mjs','dialogs.mjs','overflow.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','shelves.mjs','grid.mjs','kindle.mjs','words.mjs','wordbox.mjs','notesheet.mjs','wordsheet.mjs','fastscroll.mjs','wordcard.mjs','study.mjs','progress.mjs','sort.mjs','migrate.mjs','linkimport.mjs','paste.mjs','setup.mjs','colours.mjs','signin.mjs','dialogs.mjs','overflow.mjs'];
 const jobs=Math.max(1,Math.floor(Number(process.env.TEST_JOBS))||4),live=jobs===1;
 const timesFile=join(here,'out','times.json');
 let last={};try{last=JSON.parse(readFileSync(timesFile,'utf8'));}catch{}
