@@ -1314,21 +1314,39 @@ async function importLink(raw){
 }
 $('#linkGo').onclick=()=>importLink($('#link').value);
 $('#link').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();importLink($('#link').value);}});
-$('#pasteBtn').onclick=async()=>{
+// The clipboard → {html, txt, imgs}; rejects when the read is refused or unsupported. Call it from a tap with no await
+// before it: iOS reads the clipboard only while the tap is fresh, and shows its own Paste bubble for it.
+async function readClip(){
   let html='',txt='';const imgs=[];
-  try{
-    if(navigator.clipboard&&navigator.clipboard.read){
-      for(const it of await navigator.clipboard.read()){
-        if(!html&&it.types.includes('text/html')) html=await (await it.getType('text/html')).text();
-        if(!txt&&it.types.includes('text/plain')) txt=await (await it.getType('text/plain')).text();
-        const im=it.types.find(t=>/^image\//.test(t));if(im) imgs.push(new File([await it.getType(im)],'clipboard',{type:im}));
-      }
-    } else txt=await navigator.clipboard.readText();
-  }catch(e){toast('Couldn’t read the clipboard. Paste into the box instead.');pasteBox.focus();return;}
-  if(isLoneUrl(txt)){$('#link').value=txt.trim();importLink(txt);return;}
-  if(!html.trim()&&!txt.trim()&&!imgs.length){toast('The clipboard is empty');return;}
-  await insertClip(html,txt,imgs);
-};
+  if(navigator.clipboard&&navigator.clipboard.read){
+    for(const it of await navigator.clipboard.read()){
+      if(!html&&it.types.includes('text/html')) html=await (await it.getType('text/html')).text();
+      if(!txt&&it.types.includes('text/plain')) txt=await (await it.getType('text/plain')).text();
+      const im=it.types.find(t=>/^image\//.test(t));if(im) imgs.push(new File([await it.getType(im)],'clipboard',{type:im}));
+    }
+  } else txt=await navigator.clipboard.readText();
+  return {html,txt,imgs};
+}
+const clipEmpty=c=>!c.html.trim()&&!c.txt.trim()&&!c.imgs.length;
+// Paste: a lone link imports as a link, anything else goes into the paste box. From the shelf (add), the Add dialog
+// opens fresh first, and a link's book is added straight away, as a deep link's is.
+async function pasteClip(add){
+  let c;
+  try{c=await readClip();}
+  catch(e){if(add) openImport();toast('Couldn’t read the clipboard. Paste into the box instead.');pasteBox.focus();return;}
+  if(isLoneUrl(c.txt)){if(add) addLink(c.txt.trim()); else{$('#link').value=c.txt.trim();importLink(c.txt);}return;}
+  if(clipEmpty(c)){toast('The clipboard is empty');return;}
+  if(add) openImport();
+  await insertClip(c.html,c.txt,c.imgs);
+}
+$('#pasteBtn').onclick=()=>pasteClip(false);
+$('#addPaste').onclick=()=>pasteClip(true);
+// Paste link: the clipboard's link fills the link field and is fetched for review.
+$('#linkPaste').onclick=()=>readClip().then(c=>{
+  if(clipEmpty(c)){toast('The clipboard is empty');return;}
+  const url=firstUrl(c.txt);if(url) $('#link').value=url;
+  importLink(c.txt);
+},()=>{toast('Couldn’t read the clipboard. Paste the link into the field instead.');$('#link').focus();});
 
 /* ================= notebook ================= */
 // Every highlight on the shelf, newest first. Read-only; the books are reloaded each time it opens.
@@ -2456,10 +2474,12 @@ async function runIncoming(){
   const q=new URLSearchParams(location.search);['add','url','text','title','study'].forEach(k=>q.delete(k));
   history.replaceState(null,'',location.pathname+(q.toString()?'?'+q:'')+location.hash);
   if(x.study){openStudy();return;}
-  openImport();
-  if(x.url){$('#link').value=x.url;if(await importLink(x.url)) $('#impGo').click();}
-  else await insertClip('',x.text,[]);
+  if(x.url) await addLink(x.url);
+  else{openImport();await insertClip('',x.text,[]);}
 }
+// A link fetched in a fresh Add dialog and its book added straight away (a deep link, the shelf's Paste); an error
+// stays in the dialog.
+async function addLink(url){openImport();$('#link').value=url;if(await importLink(url)) $('#impGo').click();}
 
 /* ================= keep changes when the tab is hidden or closed ================= */
 function persist(){syFlush();(async()=>{if(DOC&&ST){ST.pos=scrollY;await saveState(true);}if(DB) await DB.flush();})();}

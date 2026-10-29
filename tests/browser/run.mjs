@@ -52,6 +52,10 @@
 //                   hides (never per card), another device's days on opening the Notebook, in the backup
 //   linkimport.mjs  link import's article extraction: a summary in the article's <header> survives Readability, and
 //                   so does a short intro chunk in a bare <div> beside the article's other chunks
+//   paste.mjs       Paste without touching a field (clipboard stubbed, Firebase and the link import helper faked): the
+//                   shelf's Paste beside Add (a link added straight away, text or a picture into Add, empty, refused,
+//                   readText only, local mode), Add's Paste link chip (fills the field, review step kept), Paste from
+//                   clipboard; the read starting inside the tap (iOS); the button at 320, 390 and 1280 px
 //   sort.mjs        To sort: Coral highlights (Kindle red and pink) become words (tap) or fact cards (a
 //                   selected phrase as the blank), Skip and Show skipped, Make the rest facts, the sorting surviving
 //                   a Kindle re-import, the Facts chip, the Trash, fact cards in Study
@@ -89,7 +93,7 @@ import {fileURLToPath} from 'node:url';
 import {launch,quit} from './lib.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','shelves.mjs','grid.mjs','kindle.mjs','words.mjs','wordbox.mjs','notesheet.mjs','wordsheet.mjs','fastscroll.mjs','wordcard.mjs','study.mjs','progress.mjs','sort.mjs','migrate.mjs','linkimport.mjs','setup.mjs','colours.mjs','signin.mjs','dialogs.mjs','overflow.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','shelves.mjs','grid.mjs','kindle.mjs','words.mjs','wordbox.mjs','notesheet.mjs','wordsheet.mjs','fastscroll.mjs','wordcard.mjs','study.mjs','progress.mjs','sort.mjs','migrate.mjs','linkimport.mjs','paste.mjs','setup.mjs','colours.mjs','signin.mjs','dialogs.mjs','overflow.mjs'];
 const jobs=Math.max(1,Math.floor(Number(process.env.TEST_JOBS))||4),live=jobs===1;
 const timesFile=join(here,'out','times.json');
 let last={};try{last=JSON.parse(readFileSync(timesFile,'utf8'));}catch{}
