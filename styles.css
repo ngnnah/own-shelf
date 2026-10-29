@@ -501,6 +501,8 @@ body:has(#noteBox:not(.hidden),#wordBox:not(.hidden)) #toast{top:calc(env(safe-a
 .link-row{display:flex;gap:.6rem}
 .link-row .f{flex:1;min-width:0}
 .or .chip{flex:none;font-family:var(--ui)}
+/* the shelf's Paste, beside Add: an icon on the narrowest phones */
+@media (max-width:360px){#addPaste .lbl{display:none}#addPaste{padding-inline:.8rem;align-self:stretch}}
 .acct{font:600 1.15rem var(--display);margin:0;overflow-wrap:anywhere}
 .set-row{display:flex;gap:.6rem;flex-wrap:wrap}
 .set-gap{margin-top:1.1rem}
