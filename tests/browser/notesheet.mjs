@@ -3,7 +3,10 @@
 // (visualViewport shrunk, then panned): the note box is a full-width sheet above the keyboard whose field grows with
 // the note, so a long one fills the visible area and a short one shows whole; Save and Cancel stay in view and the
 // caret's line is visible; opened from the toolbar's Note, from a highlight tapped in the text and from the
-// highlights drawer. Then a tap outside (the text, the bar, the scrim) saves the note as Save does, a cleared one going
+// highlights drawer. Scrolling with it open, as WebKit moves the visible area over a keyboard (inside the layout
+// viewport first, then the page): near the start, middle and end of the text the sheet comes back above the keyboard,
+// and a long note scrolled to its start stays there as the visible area moves; with the keyboard down, Safari's
+// toolbar changing the page's height; a long note opened on a fresh page shows its end. Then a tap outside (the text, the bar, the scrim) saves the note as Save does, a cleared one going
 // to the Trash with Undo; Cancel drops it; Escape saves; scrolling, a press that selects text and a drag don't count;
 // opening another note or the word card saves the open note first. The word card the same: a tap outside saves,
 // Cancel drops, Escape saves. With a mouse, the note box still floats by the passage.
@@ -90,8 +93,15 @@ async function clearNote(){await page.$eval('#noteTa',e=>{e.focus();e.select();}
 // An iPhone keyboard: the page keeps its full height, visualViewport shrinks to `h` and may be panned down by `top`.
 const iosKeyboard=(h,top=0)=>page.evaluate((h,top)=>{const v=visualViewport;
   if(h==null){delete v.height;delete v.offsetTop;}
-  else{Object.defineProperty(v,'height',{configurable:true,get:()=>h});Object.defineProperty(v,'offsetTop',{configurable:true,get:()=>top});}
+  else{window.__kb={h,top};Object.defineProperty(v,'height',{configurable:true,get:()=>__kb.h});Object.defineProperty(v,'offsetTop',{configurable:true,get:()=>__kb.top});}
   v.dispatchEvent(new Event('resize'));},h,top);
+// A finger scrolling the page by dy px (toward the start: dy < 0) with that keyboard up, as WebKit does it: the visible
+// area first slides inside the full-height layout viewport, which position:fixed boxes keep to (offsetTop), and only
+// then pushes it along (scrollY); then visualViewport's scroll event. Scrolling up from a panned visible area carries
+// the sheet down behind the keyboard until that event comes.
+const iosScroll=dy=>page.evaluate(dy=>{const top=Math.max(0,Math.min(innerHeight-__kb.h,__kb.top+dy));
+  scrollBy(0,dy-(top-__kb.top));__kb.top=top;visualViewport.dispatchEvent(new Event('scroll'));},dy);
+const frames=()=>page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
 // The note box in the visible area: inside it, its buttons in view and on top, its width, the room left above and below
 // it, whether the field shows the whole note, and whether the field's end or start (the caret's line) is in view.
 const sheet=()=>page.evaluate(()=>{
@@ -163,6 +173,46 @@ await t.run(async()=>{
     }
   }
   await page.emulateMediaFeatures([{name:'prefers-color-scheme',value:'light'}]);
+
+  /* ---------- 1b. scrolling with the sheet open: the page with the keyboard up or down, and the note itself ---------- */
+  // iOS pans the visible area down to the field as the keyboard opens; scrolling toward the start then slides it up
+  // inside the layout viewport before the page moves, and toward the end the other way. Near the start, in the middle
+  // and near the end of the text, a long note.
+  for(const where of ['start','middle','end']){
+    if(where==='middle') await openNote('mark','ledger');
+    else{await page.evaluate(w=>scrollTo(0,w==='start'?0:document.documentElement.scrollHeight),where);await openNote('drawer','ledger');}
+    await typeAtEnd('\n'+LONG);await iosKeyboard(460,844-460);
+    let fine=true;
+    for(const dy of [-150,-150,-150,-150,300,300,300]){await iosScroll(dy);const s=await sheet();fine=fine&&s.inside&&s.buttons&&s.below<=24&&s.above<=24&&s.end;}
+    ok(`near the ${where} of the text: scrolling up and down with the keyboard up, the sheet comes back above it, the caret's line in view`,fine);
+    // scrolled up inside the field to read its start, the caret still at the end, then the visible area moves
+    await page.$eval('#noteTa',e=>{e.scrollTop=0;});await iosScroll(-150);let s=await sheet();
+    ok(`near the ${where} of the text: a long note scrolled to its start stays there as the visible area moves`,s.start&&s.inside&&s.buttons);
+    await iosKeyboard(460);s=await sheet();
+    ok(`near the ${where} of the text: and as the keyboard's height changes`,s.start&&s.inside&&s.buttons);
+    await iosKeyboard(null);await tap('#noteCancel');await hidden('#noteBox');await quiet();
+  }
+  // keyboard down, in Safari: scrolling up brings its toolbar back, and the page's height shrinks under the sheet
+  {
+    await openNote('mark','ledger');await typeAtEnd('\n'+LONG);
+    await page.setViewport({width:390,height:760,deviceScaleFactor:2,hasTouch:true,isMobile:true});await frames();let s=await sheet();
+    ok('keyboard down, Safari’s toolbar back: the sheet of a long note still fits the screen, the caret’s line in view',s.inside&&s.buttons&&s.below<=24&&s.end&&(s.whole||s.above<=24));
+    await page.setViewport({width:390,height:844,deviceScaleFactor:2,hasTouch:true,isMobile:true});await frames();s=await sheet();
+    ok('and with the toolbar gone again, it still fits the taller screen',s.inside&&s.buttons&&s.below<=24&&s.end&&(s.whole||s.above<=24));
+    await tap('#noteCancel');await hidden('#noteBox');
+    ok('Cancel dropped every long note',await noteIs('ledger',SHORT+' More.'));
+  }
+  // a note longer than the screen, saved, then opened on a fresh page: its end shows, where the caret is, and still
+  // does once the keyboard is up and iOS has panned to it
+  {
+    await openNote('mark','ledger');await typeAtEnd('\n'+LONG+'\n'+LONG);await tap('#noteSave');await hidden('#noteBox');
+    must('the long note is saved',await noteIs('ledger',`${SHORT} More.\n${LONG}\n${LONG}`));await quiet();
+    await phone(390,844);await openNote('mark','ledger');let s=await sheet();
+    ok('a note longer than the screen, opened on a fresh page, shows its end, where the caret is',s.end&&!s.whole&&s.inside&&s.buttons);
+    await iosKeyboard(460,844-460);s=await sheet();
+    ok('and still does once the keyboard is up and iOS has panned to it',s.end&&s.inside&&s.buttons&&s.above<=24);
+    await iosKeyboard(null);await tap('#noteCancel');await hidden('#noteBox');
+  }
 
   /* ---------- 2. a tap outside the note box saves it ---------- */
   await select(P2,'gulls');await tap('#tool [data-c="sky"]');await until(()=>document.querySelector('#hlCount').textContent==='2');

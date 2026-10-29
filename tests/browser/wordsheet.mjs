@@ -174,6 +174,9 @@ await t.run(async()=>{
   ok('a long meaning fills the space above the keyboard and scrolls inside itself, the caret’s line in view',c.ta.scrolls&&c.ta.end&&c.ta.inBody&&c.ta.h>=c.ta.room-24&&c.buttons);
   await page.$eval('#wbDef',e=>e.setSelectionRange(0,0));await page.keyboard.sendCharacter('X');c=await card();
   ok('typing at its start shows the start',c.ta.start&&c.ta.inBody);
+  // scrolled back to its start to read it, the caret at the end: iOS panning the visible area leaves it there
+  await page.$eval('#wbDef',e=>{e.setSelectionRange(e.value.length,e.value.length);e.scrollTop=0;});await iosKeyboard(363,667-363);c=await card();
+  ok('a long meaning scrolled to its start stays there as the visible area moves',c.ta.start&&c.ta.inBody&&c.inside&&c.buttons);
   await iosKeyboard(null);await tap('#wbClose');await hidden('#wordBox');
   ok('Cancel keeps the meaning as it was',await word(OBD,w=>w.def===DEF));
 

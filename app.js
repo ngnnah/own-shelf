@@ -1030,8 +1030,8 @@ function openNote(h,rect){
   noteAt=placeCard(nb,sheet||!rect?null:{x:rect.left,y:Math.min(innerHeight-220,Math.max(70,rect.top))});
   setTimeout(()=>$('#noteTa').focus(),30);
 }
-function growNote(){if($('#noteBox').classList.contains('sheet')) growTa($('#noteTa'));}
-$('#noteTa').addEventListener('input',growNote);
+function growNote(end){if($('#noteBox').classList.contains('sheet')) growTa($('#noteTa'),Infinity,end);}
+$('#noteTa').addEventListener('input',()=>growNote());
 function closeNote(){$('#noteBox').classList.add('hidden');noteTarget=null;}
 $('#noteCancel').onclick=closeNote;
 // Save, a tap outside and Escape save the note; a cleared one goes to the Trash. Nothing changed: it just closes.
@@ -1610,13 +1610,13 @@ function closeWordCard(){$('#wordBox').classList.add('hidden');CARD=null;}
 // The word card as a sheet: the meaning grows with its text up to the room between the head and the buttons, then
 // scrolls inside itself (to its end only while you type there), and so do the other fields (--room); the middle
 // scrolls so the field being edited stays in view at its caret. Run on opening, typing, focusing a field and whenever
-// the visible area changes.
-function growCard(){
+// the visible area changes (end: whether the meaning follows its end; by default while the caret is there).
+function growCard(end){
   const box=$('#wordBox'),body=$('#wbBody'),ta=$('#wbDef');if(!CARD||box.classList.contains('hidden')||!box.classList.contains('sheet')) return;
   const cs=getComputedStyle(body),st=body.scrollTop,f=document.activeElement;
   const room=Math.max(80,(parseFloat(getComputedStyle(box).maxHeight)||innerHeight)-(box.offsetHeight-body.clientHeight)-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom));
   box.style.setProperty('--room',room+'px');
-  growTa(ta,room,f===ta&&ta.selectionEnd===ta.value.length);body.scrollTop=st; // the field's moment at no height mustn't scroll the middle
+  growTa(ta,room,f===ta&&(end??ta.selectionEnd===ta.value.length));body.scrollTop=st; // the field's moment at no height mustn't scroll the middle
   if(!f||!body.contains(f)) return;
   let r=f.getBoundingClientRect();const s=getSelection();
   if(f.isContentEditable&&s.rangeCount&&f.contains(s.focusNode)){const c=s.getRangeAt(0).cloneRange();c.collapse(false);r=c.getClientRects()[0]||r;}
@@ -1624,8 +1624,8 @@ function growCard(){
   if(r.bottom>b.bottom-pad) body.scrollTop+=r.bottom-b.bottom+pad;
   else if(r.top<b.top+pad) body.scrollTop-=b.top+pad-r.top;
 }
-$('#wordBox').addEventListener('input',growCard);
-$('#wordBox').addEventListener('focusin',()=>requestAnimationFrame(growCard));
+$('#wordBox').addEventListener('input',()=>growCard());
+$('#wordBox').addEventListener('focusin',()=>requestAnimationFrame(()=>growCard()));
 // Delete: the word goes to the Trash, with what was typed into the card left out; Undo brings it back.
 $('#wbDel').onclick=()=>{const id=CARD&&CARD.id;closeWordCard();if(id) deleteWord(id);};
 // Dragging the card by its head moves it anywhere inside the visible area, until it closes. Not a sheet.
@@ -1639,11 +1639,13 @@ wbHead.addEventListener('pointerdown',e=>{
 });
 wbHead.addEventListener('pointermove',e=>{if(wbDrag&&CARD&&e.pointerId===wbDrag.id) CARD.at=placeCard($('#wordBox'),{x:e.clientX-wbDrag.dx,y:e.clientY-wbDrag.dy});});
 wbHead.addEventListener('pointerup',endWbDrag);wbHead.addEventListener('pointercancel',endWbDrag);
-// Both cards follow the visible area: the keyboard opening or closing, iOS panning to the field, a resize.
+// Both cards follow the visible area: the keyboard opening or closing, iOS panning it (to the field, or as the page
+// scrolls), a resize. A field showing its end with the caret there keeps showing it; one scrolled up to read stays put.
+const showsEnd=ta=>ta.selectionEnd===ta.value.length&&ta.scrollTop+ta.clientHeight>=ta.scrollHeight-2;
 function keepCardsInView(){
   const nb=$('#noteBox');
-  if(!nb.classList.contains('hidden')){noteAt=placeCard(nb,noteAt);growNote();}
-  if(CARD){CARD.at=placeCard($('#wordBox'),CARD.at);growCard();}
+  if(!nb.classList.contains('hidden')){const end=showsEnd($('#noteTa'));noteAt=placeCard(nb,noteAt);growNote(end);}
+  if(CARD){const end=showsEnd($('#wbDef'));CARD.at=placeCard($('#wordBox'),CARD.at);growCard(end);}
 }
 window.visualViewport?.addEventListener('resize',keepCardsInView);window.visualViewport?.addEventListener('scroll',keepCardsInView);
 addEventListener('resize',keepCardsInView);
