@@ -1,7 +1,7 @@
 // The page never scrolls sideways on a phone: on every screen and in every state, at 375 px with a touch screen (and
 // at 320 px for the shelf, the reader and the Words tab), nothing in the page is wider than the screen, no drawer or dialog scrolls
 // sideways inside, and the fixed bar, toolbar, cards, toast, drawers and dialogs stay inside the screen (with the
-// Date written quick picks in Add and Book details, the byline's pencil, every arrangement including by Shelf, the shelf
+// Date written quick picks in Add and Book details, the byline's pencil, every arrangement including by Shelf, the Grid view, the shelf
 // dialog, a shelf name without spaces, every shelf collapsed and the New shelf and Collapse all buttons, at both widths).
 // The books:
 // the rich paste; a stress paste (a 300-character unbroken link in a paragraph, a list item, a quote, a caption, a
@@ -125,6 +125,7 @@ async function shelf(){
   await clk('#shTools [data-shelf-new]');await shown('#shelfM');await fits('the New shelf dialog');
   await page.$eval('#shName',(e,v)=>{e.value=v;},SHELFNAME);await clk('#shSave');await hidden('#shelfM');
   await fits('shelf, a shelf named without spaces');
+  await clk('#segView [data-v="grid"]');await fits('shelf, Grid, a shelf named without spaces');await clk('#segView [data-v="shelves"]');
   // every shelf collapsed to a strip, that one too; New shelf and Expand all at the top
   const w=await page.evaluate(()=>document.documentElement.clientWidth);
   await clk('#foldAll');await fits('shelf, every shelf collapsed');
