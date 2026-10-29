@@ -25,6 +25,10 @@ const prefs=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('upwind:prefs'
 // one stored value (local mode keeps every key in IndexedDB), and a book's id from its cover
 const idb=(key,p=page)=>p.evaluate(k=>new Promise(res=>{const r=indexedDB.open('upwind',1);r.onsuccess=()=>{const g=r.result.transaction('kv').objectStore('kv').get(k);g.onsuccess=()=>{r.result.close();res(g.result);};};}),key);
 const idOf=title=>page.$eval(cov(title),c=>c.dataset.open);
+// the Trash's entries once fn(entries) holds (the app doesn't await its writes), or after 5 s, whatever they are
+const trash=async(fn=()=>true)=>{for(let i=0;;i++){
+  const l=await page.evaluate(()=>new Promise(res=>{const r=indexedDB.open('upwind',1);r.onsuccess=()=>{const q=r.result.transaction('kv').objectStore('kv').getAll(IDBKeyRange.bound('trash:','trash:￿'));q.onsuccess=()=>{r.result.close();res(q.result);};};}));
+  if(fn(l)||i>=50) return l;await sleep(100);}};
 const outside=()=>page.mouse.click(4,4); // on a dialog's backdrop
 // every shelf row on screen: its id, name and the titles on it
 const rows=(p=page)=>p.$$eval('#shelfBody .shelf-row',rs=>rs.map(r=>({id:r.dataset.shelf,name:r.querySelector('.shelf-label :is(.sl-name,span)').textContent.trim(),
@@ -275,9 +279,10 @@ await t.run(async()=>{
   ok('Delete asks for a second tap, no typing',(await text('#shDel'))==='Tap again to delete'&&await vis('#shelfM')&&!(await vis('#confirmM')));
   await page.click('#shDel');await until(()=>document.querySelector('#shelfM').classList.contains('hidden'));
   ok('delete: the shelf goes, its books go to Unsorted (first again)',!(await names()).includes('Old Times')&&(await names()).startsWith('Unsorted|')&&(await on('Unsorted')).join()==='Atlas of Winds');
-  ok('delete: the toast says where the books went',await toastHas('in Unsorted'));
-  await page.click('#toast button');
+  ok('delete: "Moved to Trash · Undo", and the shelf waits in the Trash',await toastHas('Moved to Trash · Undo')&&(await trash(l=>l.length)).map(e=>e.shelf.id).join()==='history');
+  await page.click('#toast button');await toastHas('Restored');
   ok('Undo puts the shelf back in its place, with its books',(await names())==='Travel|Adventure|Old Times|Finance|Fantasy|Poetry|Philosophy'&&(await on('Old Times')).join()==='Atlas of Winds');
+  ok('… and leaves nothing in the Trash',!(await trash(l=>!l.length)).length);
   await edit('history');await page.click('#shDel');await page.click('#shDel');await until(()=>document.querySelector('#shelfM').classList.contains('hidden'));
   await reload();
   ok('shelf changes are kept after a reload',(await names())==='Unsorted|Travel|Adventure|Finance|Fantasy|Poetry|Philosophy');
