@@ -246,14 +246,11 @@ $('#shSave').onclick=()=>{
   const row=document.querySelector(`#shelfBody [data-shelf="${id}"]`);if(row) row.scrollIntoView({block:'nearest',behavior:'smooth'});
 };
 $('#shName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#shSave').click();}});
-// nothing is lost (the books go to Unsorted), so a second tap instead of a typed "yes". The books keep the shelf's
-// id, so Undo only puts the shelf back in its place and they show on it again.
+// nothing is lost (the books go to Unsorted), so a second tap instead of a typed "yes". The shelf goes to the Trash
+// with its place; its books keep its id, so Undo or Restore puts it back there and they show on it again.
 $('#shDel').onclick=e=>{
   const l=shelves(),s=l.find(x=>x.id===shId);if(!s||!armed(e.currentTarget,'Tap again to delete')) return;
-  const i=l.indexOf(s),n=META.filter(m=>m.shelf===s.id).length;saveShelves(l.filter(x=>x!==s));closeModal('#shelfM');
-  toast(n?`Deleted ${s.name} · ${plural(n,'book')} in Unsorted`:`Deleted ${s.name}`,{label:'Undo',run:()=>{
-    const now=[...shelves()];if(now.some(x=>x.id===s.id)) return;now.splice(Math.min(i,now.length),0,s);saveShelves(now);
-  }});
+  const tr=toTrash('shelf',{title:s.name,shelf:s,at:l.indexOf(s)});saveShelves(l.filter(x=>x!==s));closeModal('#shelfM');movedToTrash(tr);
 };
 
 // Dragging on the shelves (Arrange by Shelf, Shelves view): a cover onto another shelf, or a shelf by its name to
@@ -2107,7 +2104,7 @@ $('#restoreFile').onchange=async e=>{
   let data;try{data=JSON.parse(await f.text());}catch(err){setErr('That file isn’t an own-shelf backup.');return;}
   try{
     const r=await importShelf(DB,data,META,metaFor,shelves());if(r.shelves) SETTINGS={...SETTINGS,shelves:r.shelves};if(r.studyLog) SETTINGS={...SETTINGS,studyLog:r.studyLog};
-    r.metas.forEach(m=>{META=META.filter(x=>x.id!==m.id).concat(m);untrashBook(m.id);});
+    r.metas.forEach(m=>{META=META.filter(x=>x.id!==m.id).concat(m);untrashBook(m.id);});if(r.shelves) untrashShelves();
     closeModal('#setM');renderShelf();
     toast(r.added||r.merged?`Restored ${r.added} book${r.added===1?'':'s'}${r.highlights?` and ${r.highlights} highlight${r.highlights===1?'':'s'}`:''}`:'Everything in that backup is already here');
   }catch(err){
@@ -2123,7 +2120,9 @@ $('#restoreFile').onchange=async e=>{
 //   {id, kind:'note', deletedAt, bookId, title, hlId, text, quote, color}
 //   {id, kind:'word', deletedAt, title, word}                         word: the whole word (title is its term), or a
 //                                                                     fact card (title is its book's)
-// Backups (exportShelf) cover the shelf only, so trashed books aren't in them.
+//   {id, kind:'shelf', deletedAt, title, shelf, at}                   shelf: {id, name} as it was in the list; at: its
+//                                                                     place there. Its books keep its id (Unsorted)
+// Backups (exportShelf) cover the shelf only, so trashed books, words and shelves aren't in them.
 const TRASH_DAYS=30,DAY=864e5;
 let TRASH=[]; // the open Trash dialog's entries, newest first
 // a highlight's text in about 140 characters, its blocks joined as in the plain-text export
@@ -2148,6 +2147,7 @@ function afterRestore(e){
 // Puts an entry back. Returns '' or why it can't.
 async function restoreEntry(e){
   if(e.kind==='word'){await restoreWord(e.word);DB.del('trash:'+e.id);return '';}
+  if(e.kind==='shelf') return restoreShelf(e);
   const id=e.bookId,open=!!(DOC&&DOC.id===id);
   const doc=open?DOC:await DB.get('doc:'+id);
   if(!doc) return 'Can’t restore: the book was deleted for good.';
@@ -2171,8 +2171,21 @@ async function restoreEntry(e){
   }
   DB.del('trash:'+e.id);return '';
 }
+// A shelf goes back to its place (the end, if the list is shorter now), and the books still carrying its id show on
+// it again. Already back (a backup brought it): the entry just goes. Names are unique, so a newer shelf with its name
+// has to be renamed first.
+function restoreShelf(e){
+  const l=[...shelves()],s=e.shelf;
+  if(!l.some(x=>x.id===s.id)){
+    if(l.some(x=>x.name.toLowerCase()===s.name.toLowerCase())) return `Can’t restore: there’s already a shelf called ${s.name}. Rename that one first.`;
+    l.splice(Math.min(e.at,l.length),0,s);saveShelves(l);
+  }
+  DB.del('trash:'+e.id);return '';
+}
 // a book back on the shelf (added again, or restored from a backup) leaves the Trash
 function untrashBook(id){DB.all('trash:').then(l=>l.forEach(e=>{if(e.kind==='book'&&e.bookId===id)DB.del('trash:'+e.id);})).catch(()=>{});}
+// so does a shelf back on the list (a backup's)
+function untrashShelves(){const ids=new Set(shelves().map(s=>s.id));DB.all('trash:').then(l=>l.forEach(e=>{if(e.kind==='shelf'&&ids.has(e.shelf.id))DB.del('trash:'+e.id);})).catch(()=>{});}
 // Deletes an entry for good; a book takes its content along, unless it's back on the shelf (added again, or restored elsewhere).
 function forget(e,db=DB){
   db.del('trash:'+e.id);
@@ -2191,6 +2204,9 @@ function trashRow(e){
   if(e.kind==='book'){
     const m=e.meta||{id:e.bookId};what='Book';stripe=coverOf(m)[0];
     body=`<p class="tr-meta">${esc([m.author,e.hl?lossText(e.hl,e.notes):'No highlights'].filter(Boolean).join(' · '))}</p>`;
+  } else if(e.kind==='shelf'){
+    const n=META.filter(m=>m.shelf===e.shelf.id).length;what='Shelf';stripe='var(--plank)';
+    body=`<p class="tr-meta">${n?plural(n,'book'):'No books'}</p>`;
   } else if(e.kind==='highlights'){
     const n=e.items.length;what=n===1?'Highlight':`${n} highlights`;stripe=`var(--${esc(e.items[0].color)}S)`;
     body=`<p class="q">${esc(e.quote)}</p>`;

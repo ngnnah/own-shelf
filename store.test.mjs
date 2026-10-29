@@ -95,7 +95,7 @@ const errs=[];
   ok('restore: rejects other files and newer versions',e1==='not_backup'&&e2==='newer_version');
 }
 
-// cloud: the trash (deleted books, highlights and notes)
+// cloud: the trash (deleted books, highlights, notes and shelves)
 {
   const F=fakeFirestore();const C=makeCloud(F.fs,{},'u1',{onError:e=>errs.push(e),delay:10000});
   await C.put('trash:t1',{id:'t1',kind:'highlights',bookId:'a',deletedAt:1,items:[{id:'h1',segs:[{pid:'b0',s:0,e:4}],note:undefined}]});
@@ -106,6 +106,9 @@ const errs=[];
   ok('cloud: get reads one trash entry',(await C.get('trash:t2')).bookId==='b');
   await C.del('trash:t1');
   ok('cloud: del removes a trash entry',!F.docs.has('users/u1/trash/t1')&&(await C.all('trash:')).length===1);
+  await C.put('trash:s1',{id:'s1',kind:'shelf',deletedAt:3,title:'History',shelf:{id:'history',name:'History'},at:2});
+  ok('cloud: a deleted shelf is a trash entry like the others',(await C.all('trash:')).some(x=>x.kind==='shelf'&&x.shelf.id==='history'&&x.at===2));
+  await C.del('trash:s1');
   await C.put('meta:q',{id:'q',title:'Queued'});
   ok('cloud: all("meta:") includes queued shelf entries',(await C.all('meta:')).some(m=>m.id==='q'));
   ok('cloud: unknown prefixes list nothing',(await C.all('doc:')).length===0);
