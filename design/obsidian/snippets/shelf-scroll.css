@@ -1,0 +1,362 @@
+/* shelf-scroll.css
+   own-shelf look: Scroll (own-shelf/design/looks.json, the pinned "Scroll 1"), day and night.
+   An unrolled scroll: mottled parchment that curls at both side edges, the bars drawn as the rolled
+   top with wooden rod ends, rubric red and lapis blue, a red drop cap and a wax seal, IM Fell headings.
+   Night is the same scroll by candlelight.
+   Enable one shelf snippet at a time: Settings > Appearance > CSS snippets.
+   Light and dark follow Obsidian's base colour scheme (Settings > Appearance > Base color scheme).
+   No plugins, no remote images: textures are small inline SVGs (feTurbulence) from own-shelf's themes lab.
+
+   Fonts: nothing is downloaded. Each stack starts with the own-shelf font, used if it is installed,
+   and falls back to fonts that ship on macOS and iOS. To fetch the own-shelf fonts instead, uncomment
+   the next line; Obsidian then requests them from Google Fonts on every launch (and needs a network).
+*/
+/* @import url("https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=EB+Garamond:ital,wght@0,400..700;1,400..700&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..500&display=swap"); */
+
+:root body.theme-light {
+  /* Day */
+  --shelf-paper: #EBDAB3;
+  --shelf-sheet: #F6EEDD;
+  --shelf-ink: #2A1C10;
+  --shelf-muted: #645541;
+  --shelf-faint: #87775E;
+  --shelf-accent: #2A4A7E;
+  --shelf-accent-hover: #2A3F63;
+  --shelf-mark: #A3261B;
+  --shelf-mark-text: #8C261B;
+  --shelf-h2: #8C261B;
+  --shelf-h3: #2A4A7E;
+  --shelf-gilt: #B4882F;
+  --shelf-rule: #C9A761;
+  --shelf-marker: #A3261B;
+  --shelf-quote: #2A4A7E;
+  --shelf-quote-bg: #D8CCAE;
+  --shelf-secondary: #E3CFA1;
+  --shelf-secondary-alt: #F6EEDD;
+  --shelf-primary-alt: #E4D3AD;
+  --shelf-border: #C0A675;
+  --shelf-border-hover: #A58D63;
+  --shelf-code-bg: #DACDAE;
+  --shelf-code-pre-bg: #F2E7CE;
+  --shelf-code-keyword: #A3261B;
+  --shelf-code-string: #2A4A7E;
+  --shelf-code-comment: #645541;
+  --shelf-table-head: #E0CA99;
+  --shelf-highlight: rgba(255, 212, 59, 0.6);
+  --shelf-selection: color-mix(in srgb, #2A4A7E 22%, transparent);
+  --shelf-chrome: #E2CB9C;
+  --shelf-chrome-hi: #EEE0C4;
+  --shelf-chrome-deep: #A39270;
+  --shelf-chrome-ink: #2A1C10;
+  --shelf-chrome-ink-soft: #5E4D37;
+  --shelf-band-rule: #5A3A22;
+  --shelf-wave: #C9A761;
+  --shelf-paper-tex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360'%3E%3Cdefs%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.008' numOctaves='4' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.573 0 0 0 0 0.427 0 0 0 0 0.153 0.51 0 0 0 -0.21'/%3E%3C/filter%3E%3Cfilter id='s' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.05' numOctaves='2' seed='8' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.463 0 0 0 0 0.341 0 0 0 0 0.129 0.375 0 0 0 -0.203'/%3E%3C/filter%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='6' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.165 0 0 0 0 0.11 0 0 0 0 0.063 0.144 0 0 0 -0.054'/%3E%3C/filter%3E%3C/defs%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23s)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --shelf-chrome-tex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cdefs%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.01' numOctaves='4' seed='13' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.227 0 0 0 0 0.141 0 0 0 0 0.063 0.78 0 0 0 -0.312'/%3E%3C/filter%3E%3C/defs%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E");
+
+  /* Obsidian's neutral ramp, re-tinted from page to ink (menus, modals, settings) */
+  --color-base-00: #F6EEDD;
+  --color-base-05: #F1E4C8;
+  --color-base-10: #EBDAB3;
+  --color-base-20: #E3D2AC;
+  --color-base-25: #DCCBA6;
+  --color-base-30: #D0BF9C;
+  --color-base-35: #C4B492;
+  --color-base-40: #AD9D7F;
+  --color-base-50: #9A8A6F;
+  --color-base-60: #73644E;
+  --color-base-70: #645541;
+  --color-base-100: #2A1C10;
+  --accent-h: 217; --accent-s: 50%; --accent-l: 33%;
+
+  /* callouts, in the look's inks */
+  --callout-default: #2A4A7E; --callout-info: #2A4A7E; --callout-todo: #2A4A7E; --callout-summary: #2A4A7E; --callout-tip: #2A4A7E;
+  --callout-question: #8C261B; --callout-warning: #8C261B; --callout-important: #8C261B; --callout-fail: #8C261B; --callout-error: #8C261B; --callout-bug: #8C261B;
+  --callout-success: #A3261B;
+  --callout-example: #645541; --callout-quote: #645541;
+  --text-on-accent: #F6EEDD;
+  --text-on-accent-inverted: #2A1C10;
+}
+
+:root body.theme-dark {
+  /* Night */
+  --shelf-paper: #1F1812;
+  --shelf-sheet: #2B231C;
+  --shelf-ink: #F2E4C4;
+  --shelf-muted: #B3A78F;
+  --shelf-faint: #736A59;
+  --shelf-accent: #A3B9E2;
+  --shelf-accent-hover: #B5C7E8;
+  --shelf-mark: #E98C6C;
+  --shelf-mark-text: #E98C6C;
+  --shelf-h2: #E98C6C;
+  --shelf-h3: #A3B9E2;
+  --shelf-gilt: #C49B4B;
+  --shelf-rule: #644F2A;
+  --shelf-marker: #E98C6C;
+  --shelf-quote: #A3B9E2;
+  --shelf-quote-bg: #2B2625;
+  --shelf-secondary: #19140F;
+  --shelf-secondary-alt: #2C241D;
+  --shelf-primary-alt: #272019;
+  --shelf-border: #41392E;
+  --shelf-border-hover: #564D40;
+  --shelf-code-bg: #2C2827;
+  --shelf-code-pre-bg: #2A221B;
+  --shelf-code-keyword: #E98C6C;
+  --shelf-code-string: #A3B9E2;
+  --shelf-code-comment: #B3A78F;
+  --shelf-table-head: #2E2417;
+  --shelf-highlight: rgba(255, 212, 59, 0.38);
+  --shelf-selection: color-mix(in srgb, #A3B9E2 30%, transparent);
+  --shelf-chrome: #3B2E20;
+  --shelf-chrome-hi: #4F4336;
+  --shelf-chrome-deep: #2E2419;
+  --shelf-chrome-ink: #F2E4C4;
+  --shelf-chrome-ink-soft: #C1B397;
+  --shelf-band-rule: #5A3A22;
+  --shelf-wave: #644F2A;
+  --shelf-paper-tex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360'%3E%3Cdefs%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.008' numOctaves='4' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.2 0 0 0 -0.495'/%3E%3C/filter%3E%3Cfilter id='s' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.05' numOctaves='2' seed='8' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.825 0 0 0 -0.446'/%3E%3C/filter%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='6' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.09 0 0 0 -0.034'/%3E%3C/filter%3E%3C/defs%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23s)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --shelf-chrome-tex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cdefs%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.01' numOctaves='4' seed='13' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.227 0 0 0 0 0.141 0 0 0 0 0.063 0.78 0 0 0 -0.312'/%3E%3C/filter%3E%3C/defs%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E");
+
+  /* Obsidian's neutral ramp, re-tinted from page to ink (menus, modals, settings) */
+  --color-base-00: #1F1812;
+  --color-base-05: #231C16;
+  --color-base-10: #261F18;
+  --color-base-20: #2B231C;
+  --color-base-25: #302820;
+  --color-base-30: #362E26;
+  --color-base-35: #41392E;
+  --color-base-40: #564D40;
+  --color-base-50: #6B6152;
+  --color-base-60: #938874;
+  --color-base-70: #B3A78F;
+  --color-base-100: #F2E4C4;
+  --accent-h: 219; --accent-s: 52%; --accent-l: 76%;
+
+  /* callouts, in the look's inks */
+  --callout-default: #A3B9E2; --callout-info: #A3B9E2; --callout-todo: #A3B9E2; --callout-summary: #A3B9E2; --callout-tip: #A3B9E2;
+  --callout-question: #E98C6C; --callout-warning: #E98C6C; --callout-important: #E98C6C; --callout-fail: #E98C6C; --callout-error: #E98C6C; --callout-bug: #E98C6C;
+  --callout-success: #E98C6C;
+  --callout-example: #B3A78F; --callout-quote: #B3A78F;
+  --text-on-accent: #1F1812;
+  --text-on-accent-inverted: #F2E4C4;
+}
+
+/* ── Obsidian variables, both modes (values come from the --shelf-* palette above) ── */
+:root body.theme-light, :root body.theme-dark {
+  --shelf-display: "IM Fell English", "EB Garamond", "Hoefler Text", "Iowan Old Style", Palatino, Georgia, serif;
+  --shelf-body: "Newsreader", "Iowan Old Style", Palatino, Georgia, serif;
+  --font-text-theme: var(--shelf-body);
+
+  --background-primary: var(--shelf-paper);
+  --background-primary-alt: var(--shelf-primary-alt);
+  --background-secondary: var(--shelf-secondary);
+  --background-secondary-alt: var(--shelf-secondary-alt);
+  --background-modifier-border: var(--shelf-border);
+  --background-modifier-border-hover: var(--shelf-border-hover);
+  --background-modifier-border-focus: var(--shelf-accent);
+  --background-modifier-hover: color-mix(in srgb, var(--shelf-ink) 7%, transparent);
+  --background-modifier-active-hover: color-mix(in srgb, var(--shelf-accent) 14%, transparent);
+  --background-modifier-form-field: var(--shelf-sheet);
+  --divider-color: var(--shelf-border);
+
+  --text-normal: var(--shelf-ink);
+  --text-muted: var(--shelf-muted);
+  --text-faint: var(--shelf-faint);
+  --text-accent: var(--shelf-accent);
+  --text-accent-hover: var(--shelf-accent-hover);
+  --text-selection: var(--shelf-selection);
+  --text-highlight-bg: var(--shelf-highlight);
+  --caret-color: var(--shelf-accent);
+  --interactive-accent: var(--shelf-accent);
+  --interactive-accent-hover: var(--shelf-accent-hover);
+  --bold-color: var(--shelf-ink);
+
+  --h1-font: var(--shelf-display); --h2-font: var(--shelf-display); --h3-font: var(--shelf-display);
+  --h4-font: var(--shelf-display); --h5-font: var(--shelf-display); --h6-font: var(--shelf-display);
+  --h1-weight: 400; --h2-weight: 400; --h3-weight: 400;
+  --h4-weight: 400; --h5-weight: 400; --h6-weight: 400;
+  --h1-size: 1.75em; --h2-size: 1.5em; --h3-size: 1.22em; --h4-size: 1.1em; --h5-size: 1em; --h6-size: 0.94em;
+  --h1-color: var(--shelf-ink); --h2-color: var(--shelf-h2); --h3-color: var(--shelf-h3);
+  --h4-color: var(--shelf-ink); --h5-color: var(--shelf-muted); --h6-color: var(--shelf-muted);
+  --heading-formatting: var(--shelf-faint);
+  --inline-title-color: var(--shelf-ink);
+
+  --link-color: var(--shelf-accent); --link-color-hover: var(--shelf-accent-hover);
+  --link-external-color: var(--shelf-accent); --link-external-color-hover: var(--shelf-accent-hover);
+  --link-unresolved-color: var(--shelf-mark-text);
+  --list-marker-color: var(--shelf-marker); --list-marker-color-hover: var(--shelf-accent);
+  --list-marker-color-collapsed: var(--shelf-accent);
+  --checkbox-color: var(--shelf-accent); --checkbox-color-hover: var(--shelf-accent-hover);
+  --checkbox-border-color: var(--shelf-faint);
+  --hr-color: var(--shelf-rule); --hr-thickness: 1px;
+
+  --blockquote-border-thickness: 3px;
+  --blockquote-border-color: var(--shelf-quote);
+  --blockquote-background-color: var(--shelf-quote-bg);
+  --blockquote-color: inherit;
+  --blockquote-font-style: normal;
+
+  --code-background: var(--shelf-code-bg);
+  --code-normal: var(--shelf-ink);
+  --code-comment: var(--shelf-code-comment);
+  --code-keyword: var(--shelf-code-keyword);
+  --code-important: var(--shelf-code-keyword);
+  --code-tag: var(--shelf-code-keyword);
+  --code-string: var(--shelf-code-string);
+  --code-function: var(--shelf-ink);
+  --code-property: var(--shelf-code-string);
+  --code-value: var(--shelf-code-keyword);
+  --code-operator: var(--shelf-muted);
+  --code-punctuation: var(--shelf-muted);
+
+  --table-border-color: var(--shelf-border);
+  --table-header-border-color: var(--shelf-border);
+  --table-header-background: var(--shelf-table-head);
+  --table-header-color: var(--shelf-ink);
+  --table-header-weight: 600;
+  --table-row-background-hover: color-mix(in srgb, var(--shelf-ink) 4%, transparent);
+
+  /* the bars: the rolled top of the scroll */
+  --titlebar-background: var(--shelf-chrome); --titlebar-background-focused: var(--shelf-chrome);
+  --titlebar-text-color: var(--shelf-chrome-ink-soft); --titlebar-text-color-focused: var(--shelf-chrome-ink);
+  --titlebar-border-color: var(--shelf-band-rule);
+  --ribbon-background: var(--shelf-chrome); --ribbon-background-collapsed: var(--shelf-chrome);
+  --status-bar-background: var(--shelf-chrome); --status-bar-text-color: var(--shelf-chrome-ink-soft);
+  --status-bar-border-color: var(--shelf-band-rule);
+  --tab-outline-color: var(--shelf-band-rule);
+  --tab-divider-color: color-mix(in srgb, var(--shelf-chrome-ink) 22%, transparent);
+  --tab-background-active: var(--shelf-paper);
+  --tab-text-color: var(--shelf-chrome-ink-soft);
+  --tab-text-color-active: var(--shelf-chrome-ink);
+  --tab-text-color-focused: var(--shelf-chrome-ink-soft);
+  --tab-text-color-focused-active: var(--shelf-chrome-ink);
+  --tab-text-color-focused-active-current: var(--shelf-chrome-ink);
+  --tab-text-color-focused-highlighted: var(--shelf-chrome-ink);
+}
+
+/* Reading text: a little more leading than Obsidian's 1.5, for a book page. */
+.markdown-source-view, .markdown-rendered { --line-height-normal: 1.6; }
+
+/* ── paper ── */
+.workspace-split.mod-root .view-content,
+.workspace-leaf-content.is-read-mode .markdown-preview-view {
+  background-image: var(--shelf-paper-tex);
+}
+
+/* ── bars: tab bars, ribbon, status bar ── */
+.workspace-tab-header-container {
+  --tab-container-background: var(--shelf-chrome);
+  background-image: var(--shelf-chrome-tex),
+    linear-gradient(180deg, var(--shelf-chrome-deep) 0%, var(--shelf-chrome-hi) 26%, var(--shelf-chrome) 60%, var(--shelf-chrome-deep) 100%);
+}
+.workspace-ribbon {
+  background-image: var(--shelf-chrome-tex), linear-gradient(90deg, var(--shelf-chrome-hi), var(--shelf-chrome) 60%, var(--shelf-chrome-deep));
+}
+.status-bar {
+  background-image: var(--shelf-chrome-tex),
+    linear-gradient(180deg, var(--shelf-chrome-deep) 0%, var(--shelf-chrome-hi) 26%, var(--shelf-chrome) 60%, var(--shelf-chrome-deep) 100%);
+}
+/* icons and labels on the bars use the bar's ink */
+.workspace-tab-header-container, .workspace-ribbon, .status-bar, .titlebar, .sidebar-toggle-button {
+  --icon-color: var(--shelf-chrome-ink-soft);
+  --icon-color-hover: var(--shelf-chrome-ink);
+  --icon-color-focused: var(--shelf-chrome-ink);
+  --icon-color-active: var(--shelf-chrome-ink);
+  --text-normal: var(--shelf-chrome-ink);
+  --text-muted: var(--shelf-chrome-ink-soft);
+  --text-faint: var(--shelf-chrome-ink-soft);
+  --background-modifier-hover: color-mix(in srgb, var(--shelf-chrome-ink) 14%, transparent);
+}
+/* the open note's tab is cut from the page, so it takes the page's ink */
+.workspace-split.mod-root .workspace-tab-header.is-active {
+  --icon-color: var(--shelf-muted);
+  --icon-color-hover: var(--shelf-ink);
+  --icon-color-focused: var(--shelf-ink);
+  --text-normal: var(--shelf-ink);
+  --text-muted: var(--shelf-muted);
+  --text-faint: var(--shelf-faint);
+  --background-modifier-hover: color-mix(in srgb, var(--shelf-ink) 8%, transparent);
+  --tab-text-color-active: var(--shelf-muted);
+  --tab-text-color-focused-active: var(--shelf-muted);
+  --tab-text-color-focused-active-current: var(--shelf-ink);
+  --tab-text-color-focused-highlighted: var(--shelf-accent);
+}
+/* phone: no tab bar, so the note's header gets a thin band of the bars instead (kept off the iOS status bar) */
+.is-phone .workspace-leaf-content .view-header {
+  border-bottom: 4px solid var(--shelf-chrome);
+  box-shadow: 0 1px 0 var(--shelf-band-rule);
+}
+
+/* ── headings ── */
+/* rubric H2, lapis H3, as in a manuscript */
+.markdown-rendered h2,
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-header-2 {
+  border-bottom: 1px solid var(--shelf-rule);
+  padding-bottom: 0.1em;
+}
+
+/* ── lists, code ── */
+.markdown-rendered pre { border: 1px solid var(--shelf-border); }
+.markdown-rendered pre, .markdown-source-view.mod-cm6 .cm-line.HyperMD-codeblock { background-color: var(--shelf-code-pre-bg); }
+/* a quote that opens a list item (a desk answer, "- >> yes") sits beside its bullet, not a line below it */
+.markdown-rendered li > .list-bullet + blockquote,
+.markdown-rendered li > .list-bullet + blockquote blockquote:first-child { margin-top: 0; }
+
+/* ── the scroll: rolled side edges, rod ends, drop cap, wax seal ── */
+/* the curl at each side of the note; narrower on phones, and always inside the page margin */
+.mod-root .workspace-leaf-content[data-type="markdown"]::before,
+.mod-root .workspace-leaf-content[data-type="markdown"]::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: clamp(4px, 1.6vw, 21px);
+  z-index: 2;
+  pointer-events: none;
+}
+.mod-root .workspace-leaf-content[data-type="markdown"]::before {
+  left: 0;
+  background: linear-gradient(90deg, rgba(50, 28, 8, 0.6), color-mix(in srgb, var(--shelf-chrome-hi) 80%, transparent) 40%, rgba(50, 28, 8, 0.22) 80%, transparent);
+}
+.mod-root .workspace-leaf-content[data-type="markdown"]::after {
+  right: 0;
+  background: linear-gradient(270deg, rgba(50, 28, 8, 0.6), color-mix(in srgb, var(--shelf-chrome-hi) 80%, transparent) 40%, rgba(50, 28, 8, 0.22) 80%, transparent);
+}
+/* wooden rod ends on the note area's tab bar */
+.workspace-split.mod-root .workspace-tab-header-container {
+  background-image: linear-gradient(90deg, #2E1C0E, #8A5E38 50%, #2E1C0E), linear-gradient(90deg, #2E1C0E, #8A5E38 50%, #2E1C0E),
+    var(--shelf-chrome-tex),
+    linear-gradient(180deg, var(--shelf-chrome-deep) 0%, var(--shelf-chrome-hi) 26%, var(--shelf-chrome) 60%, var(--shelf-chrome-deep) 100%);
+  background-size: 9px 100%, 9px 100%, auto, auto;
+  background-position: 0 0, 100% 0, 0 0, 0 0;
+  background-repeat: no-repeat, no-repeat, repeat, no-repeat;
+}
+/* Reading view only: a red drop cap on a paragraph that opens the note right under its H1. The H1 and that
+   paragraph render and unload together, so the cap never comes and goes, and resizes the page, as you scroll. */
+.el-h1 + .el-p > p:first-child {
+  display: flow-root;
+}
+.el-h1 + .el-p > p:first-child::first-letter {
+  float: left;
+  font-family: var(--shelf-display);
+  font-weight: 400;
+  font-size: 3.5em;
+  line-height: 0.8;
+  padding: 0.08em 0.1em 0 0;
+  color: var(--shelf-mark);
+}
+/* a wax seal under the last line, in reading view: below the text, never over it. Not in the editor, whose
+   scroll height CodeMirror works out itself. */
+.mod-root .workspace-leaf-content[data-type="markdown"] .mod-footer::before {
+  content: "";
+  display: block;
+  flex: none;
+  align-self: center;
+  width: 46px;
+  height: 46px;
+  margin: 2.5rem auto 1.5rem;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cdefs%3E%3CradialGradient id='w' cx='.38' cy='.34' r='.75'%3E%3Cstop offset='0' stop-color='%23D8564A'/%3E%3Cstop offset='.45' stop-color='%23A3261B'/%3E%3Cstop offset='1' stop-color='%235E120C'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cpath d='M24 2.5c3.2-.3 5.4 2 8.4 2.4 3.2.5 6.2 1.6 7.6 4.7 1.2 2.7 4.4 4.3 4.9 7.5.5 2.9-1.3 5.6-.9 8.4.5 3.2-.2 6.4-2.6 8.6-2.2 2-3.4 5.3-6.6 6.3-2.8.9-5.7.2-8.5 1.3-3 1.1-6.2.4-8.8-1.3-2.4-1.6-5.7-2.3-7.1-5-1.4-2.6-.8-5.7-2-8.4-1.2-2.8-.9-6 .7-8.5 1.5-2.4 1.8-5.7 4.4-7.3 2.6-1.6 5.6-1.4 8-3.6 1-.9 2-1.9 3.4-2.1z' fill='url(%23w)'/%3E%3Ccircle cx='24' cy='24' r='13.2' fill='none' stroke='%235E120C' stroke-width='1.6' opacity='.75'/%3E%3Ccircle cx='24' cy='24' r='11.6' fill='none' stroke='%23E57A6B' stroke-width='.8' opacity='.55'/%3E%3Cg fill='%235E120C' opacity='.7'%3E%3Cellipse cx='24' cy='19.2' rx='2.2' ry='4'/%3E%3Cellipse cx='24' cy='28.8' rx='2.2' ry='4'/%3E%3Cellipse cx='19.2' cy='24' rx='4' ry='2.2'/%3E%3Cellipse cx='28.8' cy='24' rx='4' ry='2.2'/%3E%3C/g%3E%3Ccircle cx='24' cy='24' r='1.6' fill='%23E57A6B' opacity='.7'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 2px 2px rgba(40, 20, 6, 0.35));
+}
