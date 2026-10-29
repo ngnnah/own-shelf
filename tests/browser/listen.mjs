@@ -2,8 +2,9 @@
 // steps through start, word boundaries and end, or runs on a timer (__tts.auto). Checks: the first sentence on
 // screen, the sentence and word marks, Pause and Resume, moving on through blocks (heading read, code skipped),
 // following the reading, stopping on leaving the reader; the speed from Settings; starting at a selection that begins
-// mid-paragraph and mid-word; stored highlights and the text's DOM unchanged (a sentence marked across a highlight);
-// Resume starting from the screen once the paused sentence has left it, at the first sentence whose top is on screen;
+// mid-paragraph and mid-word; stored highlights and the text's DOM unchanged (a sentence marked across a highlight),
+// and highlighting the paused sentence keeping its mark; Resume starting from the screen once the paused sentence has
+// left it, at the first sentence whose top is on screen, with no cancel() just before it speaks;
 // holding off following for 4 s after a wheel scroll; the sentence read staying bright in Focus mode; the 2 s check
 // (a lost end moves on, a lost start pauses); opening another book stopping it; hidden without speechSynthesis; the
 // whole-block fallback without window.Highlight.
@@ -42,7 +43,7 @@ const helpers=()=>{
 };
 await page.evaluateOnNewDocument(fakeTTS);await page.evaluateOnNewDocument(helpers);
 const P=(tag,n)=>Array.from({length:n},(_,i)=>`Sentence ${tag}${i+1} talks about the sea, the wind and the long grey harbour wall.`).join(' ');
-const MD=`# Listening Test\n\nBy Lee Tester\n\n${P('a',4)}\n\n## The harbour\n\n${P('b',6)}\n\n\`\`\`\nconst x = 1;\n\`\`\`\n\n${P('c',3)}\n\n`+Array.from({length:12},(_,i)=>P('d'+i+'-',5)).join('\n\n')+'\n';
+const MD=`# Listening Test\n\nBy Lee Tester\n\n${P('a',4)}\n\n## The harbour\n\n${P('b',6)}\n\n\`\`\`\nconst x = 1;\n\`\`\`\n\n${P('c',3)}\n\n`+Array.from({length:16},(_,i)=>P('d'+i+'-',5)).join('\n\n')+'\n';
 const MD2=`# Second Book\n\nBy Ann Other\n\n${P('e',3)}\n\n${P('f',3)}\n\n${P('g',3)}\n`;
 let p=page;
 const said=()=>p.evaluate(()=>__tts.said);
@@ -122,11 +123,19 @@ await t.run(async()=>{
   await page.click('#bListen');await sleep(300);
   ok('the highlighted block\'s DOM is unchanged',(await page.evaluate(()=>__blk('Sentence c2 ').innerHTML))===dom0);
   ok('stored highlights unchanged',(await storedHl())===hl0&&(await page.$$('mark.hl')).length===1);
+  const d0=await last();
+  await page.evaluate(()=>{const el=__blk('Sentence d0-1 ');el.scrollIntoView({block:'center'});const x=el.textContent,s=x.indexOf('the long grey');__select(el,s,s+13);});
+  await t.until(()=>!document.querySelector('#tool').classList.contains('hidden'));
+  await page.click('#tool [data-c="sky"]');await t.until(()=>document.querySelector('#hlCount').textContent==='2');
+  ok('highlighting the paused sentence keeps its mark',d0.startsWith('Sentence d0-1 ')&&(await mark('listen'))===d0);
 
   /* Resume once the paused sentence has left the screen: the first sentence whose top is on screen */
   await page.evaluate(()=>{const el=__blk('Sentence d5-1 '),bar=document.querySelector('#bar').getBoundingClientRect().bottom;scrollTo(0,scrollY+el.getBoundingClientRect().top-bar+30);});
   await sleep(100);
+  const cancels0=await page.evaluate(()=>__tts.cancels);
   await page.click('#bListen');
+  // WebKit can drop the events of an utterance spoken right after cancel() (bug 238189): a paused Listen has nothing to cancel
+  ok('Resume from the screen speaks without a cancel() first',(await page.evaluate(()=>__tts.cancels))===cancels0);
   const d5=await last(),where=await page.evaluate(s=>{
     const el=__blk(s),x=el.textContent,i=x.indexOf(s),bar=document.querySelector('#bar').getBoundingClientRect().bottom;
     const prev=x.lastIndexOf('Sentence ',i-1);
@@ -139,12 +148,15 @@ await t.run(async()=>{
   /* following holds off for 4 s after a wheel scroll */
   await page.evaluate(()=>{__tts.ms=25;__tts.go();});
   await t.until(()=>__tts.said.at(-1).startsWith('Sentence d6-'));
+  // wheel just after a follow has scrolled and settled, so no smooth scroll of the app's is still under way
+  const yf=await page.evaluate(()=>scrollY);await waitFor(y=>scrollY!==y,8000,yf);
+  await page.evaluate(()=>new Promise(res=>{let tm;const on=()=>{clearTimeout(tm);tm=setTimeout(()=>{removeEventListener('scroll',on);res();},300);};addEventListener('scroll',on,{passive:true});on();}));
   await page.mouse.move(200,500);await page.mouse.wheel({deltaY:-900});
   const wheelAt=Date.now();await sleep(400);
   const y1=await page.evaluate(()=>scrollY),n1=(await said()).length;
   await waitFor(n=>__tts.said.length>=n+4,3000,n1);
-  const y2=await page.evaluate(()=>scrollY),offScreen=await page.evaluate(()=>{const e=document.querySelector('#col .ls-block');return e.getBoundingClientRect().top>innerHeight*.8;});
-  ok(`after a wheel scroll, the page stays put while reading goes on (${(await said()).length-n1} sentences, ${y1}→${y2})`,y2===y1&&(await said()).length>=n1+4&&offScreen);
+  const y2=await page.evaluate(()=>scrollY),below=await page.evaluate(()=>Math.round(document.querySelector('#col .ls-block').getBoundingClientRect().top-innerHeight));
+  ok(`after a wheel scroll, the page stays put while reading goes on below the screen (${(await said()).length-n1} sentences, ${y1}→${y2}, ${below} px below)`,y2===y1&&(await said()).length>=n1+4&&below>-150);
   const back=await waitFor(y=>scrollY!==y,7000,y1),after=Date.now()-wheelAt;
   ok(`and follows again about 4 s after it (${after} ms)`,back&&after>=3800&&after<6500);
 

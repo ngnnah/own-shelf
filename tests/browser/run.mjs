@@ -63,8 +63,11 @@
 //   overflow.mjs    the page never scrolls sideways on a phone (375 and 320 px, touch): every screen, drawer, dialog
 //                   and card, with unbroken links and titles, long words, a wide table and picture; the overflow-x:clip
 //                   backstop, the window's scroll and Study's sticky buttons under it; text fields at 16 px or more
-//   listen.mjs      Listen (read aloud) with a fake speechSynthesis: where it starts, the sentence and word marks,
-//                   Pause and Resume, reading on through blocks (code skipped), following, stopping on leaving
+//   listen.mjs      Listen (read aloud) with a fake speechSynthesis: where it starts (the screen, a selection), the
+//                   sentence and word marks (across highlights, which stay unchanged), Pause and Resume, reading on
+//                   through blocks (code skipped), following and holding off after a scroll, Focus mode, the speed,
+//                   the 2 s check, stopping on leaving or opening another book; hidden without speechSynthesis; the
+//                   whole-block fallback without window.Highlight
 // Every file also fails on any page error.
 //
 // Run: `npm install` once, then `npm run test:browser`. One file: `node tests/browser/search.mjs`.

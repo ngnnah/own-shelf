@@ -897,7 +897,7 @@ function rangeToSegs(range){
   return segs;
 }
 function segText(h){return h.segs.map(s=>blockIndex[s.pid]?blockIndex[s.pid].text.slice(s.s,s.e):'').join('\n\n');}
-function rerender(pids){new Set(pids).forEach(pid=>{const b=blockIndex[pid];if(!b||b.t==='code')return;document.querySelectorAll(`#col .hp[data-pid="${pid}"]`).forEach(el=>{el.innerHTML=inlineHTML(b);});});}
+function rerender(pids){new Set(pids).forEach(pid=>{const b=blockIndex[pid];if(!b||b.t==='code')return;document.querySelectorAll(`#col .hp[data-pid="${pid}"]`).forEach(el=>{el.innerHTML=inlineHTML(b);});});if(LS) lsMark(null,null,false);}
 function commit(){ST.hl=HL;saveState();updateCount();if($('#drawer').classList.contains('open'))renderDrawer();}
 // A new highlight joins the ones it overlaps or touches (joinHighlights in parse.js); "Joined N highlights · Undo".
 // color null (the toolbar's Note): the colour of the one it joins, else Sunny. said: the toast when nothing joins.
@@ -1320,7 +1320,8 @@ function lsSpeak(){
   u.onerror=ev=>{if(!LS||LS.u!==u) return;lsPause();toast(/interrupted|canceled/.test(ev.error)?'Reading aloud paused':'Couldn’t read this aloud'+(ev.error?` (${ev.error})`:''));};
   lsMark();lsBtn();TTS.speak(u);
 }
-function lsMark(ws,we){
+// follow false: just redraw, as after rerender() replaced the block's contents (and the ranges in the marks with them)
+function lsMark(ws,we,follow=true){
   if(!LS) return;const el=lsEl(LS.pids[LS.bi]);if(!el) return;const [s,e]=LS.cs[LS.ci];
   document.querySelectorAll('#col .ls-block').forEach(x=>{if(x!==el) x.classList.remove('ls-block','ls-whole');});
   el.classList.add('ls-block');
@@ -1329,7 +1330,7 @@ function lsMark(ws,we){
     const h=new Highlight(r);h.priority=-2;CSS.highlights.set('listen',h);
     if(w){const x=new Highlight(w);x.priority=-1;CSS.highlights.set('listen-word',x);}else CSS.highlights.delete('listen-word');
   }else el.classList.add('ls-whole');
-  lsFollow(w||r);
+  if(follow) lsFollow(w||r);
 }
 function lsUnmark(){if(HLAPI){CSS.highlights.delete('listen');CSS.highlights.delete('listen-word');}document.querySelectorAll('#col .ls-block').forEach(x=>x.classList.remove('ls-block','ls-whole'));}
 // Keep what's being read in view: when it leaves the area under the bar, scroll it to a quarter of the way down.
@@ -1342,7 +1343,9 @@ function lsFollow(r){
   scrollTo({top:Math.max(0,scrollY+b.top-top-(bot-top)*.25),behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
 }
 function lsPause(){if(!LS) return;LS.on=false;LS.u=null;TTS.cancel();if(HLAPI) CSS.highlights.delete('listen-word');lsBtn();}
-function lsStop(){if(!LS) return;LS=null;TTS.cancel();lsUnmark();lsBtn();}
+// A paused Listen was cancelled when it paused: cancelling again just before the next speak() can cost that utterance
+// its events in WebKit (bug 238189), so only speech still going is cancelled.
+function lsStop(){if(!LS) return;const on=LS.on;LS=null;if(on||TTS.speaking||TTS.pending) TTS.cancel();lsUnmark();lsBtn();}
 // is the paused sentence still on screen?
 function lsShown(){
   const el=LS&&lsEl(LS.pids[LS.bi]),c=LS&&LS.cs[LS.ci];if(!el||!c) return false;
