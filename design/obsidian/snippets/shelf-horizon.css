@@ -1,0 +1,326 @@
+/* shelf-horizon.css
+   own-shelf look: Horizon (an Obsidian-only look, drawn in own-shelf/design/obsidian/build.mjs), day and night.
+   Open sky over a far coast: the sky pales toward a low horizon, mountain ranges fade with distance,
+   a sparse treeline and long slow waves lie along the foot of the note, and the text sits on open sky.
+   Optima headings. Night is the same coast at dusk, under a low moon.
+   Enable one shelf snippet at a time: Settings > Appearance > CSS snippets.
+   Light and dark follow Obsidian's base colour scheme (Settings > Appearance > Base color scheme).
+   No plugins, no remote images: the landscape is one small inline SVG; the sky, its glow at the horizon and the sea are CSS gradients.
+
+   Fonts: nothing is downloaded. Optima (headings) and Iowan Old Style (text) ship on macOS and iOS.
+*/
+
+:root body.theme-light {
+  /* Day */
+  --shelf-paper: #E3E9EC;
+  --shelf-sheet: #F2F5F6;
+  --shelf-ink: #1B2630;
+  --shelf-muted: #3B454E;
+  --shelf-faint: #4B555D;
+  --shelf-accent: #264F61;
+  --shelf-accent-hover: #234555;
+  --shelf-mark: #97553A;
+  --shelf-mark-text: #6D3E2A;
+  --shelf-h2: #1B2630;
+  --shelf-h3: #264F61;
+  --shelf-gilt: #C8B590;
+  --shelf-rule: #97ABB4;
+  --shelf-marker: #344F42;
+  --shelf-quote: #688592;
+  --shelf-quote-bg: #D7DFE3;
+  --shelf-secondary: #DAE2E5;
+  --shelf-secondary-alt: #F2F5F6;
+  --shelf-primary-alt: #DCE2E5;
+  --shelf-border: #C3CACE;
+  --shelf-border-hover: #A5ACB2;
+  --shelf-code-bg: #D3DCE1;
+  --shelf-code-pre-bg: #EDF1F3;
+  --shelf-code-keyword: #89513A;
+  --shelf-code-string: #2D5D70;
+  --shelf-code-comment: #3B454E;
+  --shelf-table-head: #CDD6DC;
+  --shelf-highlight: rgba(255, 212, 59, 0.6);
+  --shelf-selection: color-mix(in srgb, #264F61 22%, transparent);
+  --shelf-chrome: #C5D0D6;
+  --shelf-chrome-hi: #D7DFE3;
+  --shelf-chrome-deep: #9AA2A7;
+  --shelf-chrome-ink: #1B2630;
+  --shelf-chrome-ink-soft: #4B565E;
+  --shelf-band-rule: #A0ABB1;
+  --shelf-wave: #C3D1D6;
+  --shelf-sky-low: #EDF0EE;
+  --shelf-haze: #F3F2EB;
+  --shelf-sea: #D3DEE1;
+  --shelf-land: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='3200' height='220' viewBox='0 0 3200 220'%3E%3Cdefs%3E%3ClinearGradient id='r0' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23E0E3E1'/%3E%3Cstop offset='1' stop-color='%23EDEEE8'/%3E%3C/linearGradient%3E%3ClinearGradient id='r1' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23D2D7D4'/%3E%3Cstop offset='1' stop-color='%23E4E6E1'/%3E%3C/linearGradient%3E%3ClinearGradient id='r2' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23CED3CC'/%3E%3Cstop offset='1' stop-color='%23DBDED7'/%3E%3C/linearGradient%3E%3CradialGradient id='h'%3E%3Cstop offset='0' stop-color='%23F1F4F2'/%3E%3Cstop offset='1' stop-color='%23F1F4F2' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='1700' cy='42' r='62' fill='url(%23h)'/%3E%3Ccircle cx='1700' cy='42' r='13' fill='%23FAFBFA'/%3E%3Cpath d='M0 173L200 173L220 172L240 172L260 172L280 172L300 171L320 171L340 170L360 170L380 168L400 167L420 165L440 162L460 161L480 160L500 160L520 158L540 155L560 155L580 152L600 152L620 151L640 147L660 145L680 142L700 142L720 144L740 144L760 146L780 145L800 145L820 146L840 144L860 143L880 137L900 133L920 129L940 125L960 126L980 126L1000 126L1020 127L1040 128L1060 131L1080 130L1100 129L1120 123L1140 115L1160 109L1180 104L1200 102L1220 101L1240 99L1260 101L1280 100L1300 101L1320 101L1340 96L1360 90L1380 82L1400 76L1420 74L1440 72L1460 74L1480 75L1500 79L1520 86L1540 92L1560 101L1580 105L1600 106L1620 106L1640 103L1660 105L1680 105L1700 104L1720 102L1740 96L1760 93L1780 90L1800 89L1820 90L1840 89L1860 91L1880 93L1900 97L1920 104L1940 107L1960 111L1980 112L2000 112L2020 115L2040 115L2060 116L2080 116L2100 116L2120 118L2140 120L2160 124L2180 127L2200 127L2220 129L2240 128L2260 130L2280 131L2300 131L2320 131L2340 129L2360 130L2380 131L2400 133L2420 135L2440 134L2460 135L2480 136L2500 138L2520 142L2540 143L2560 144L2580 143L2600 143L2620 146L2640 146L2660 146L2680 145L2700 143L2720 144L2740 145L2760 148L2780 150L2800 151L2820 154L2840 156L2860 160L2880 163L2900 164L2920 166L2940 166L2960 167L2980 168L3000 169L3020 170L3040 171L3060 171L3080 172L3100 172L3120 172L3140 173L3200 173Z' fill='url(%23r0)'/%3E%3Cpath d='M0 173L240 173L260 172L280 172L300 172L320 171L340 171L360 170L380 168L400 167L420 165L440 162L460 160L480 154L500 150L520 149L540 147L560 148L580 145L600 144L620 144L640 144L660 148L680 148L700 148L720 148L740 147L760 148L780 146L800 144L820 141L840 137L860 136L880 135L900 136L920 136L940 134L960 133L980 129L1000 126L1020 123L1040 119L1060 117L1080 115L1100 117L1120 123L1140 127L1160 132L1180 131L1200 128L1220 126L1240 124L1260 128L1280 130L1300 135L1320 140L1340 144L1360 151L1380 155L1400 159L1420 162L1440 164L1460 167L1480 169L1500 171L1520 172L1540 173L1760 173L1780 172L1800 171L1820 170L1840 168L1860 167L1880 165L1900 161L1920 158L1940 154L1960 153L1980 151L2000 148L2020 145L2040 139L2060 135L2080 133L2100 131L2120 132L2140 131L2160 132L2180 132L2200 131L2220 129L2240 123L2260 118L2280 113L2300 111L2320 114L2340 117L2360 122L2380 126L2400 129L2420 134L2440 135L2460 136L2480 135L2500 132L2520 132L2540 131L2560 135L2580 139L2600 141L2620 145L2640 145L2660 147L2680 150L2700 149L2720 150L2740 148L2760 147L2780 148L2800 149L2820 152L2840 153L2860 156L2880 158L2900 161L2920 165L2940 167L2960 168L2980 169L3000 169L3020 170L3040 171L3060 171L3080 172L3100 172L3120 172L3140 173L3200 173Z' fill='url(%23r1)'/%3E%3Cpath d='M0 173L260 173L280 172L300 172L320 171L340 171L360 169L380 168L400 165L420 162L440 158L460 153L480 151L500 149L520 147L540 145L560 140L580 139L600 137L620 138L640 140L660 140L680 143L700 145L720 150L740 157L760 160L780 164L800 166L820 168L840 168L860 166L880 164L900 158L920 149L940 142L960 134L980 129L1000 124L1020 119L1040 117L1060 115L1080 119L1100 122L1120 124L1140 124L1160 119L1180 119L1200 121L1220 126L1240 134L1260 138L1280 141L1300 144L1320 148L1340 156L1360 160L1380 164L1400 167L1420 169L1440 171L1460 172L1480 173L1760 173L1780 172L1800 172L1820 171L1840 169L1860 167L1880 164L1900 163L1920 162L1940 162L1960 159L1980 155L2000 153L2020 152L2040 157L2060 161L2080 165L2100 168L2120 169L2140 171L2160 172L2180 172L2200 173L2240 173L2260 172L2280 172L2300 172L2320 171L2340 170L2360 168L2380 166L2400 164L2420 161L2440 158L2460 153L2480 147L2500 145L2520 142L2540 144L2560 144L2580 144L2600 147L2620 148L2640 153L2660 156L2680 158L2700 161L2720 162L2740 165L2760 167L2780 169L2800 171L2820 171L2840 172L2860 172L2880 173L3200 173Z' fill='url(%23r2)'/%3E%3Cpath d='M1074 83L1078.6 100L1076.6 100L1081.1 119L1066.9 119L1071.4 100L1069.4 100ZM1098 80.2L1103.6 101.2L1101.2 101.2L1106.8 124.2L1089.2 124.2L1094.8 101.2L1092.4 101.2ZM1116 93.5L1120 108.5L1118.3 108.5L1122.3 125.5L1109.7 125.5L1113.7 108.5L1112 108.5ZM1162 81.1L1167.1 100.1L1164.9 100.1L1170 121.1L1154 121.1L1159.1 100.1L1156.9 100.1ZM1181 74.9L1186.9 96.9L1184.3 96.9L1190.2 120.9L1171.8 120.9L1177.7 96.9L1175.1 96.9ZM1199 89.2L1203.3 105.2L1201.4 105.2L1205.7 123.2L1192.3 123.2L1196.6 105.2L1194.7 105.2ZM1252 109L1255.8 123L1254.1 123L1257.9 139L1246.1 139L1249.9 123L1248.2 123ZM1270 105.4L1274.6 122.4L1272.6 122.4L1277.1 141.4L1262.9 141.4L1267.4 122.4L1265.4 122.4ZM1318 125.6L1321 136.6L1319.7 136.6L1322.6 149.6L1313.4 149.6L1316.3 136.6L1315 136.6ZM1342 140.4L1344.2 148.4L1343.2 148.4L1345.4 158.4L1338.6 158.4L1340.8 148.4L1339.8 148.4ZM1912 147L1914 154.5L1913.1 154.5L1915.2 164L1908.9 164L1910.9 154.5L1910 154.5ZM1930 142.2L1932.7 152.2L1931.5 152.2L1934.2 164.2L1925.8 164.2L1928.5 152.2L1927.3 152.2ZM1946 147.6L1947.9 154.6L1947.1 154.6L1948.9 163.6L1943.1 163.6L1944.9 154.6L1944.1 154.6ZM2018 129.9L2021 140.9L2019.7 140.9L2022.6 153.9L2013.4 153.9L2016.3 140.9L2015 140.9ZM2036 138.8L2038.3 147.3L2037.3 147.3L2039.6 157.8L2032.4 157.8L2034.7 147.3L2033.7 147.3ZM560 114.3L563.5 127.3L562 127.3L565.5 142.3L554.5 142.3L558 127.3L556.5 127.3ZM584 106.6L588.3 122.6L586.4 122.6L590.7 140.6L577.3 140.6L581.6 122.6L579.7 122.6ZM640 118.4L643 129.4L641.7 129.4L644.6 142.4L635.4 142.4L638.3 129.4L637 129.4ZM2540 118L2543.5 131L2542 131L2545.5 146L2534.5 146L2538 131L2536.5 131ZM2566 124L2568.7 134L2567.5 134L2570.2 146L2561.8 146L2564.5 134L2563.3 134Z' fill='%23C5CAC3'/%3E%3Cpath d='M0 176Q-86 175.2 30 176M205 176Q255 175.2 304 176M432 176Q506 175.2 581 176M661 176Q786 175.2 910 176M1093 176Q1195 175.2 1296 176M1411 176Q1518 175.2 1625 176M1775 176Q1856 175.2 1937 176M2108 176Q2157 175.2 2206 176M2376 176Q2485 175.2 2595 176M2783 176Q2852 175.2 2922 176M3115 176Q3157 175.2 3200 176M0 181Q-56 180.2 129 181M336 181Q483 180.2 629 181M725 181Q816 180.2 907 181M1029 181Q1183 180.2 1338 181M1478 181Q1581 180.2 1684 181M1896 181Q2044 180.2 2192 181M2459 181Q2627 180.2 2795 181M3035 181Q3118 180.2 3200 181M0 188Q45 187.2 205 188M330 188Q563 187.2 797 188M909 188Q1074 187.2 1239 188M1359 188Q1531 187.2 1702 188M2008 188Q2263 187.2 2519 188M2773 188Q2987 187.2 3200 188M0 198Q47 197.2 210 198M589 198Q879 197.2 1168 198M1548 198Q1858 197.2 2167 198M2367 198Q2673 197.2 2979 198M0 211Q130 210.2 520 211M947 211Q1244 210.2 1541 211M1801 211Q2212 210.2 2623 211M2840 211Q3020 210.2 3200 211' fill='none' stroke='%23C3D1D6' stroke-width='1.3' stroke-linecap='round'/%3E%3C/svg%3E");
+
+  /* Obsidian's neutral ramp, re-tinted from page to ink (menus, modals, settings) */
+  --color-base-00: #F2F5F6;
+  --color-base-05: #EBEFF1;
+  --color-base-10: #E3E9EC;
+  --color-base-20: #DBE1E4;
+  --color-base-25: #D3D9DD;
+  --color-base-30: #C7CED2;
+  --color-base-35: #BBC2C6;
+  --color-base-40: #A3ABB0;
+  --color-base-50: #8F979D;
+  --color-base-60: #677077;
+  --color-base-70: #3B454E;
+  --color-base-100: #1B2630;
+  --accent-h: 198; --accent-s: 44%; --accent-l: 26%;
+
+  /* callouts, in the look's inks */
+  --callout-default: #264F61; --callout-info: #264F61; --callout-todo: #264F61; --callout-summary: #264F61; --callout-tip: #264F61;
+  --callout-question: #6D3E2A; --callout-warning: #6D3E2A; --callout-important: #6D3E2A; --callout-fail: #6D3E2A; --callout-error: #6D3E2A; --callout-bug: #6D3E2A;
+  --callout-success: #344F42;
+  --callout-example: #3B454E; --callout-quote: #3B454E;
+  --text-on-accent: #F2F5F6;
+  --text-on-accent-inverted: #1B2630;
+}
+
+:root body.theme-dark {
+  /* Night */
+  --shelf-paper: #0E1621;
+  --shelf-sheet: #19212C;
+  --shelf-ink: #D8E0E3;
+  --shelf-muted: #B0B8BC;
+  --shelf-faint: #979FA5;
+  --shelf-accent: #8AB6C5;
+  --shelf-accent-hover: #A1C5D1;
+  --shelf-mark: #D69474;
+  --shelf-mark-text: #D6A086;
+  --shelf-h2: #D8E0E3;
+  --shelf-h3: #8AB6C5;
+  --shelf-gilt: #A38E66;
+  --shelf-rule: #405663;
+  --shelf-marker: #94C2A6;
+  --shelf-quote: #5F7E8C;
+  --shelf-quote-bg: #151F2B;
+  --shelf-secondary: #0B121B;
+  --shelf-secondary-alt: #1A222D;
+  --shelf-primary-alt: #161E29;
+  --shelf-border: #2E3640;
+  --shelf-border-hover: #434B53;
+  --shelf-code-bg: #1A2631;
+  --shelf-code-pre-bg: #18202B;
+  --shelf-code-keyword: #D69474;
+  --shelf-code-string: #8AB6C5;
+  --shelf-code-comment: #B0B8BC;
+  --shelf-table-head: #1E2631;
+  --shelf-highlight: rgba(255, 212, 59, 0.26);
+  --shelf-selection: color-mix(in srgb, #8AB6C5 30%, transparent);
+  --shelf-chrome: #09101A;
+  --shelf-chrome-hi: #0C141E;
+  --shelf-chrome-deep: #070C14;
+  --shelf-chrome-ink: #D8E0E3;
+  --shelf-chrome-ink-soft: #9EA6AB;
+  --shelf-band-rule: #373E46;
+  --shelf-wave: #263543;
+  --shelf-sky-low: #121C28;
+  --shelf-haze: #1C2734;
+  --shelf-sea: #111B26;
+  --shelf-land: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='3200' height='220' viewBox='0 0 3200 220'%3E%3Cdefs%3E%3ClinearGradient id='r0' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%230F1721'/%3E%3Cstop offset='1' stop-color='%2318222E'/%3E%3C/linearGradient%3E%3ClinearGradient id='r1' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%230B131C'/%3E%3Cstop offset='1' stop-color='%23141E29'/%3E%3C/linearGradient%3E%3ClinearGradient id='r2' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23080E17'/%3E%3Cstop offset='1' stop-color='%230F1721'/%3E%3C/linearGradient%3E%3CradialGradient id='h'%3E%3Cstop offset='0' stop-color='%231B242F'/%3E%3Cstop offset='1' stop-color='%231B242F' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='1700' cy='42' r='50' fill='url(%23h)'/%3E%3Cpath d='M1700 30A12 12 0 0 0 1700 54A15.6 15.6 0 0 1 1700 30Z' fill='%232C343C' transform='rotate(-24 1700 42)'/%3E%3Cpath d='M0 173L200 173L220 172L240 172L260 172L280 172L300 171L320 171L340 170L360 170L380 168L400 167L420 165L440 162L460 161L480 160L500 160L520 158L540 155L560 155L580 152L600 152L620 151L640 147L660 145L680 142L700 142L720 144L740 144L760 146L780 145L800 145L820 146L840 144L860 143L880 137L900 133L920 129L940 125L960 126L980 126L1000 126L1020 127L1040 128L1060 131L1080 130L1100 129L1120 123L1140 115L1160 109L1180 104L1200 102L1220 101L1240 99L1260 101L1280 100L1300 101L1320 101L1340 96L1360 90L1380 82L1400 76L1420 74L1440 72L1460 74L1480 75L1500 79L1520 86L1540 92L1560 101L1580 105L1600 106L1620 106L1640 103L1660 105L1680 105L1700 104L1720 102L1740 96L1760 93L1780 90L1800 89L1820 90L1840 89L1860 91L1880 93L1900 97L1920 104L1940 107L1960 111L1980 112L2000 112L2020 115L2040 115L2060 116L2080 116L2100 116L2120 118L2140 120L2160 124L2180 127L2200 127L2220 129L2240 128L2260 130L2280 131L2300 131L2320 131L2340 129L2360 130L2380 131L2400 133L2420 135L2440 134L2460 135L2480 136L2500 138L2520 142L2540 143L2560 144L2580 143L2600 143L2620 146L2640 146L2660 146L2680 145L2700 143L2720 144L2740 145L2760 148L2780 150L2800 151L2820 154L2840 156L2860 160L2880 163L2900 164L2920 166L2940 166L2960 167L2980 168L3000 169L3020 170L3040 171L3060 171L3080 172L3100 172L3120 172L3140 173L3200 173Z' fill='url(%23r0)'/%3E%3Cpath d='M0 173L240 173L260 172L280 172L300 172L320 171L340 171L360 170L380 168L400 167L420 165L440 162L460 160L480 154L500 150L520 149L540 147L560 148L580 145L600 144L620 144L640 144L660 148L680 148L700 148L720 148L740 147L760 148L780 146L800 144L820 141L840 137L860 136L880 135L900 136L920 136L940 134L960 133L980 129L1000 126L1020 123L1040 119L1060 117L1080 115L1100 117L1120 123L1140 127L1160 132L1180 131L1200 128L1220 126L1240 124L1260 128L1280 130L1300 135L1320 140L1340 144L1360 151L1380 155L1400 159L1420 162L1440 164L1460 167L1480 169L1500 171L1520 172L1540 173L1760 173L1780 172L1800 171L1820 170L1840 168L1860 167L1880 165L1900 161L1920 158L1940 154L1960 153L1980 151L2000 148L2020 145L2040 139L2060 135L2080 133L2100 131L2120 132L2140 131L2160 132L2180 132L2200 131L2220 129L2240 123L2260 118L2280 113L2300 111L2320 114L2340 117L2360 122L2380 126L2400 129L2420 134L2440 135L2460 136L2480 135L2500 132L2520 132L2540 131L2560 135L2580 139L2600 141L2620 145L2640 145L2660 147L2680 150L2700 149L2720 150L2740 148L2760 147L2780 148L2800 149L2820 152L2840 153L2860 156L2880 158L2900 161L2920 165L2940 167L2960 168L2980 169L3000 169L3020 170L3040 171L3060 171L3080 172L3100 172L3120 172L3140 173L3200 173Z' fill='url(%23r1)'/%3E%3Cpath d='M0 173L260 173L280 172L300 172L320 171L340 171L360 169L380 168L400 165L420 162L440 158L460 153L480 151L500 149L520 147L540 145L560 140L580 139L600 137L620 138L640 140L660 140L680 143L700 145L720 150L740 157L760 160L780 164L800 166L820 168L840 168L860 166L880 164L900 158L920 149L940 142L960 134L980 129L1000 124L1020 119L1040 117L1060 115L1080 119L1100 122L1120 124L1140 124L1160 119L1180 119L1200 121L1220 126L1240 134L1260 138L1280 141L1300 144L1320 148L1340 156L1360 160L1380 164L1400 167L1420 169L1440 171L1460 172L1480 173L1760 173L1780 172L1800 172L1820 171L1840 169L1860 167L1880 164L1900 163L1920 162L1940 162L1960 159L1980 155L2000 153L2020 152L2040 157L2060 161L2080 165L2100 168L2120 169L2140 171L2160 172L2180 172L2200 173L2240 173L2260 172L2280 172L2300 172L2320 171L2340 170L2360 168L2380 166L2400 164L2420 161L2440 158L2460 153L2480 147L2500 145L2520 142L2540 144L2560 144L2580 144L2600 147L2620 148L2640 153L2660 156L2680 158L2700 161L2720 162L2740 165L2760 167L2780 169L2800 171L2820 171L2840 172L2860 172L2880 173L3200 173Z' fill='url(%23r2)'/%3E%3Cpath d='M1074 83L1078.6 100L1076.6 100L1081.1 119L1066.9 119L1071.4 100L1069.4 100ZM1098 80.2L1103.6 101.2L1101.2 101.2L1106.8 124.2L1089.2 124.2L1094.8 101.2L1092.4 101.2ZM1116 93.5L1120 108.5L1118.3 108.5L1122.3 125.5L1109.7 125.5L1113.7 108.5L1112 108.5ZM1162 81.1L1167.1 100.1L1164.9 100.1L1170 121.1L1154 121.1L1159.1 100.1L1156.9 100.1ZM1181 74.9L1186.9 96.9L1184.3 96.9L1190.2 120.9L1171.8 120.9L1177.7 96.9L1175.1 96.9ZM1199 89.2L1203.3 105.2L1201.4 105.2L1205.7 123.2L1192.3 123.2L1196.6 105.2L1194.7 105.2ZM1252 109L1255.8 123L1254.1 123L1257.9 139L1246.1 139L1249.9 123L1248.2 123ZM1270 105.4L1274.6 122.4L1272.6 122.4L1277.1 141.4L1262.9 141.4L1267.4 122.4L1265.4 122.4ZM1318 125.6L1321 136.6L1319.7 136.6L1322.6 149.6L1313.4 149.6L1316.3 136.6L1315 136.6ZM1342 140.4L1344.2 148.4L1343.2 148.4L1345.4 158.4L1338.6 158.4L1340.8 148.4L1339.8 148.4ZM1912 147L1914 154.5L1913.1 154.5L1915.2 164L1908.9 164L1910.9 154.5L1910 154.5ZM1930 142.2L1932.7 152.2L1931.5 152.2L1934.2 164.2L1925.8 164.2L1928.5 152.2L1927.3 152.2ZM1946 147.6L1947.9 154.6L1947.1 154.6L1948.9 163.6L1943.1 163.6L1944.9 154.6L1944.1 154.6ZM2018 129.9L2021 140.9L2019.7 140.9L2022.6 153.9L2013.4 153.9L2016.3 140.9L2015 140.9ZM2036 138.8L2038.3 147.3L2037.3 147.3L2039.6 157.8L2032.4 157.8L2034.7 147.3L2033.7 147.3ZM560 114.3L563.5 127.3L562 127.3L565.5 142.3L554.5 142.3L558 127.3L556.5 127.3ZM584 106.6L588.3 122.6L586.4 122.6L590.7 140.6L577.3 140.6L581.6 122.6L579.7 122.6ZM640 118.4L643 129.4L641.7 129.4L644.6 142.4L635.4 142.4L638.3 129.4L637 129.4ZM2540 118L2543.5 131L2542 131L2545.5 146L2534.5 146L2538 131L2536.5 131ZM2566 124L2568.7 134L2567.5 134L2570.2 146L2561.8 146L2564.5 134L2563.3 134Z' fill='%2304080D'/%3E%3Cpath d='M0 176Q-25 175.2 105 176M178 176Q286 175.2 394 176M492 176Q587 175.2 682 176M776 176Q903 175.2 1029 176M1189 176Q1276 175.2 1363 176M1517 176Q1630 175.2 1742 176M1843 176Q1952 175.2 2060 176M2260 176Q2380 175.2 2500 176M2704 176Q2769 175.2 2833 176M2987 176Q3094 175.2 3200 176M0 181Q-54 180.2 35 181M244 181Q350 180.2 457 181M683 181Q790 180.2 898 181M1108 181Q1235 180.2 1361 181M1556 181Q1742 180.2 1929 181M2083 181Q2196 180.2 2310 181M2494 181Q2579 180.2 2665 181M2918 181Q3059 180.2 3200 181M0 188Q125 187.2 316 188M580 188Q730 187.2 881 188M1179 188Q1307 187.2 1436 188M1594 188Q1801 187.2 2008 188M2123 188Q2313 187.2 2504 188M2832 188Q3016 187.2 3200 188M0 198Q109 197.2 307 198M668 198Q910 197.2 1153 198M1389 198Q1693 197.2 1996 198M2319 198Q2557 197.2 2795 198M3006 198Q3103 197.2 3200 198M0 211Q49 210.2 283 211M468 211Q652 210.2 835 211M1206 211Q1505 210.2 1804 211M2055 211Q2457 210.2 2858 211' fill='none' stroke='%23263543' stroke-width='1.3' stroke-linecap='round'/%3E%3Cpath d='M1693 175H1711M1684 179H1710M1676 184H1715M1673 191H1725M1660 200H1727M1650 212H1741' fill='none' stroke='%23262E36' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+
+  /* Obsidian's neutral ramp, re-tinted from page to ink (menus, modals, settings) */
+  --color-base-00: #0E1621;
+  --color-base-05: #121A25;
+  --color-base-10: #151D28;
+  --color-base-20: #19212C;
+  --color-base-25: #1E2631;
+  --color-base-30: #242C36;
+  --color-base-35: #2E3640;
+  --color-base-40: #434B53;
+  --color-base-50: #575F67;
+  --color-base-60: #7D858C;
+  --color-base-70: #B0B8BC;
+  --color-base-100: #D8E0E3;
+  --accent-h: 195; --accent-s: 34%; --accent-l: 66%;
+
+  /* callouts, in the look's inks */
+  --callout-default: #8AB6C5; --callout-info: #8AB6C5; --callout-todo: #8AB6C5; --callout-summary: #8AB6C5; --callout-tip: #8AB6C5;
+  --callout-question: #D6A086; --callout-warning: #D6A086; --callout-important: #D6A086; --callout-fail: #D6A086; --callout-error: #D6A086; --callout-bug: #D6A086;
+  --callout-success: #94C2A6;
+  --callout-example: #B0B8BC; --callout-quote: #B0B8BC;
+  --text-on-accent: #0E1621;
+  --text-on-accent-inverted: #D8E0E3;
+}
+
+/* ── Obsidian variables, both modes (values come from the --shelf-* palette above) ── */
+:root body.theme-light, :root body.theme-dark {
+  --shelf-display: Optima, "Avenir Next", "Gill Sans", sans-serif;
+  --shelf-body: "Iowan Old Style", Palatino, Georgia, serif;
+  --font-text-theme: var(--shelf-body);
+
+  --background-primary: var(--shelf-paper);
+  --background-primary-alt: var(--shelf-primary-alt);
+  --background-secondary: var(--shelf-secondary);
+  --background-secondary-alt: var(--shelf-secondary-alt);
+  --background-modifier-border: var(--shelf-border);
+  --background-modifier-border-hover: var(--shelf-border-hover);
+  --background-modifier-border-focus: var(--shelf-accent);
+  --background-modifier-hover: color-mix(in srgb, var(--shelf-ink) 7%, transparent);
+  --background-modifier-active-hover: color-mix(in srgb, var(--shelf-accent) 14%, transparent);
+  --background-modifier-form-field: var(--shelf-sheet);
+  --divider-color: var(--shelf-border);
+
+  --text-normal: var(--shelf-ink);
+  --text-muted: var(--shelf-muted);
+  --text-faint: var(--shelf-faint);
+  --text-accent: var(--shelf-accent);
+  --text-accent-hover: var(--shelf-accent-hover);
+  --text-selection: var(--shelf-selection);
+  --text-highlight-bg: var(--shelf-highlight);
+  --caret-color: var(--shelf-accent);
+  --interactive-accent: var(--shelf-accent);
+  --interactive-accent-hover: var(--shelf-accent-hover);
+  --bold-color: var(--shelf-ink);
+
+  --h1-font: var(--shelf-display); --h2-font: var(--shelf-display); --h3-font: var(--shelf-display);
+  --h4-font: var(--shelf-display); --h5-font: var(--shelf-display); --h6-font: var(--shelf-display);
+  --h1-weight: 400; --h2-weight: 400; --h3-weight: 400;
+  --h4-weight: 400; --h5-weight: 400; --h6-weight: 400;
+  --h1-size: 1.75em; --h2-size: 1.5em; --h3-size: 1.22em; --h4-size: 1.1em; --h5-size: 1em; --h6-size: 0.94em;
+  --h1-color: var(--shelf-ink); --h2-color: var(--shelf-h2); --h3-color: var(--shelf-h3);
+  --h4-color: var(--shelf-ink); --h5-color: var(--shelf-muted); --h6-color: var(--shelf-muted);
+  --heading-formatting: var(--shelf-faint);
+  --inline-title-color: var(--shelf-ink);
+
+  --link-color: var(--shelf-accent); --link-color-hover: var(--shelf-accent-hover);
+  --link-external-color: var(--shelf-accent); --link-external-color-hover: var(--shelf-accent-hover);
+  --link-unresolved-color: var(--shelf-mark-text);
+  --list-marker-color: var(--shelf-marker); --list-marker-color-hover: var(--shelf-accent);
+  --list-marker-color-collapsed: var(--shelf-accent);
+  --checkbox-color: var(--shelf-accent); --checkbox-color-hover: var(--shelf-accent-hover);
+  --checkbox-border-color: var(--shelf-faint);
+  --hr-color: var(--shelf-rule); --hr-thickness: 1px;
+
+  --blockquote-border-thickness: 3px;
+  --blockquote-border-color: var(--shelf-quote);
+  --blockquote-background-color: var(--shelf-quote-bg);
+  --blockquote-color: inherit;
+  --blockquote-font-style: normal;
+
+  --code-background: var(--shelf-code-bg);
+  --code-normal: var(--shelf-ink);
+  --code-comment: var(--shelf-code-comment);
+  --code-keyword: var(--shelf-code-keyword);
+  --code-important: var(--shelf-code-keyword);
+  --code-tag: var(--shelf-code-keyword);
+  --code-string: var(--shelf-code-string);
+  --code-function: var(--shelf-ink);
+  --code-property: var(--shelf-code-string);
+  --code-value: var(--shelf-code-keyword);
+  --code-operator: var(--shelf-muted);
+  --code-punctuation: var(--shelf-muted);
+
+  --table-border-color: var(--shelf-border);
+  --table-header-border-color: var(--shelf-border);
+  --table-header-background: var(--shelf-table-head);
+  --table-header-color: var(--shelf-ink);
+  --table-header-weight: 600;
+  --table-row-background-hover: color-mix(in srgb, var(--shelf-ink) 4%, transparent);
+
+  /* the bars: the upper sky, paling down toward the page */
+  --titlebar-background: var(--shelf-chrome); --titlebar-background-focused: var(--shelf-chrome);
+  --titlebar-text-color: var(--shelf-chrome-ink-soft); --titlebar-text-color-focused: var(--shelf-chrome-ink);
+  --titlebar-border-color: var(--shelf-band-rule);
+  --ribbon-background: var(--shelf-chrome); --ribbon-background-collapsed: var(--shelf-chrome);
+  --status-bar-background: var(--shelf-chrome); --status-bar-text-color: var(--shelf-chrome-ink-soft);
+  --status-bar-border-color: var(--shelf-band-rule);
+  --tab-outline-color: var(--shelf-band-rule);
+  --tab-divider-color: color-mix(in srgb, var(--shelf-chrome-ink) 22%, transparent);
+  --tab-background-active: var(--shelf-paper);
+  --tab-text-color: var(--shelf-chrome-ink-soft);
+  --tab-text-color-active: var(--shelf-chrome-ink);
+  --tab-text-color-focused: var(--shelf-chrome-ink-soft);
+  --tab-text-color-focused-active: var(--shelf-chrome-ink);
+  --tab-text-color-focused-active-current: var(--shelf-chrome-ink);
+  --tab-text-color-focused-highlighted: var(--shelf-chrome-ink);
+}
+
+/* Reading text: more leading than Obsidian's 1.5, for air between the lines. */
+.markdown-source-view, .markdown-rendered { --line-height-normal: 1.65; }
+
+/* ── the view: open sky over a low horizon, in a note's own pane (not in embeds, popovers or other views) ──
+   Layers, top first: the landscape, the glow of the sky above the horizon, the sea, the sky. The landscape stays at the foot of the view while the
+   note scrolls. It is drawn at a fixed height and centred, so a wider pane shows more of the coast and a phone
+   shows its middle. Text passes over it: every tone in it keeps the text at 4.5:1. */
+.workspace-split.mod-root .workspace-leaf-content[data-type="markdown"] { --shelf-land-h: 170px; }
+.is-phone .workspace-split.mod-root .workspace-leaf-content[data-type="markdown"] { --shelf-land-h: 112px; }
+.workspace-split.mod-root .workspace-leaf-content[data-type="markdown"] > .view-content,
+.workspace-split.mod-root .workspace-leaf-content[data-type="markdown"].is-read-mode > .view-content > .markdown-reading-view > .markdown-preview-view {
+  background-image: var(--shelf-land),
+    linear-gradient(0deg, var(--shelf-sea) calc(var(--shelf-land-h) * 48 / 220), var(--shelf-haze) calc(var(--shelf-land-h) * 48 / 220), transparent calc(var(--shelf-land-h) * 0.8)),
+    linear-gradient(180deg, var(--shelf-paper), var(--shelf-sky-low));
+  background-size: auto var(--shelf-land-h), 100% 100%, 100% 100%;
+  background-position: 50% 100%, 0 0, 0 0;
+  background-repeat: no-repeat;
+}
+
+/* ── bars: tab bars, ribbon, status bar ── */
+.workspace-tab-header-container {
+  --tab-container-background: var(--shelf-chrome);
+  background-image: linear-gradient(180deg, var(--shelf-chrome), var(--shelf-chrome-hi));
+}
+.workspace-ribbon {
+  background-image: linear-gradient(180deg, var(--shelf-chrome), var(--shelf-chrome-hi));
+}
+.status-bar {
+  background-image: linear-gradient(180deg, var(--shelf-chrome), var(--shelf-chrome-hi));
+}
+/* icons and labels on the bars use the bar's ink */
+.workspace-tab-header-container, .workspace-ribbon, .status-bar, .titlebar, .sidebar-toggle-button {
+  --icon-color: var(--shelf-chrome-ink-soft);
+  --icon-color-hover: var(--shelf-chrome-ink);
+  --icon-color-focused: var(--shelf-chrome-ink);
+  --icon-color-active: var(--shelf-chrome-ink);
+  --text-normal: var(--shelf-chrome-ink);
+  --text-muted: var(--shelf-chrome-ink-soft);
+  --text-faint: var(--shelf-chrome-ink-soft);
+  --background-modifier-hover: color-mix(in srgb, var(--shelf-chrome-ink) 14%, transparent);
+}
+/* the open note's tab is cut from the page, so it takes the page's ink */
+.workspace-split.mod-root .workspace-tab-header.is-active {
+  --icon-color: var(--shelf-muted);
+  --icon-color-hover: var(--shelf-ink);
+  --icon-color-focused: var(--shelf-ink);
+  --text-normal: var(--shelf-ink);
+  --text-muted: var(--shelf-muted);
+  --text-faint: var(--shelf-faint);
+  --background-modifier-hover: color-mix(in srgb, var(--shelf-ink) 8%, transparent);
+  --tab-text-color-active: var(--shelf-muted);
+  --tab-text-color-focused-active: var(--shelf-muted);
+  --tab-text-color-focused-active-current: var(--shelf-ink);
+  --tab-text-color-focused-highlighted: var(--shelf-accent);
+}
+/* phone: no tab bar, so the note's header gets a thin band of the bars instead (kept off the iOS status bar) */
+.is-phone .workspace-leaf-content .view-header {
+  border-bottom: 4px solid var(--shelf-chrome);
+  box-shadow: 0 1px 0 var(--shelf-band-rule);
+}
+
+/* ── headings ── */
+/* H2 over a horizon line: a hairline that fades out at both ends */
+.markdown-rendered h2,
+.markdown-source-view.mod-cm6 .cm-line.HyperMD-header-2 {
+  padding-bottom: 0.16em;
+  background: linear-gradient(90deg, transparent, var(--shelf-rule) 16%, var(--shelf-rule) 84%, transparent) 0 100% / 100% 1px no-repeat;
+}
+
+/* ── lists, code ── */
+.markdown-rendered pre { border: 1px solid var(--shelf-border); }
+.markdown-rendered pre, .markdown-source-view.mod-cm6 .cm-line.HyperMD-codeblock { background-color: var(--shelf-code-pre-bg); }
+/* a quote that opens a list item (a desk answer, "- >> yes") sits beside its bullet, not a line below it */
+.markdown-rendered li > .list-bullet + blockquote,
+.markdown-rendered li > .list-bullet + blockquote blockquote:first-child { margin-top: 0; }
+
+/* phone: the note's header fades from the upper sky into the page, in place of the bars' band */
+.is-phone .workspace-leaf-content .view-header {
+  border-bottom: 0;
+  box-shadow: none;
+  background-image: linear-gradient(180deg, var(--shelf-chrome), var(--shelf-paper));
+}
+
+/* ── Mermaid in the look's blue-greys ── */
+/* Mermaid draws in its own lavender, which Obsidian inverts at night; turned here toward the sea's blue-grey. */
+.theme-light .mermaid > svg { filter: hue-rotate(-38deg) saturate(0.45); }
+.theme-dark .mermaid > svg { filter: invert(100%) hue-rotate(142deg) saturate(0.55); }
