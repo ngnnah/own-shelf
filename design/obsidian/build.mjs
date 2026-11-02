@@ -71,115 +71,257 @@ const SEAL = svgURL(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'
 
 // ── Horizon ──
 // WHY here and not in the lab: the lab designs the own-shelf app's looks on its shelf and reader mocks, and
-// Horizon is drawn for Obsidian's note pane (a landscape along the foot of the view). Its tokens and its
-// landscape live in this file only, built on the lab's colour helpers.
+// Horizon is drawn for Obsidian's note pane: a coast seen from a cliff, around the reading column. Its tokens
+// and its drawings live in this file only, built on the lab's colour helpers.
 const HORIZON = {
-  // sky: the page from its top (paper) to the foot of the view (skyLow); haze: the glow at the horizon.
-  // ranges: [colour, strength over the haze] far to near, bluer with distance; trees: the treeline's.
-  day: { paper: '#E3E9EC', skyLow: '#EDF0EE', haze: '#F3F2EB', ink: '#1B2630', accent: '#2D5D70', mark: '#97553A', pine: '#3F6553',
-    chrome: '#C5D0D6', gilt: '#C8B590', sea: '#D3DEE1', wave: '#9DB2BB', moon: '#FFFFFF',
-    ranges: [['#7D97AD', 0.16], ['#5E7884', 0.22], ['#4D655E', 0.22]], trees: ['#3A5049', 0.25], waveK: 0.3, moonK: 0.7, highlight: 0.6 },
-  night: { paper: '#0E1621', skyLow: '#121C28', haze: '#1C2734', ink: '#D8E0E3', accent: '#8AB6C5', mark: '#D69474', pine: '#94C2A6',
-    chrome: '#09101A', gilt: '#A38E66', sea: '#111B26', wave: '#3A4E60', moon: '#E8E3CF',
-    // a low moon behind haze: bright enough to see, dim enough that text and ==highlights== still read over it
-    ranges: [['#0D151F', 0.9], ['#0A111A', 0.92], ['#070D15', 0.95]], trees: ['#04080D', 1], waveK: 0.5, moonK: 0.12, highlight: 0.26 },
+  // A clear afternoon over a cold sea.
+  day: {
+    sky: ['#A9C1D4', '#C9D7E1', '#E2E6E3', '#F2EDE3'], // zenith, middle, low, the haze at the horizon
+    sea: ['#BCCDD5', '#86A5B6', '#57798D'], // at the horizon, middle, at the viewer's feet
+    cloud: ['#FFFFFF', 0.6], crest: ['#F4F8F9', 0.75], fade: [0.75, 0.5, 0.25], glitter: '#FFFDF4', light: '#FFF8E8', halo: ['#FFF3D8', 0.7],
+    ranges: ['#A9B9C6', '#7C90A1', '#4F6273'], snow: ['#FAFBF8', '#C6D0DA'], cliff: '#46545F', rim: '#66765F', pine: '#26332F',
+    foam: '#FFFFFF', sail: '#FBFBF6', mist: ['#F2EDE3', 0.75], trough: ['#57798D', 0.4], sand: ['#E8DFCB', '#CDC3AE'],
+    veil: [['#E2EAF0', '#F3EFE7', '#E3EBEF', '#DCE6EB'], 0.86], panel: ['#FFFFFF', 0.42],
+    ink: '#16222B', accent: '#2A5A6E', mark: '#9A4B2E', pine2: '#3B6152', todo: '#94661A',
+    chrome: '#9DB6CA', sidebar: '#D3DFE8', navSea: ['#8AA8B8', '#6E92A6'], highlight: ['#FFD43B', 0.6],
+  },
+  // Blue hour: the sun is down, the sky still holds light, a moon rises over the sea.
+  night: {
+    sky: ['#1B2547', '#2A3661', '#4C5179', '#8C7D90'],
+    sea: ['#59627F', '#3E486B', '#29324F'],
+    cloud: ['#646C93', 0.5], crest: ['#B4BCD6', 0.6], fade: [0.6, 0.18, 0.06], glitter: '#F3E8C6', light: '#F5F0DE', halo: ['#D8D0BC', 0.35],
+    ranges: ['#474C6E', '#262B4A', '#171B33'], snow: ['#BAC1D6', '#7E87A6'], cliff: '#151A2E', rim: '#272D46', pine: '#0E1222',
+    foam: '#D5DBEA', sail: '#141A2E', mist: ['#8C7D90', 0.45], trough: ['#1E2642', 0.5], sand: ['#3B3D5C', '#2E304D'],
+    veil: [['#1F2949', '#262D4D', '#242C4B', '#1F2744'], 0.92], panel: ['#AFBEEA', 0.08],
+    ink: '#E8ECF3', accent: '#96C0D2', mark: '#E6A584', pine2: '#A6CDB6', todo: '#E8C27A',
+    chrome: '#162040', sidebar: '#1F2848', navSea: ['#3E486B', '#29324F'], highlight: ['#F2BE78', 0.26],
+  },
 };
-// Horizon's coloured text: pushed toward `to` until it reads at `min` over every tone and over its own callout
-// tint (10% of itself) on each tone.
-function towardTinted(c, bgs, min, to) {
-  const worst = x => Math.min(...bgs.flatMap(b => [contrast(x, b), contrast(x, over(x, 0.1, b))]));
-  let i = 0; while (worst(c) < min && i++ < 80) c = mix(c, to, 0.03);
-  return c;
-}
-// The view's landscape: 3200 x 220 units, drawn at a fixed height and centred on x = 1600, so a wider pane
-// shows more of the coast and a phone shows its middle (about 1220 to 1980). The horizon sits at y = 172; the
-// sea below it is a CSS band, so it runs the full width of any pane.
-const LAND = { w: 3200, h: 220, horizon: 172 };
-const HZ_RANGES = [
-  // far: the palest and bluest, the longest
-  [[700, 28, 240], [980, 46, 200], [1220, 70, 170], [1440, 100, 190], [1640, 64, 150], [1830, 86, 190], [2080, 58, 210], [2360, 44, 220], [2650, 30, 240]],
-  // middle: two masses, with open sea under the far peaks between them
-  [[620, 30, 180], [900, 40, 170], [1080, 56, 140], [1240, 46, 120], [1360, 20, 90], [1980, 22, 110], [2120, 42, 130], [2300, 58, 160], [2500, 40, 170], [2720, 26, 200]],
-  // near: a headland on the left that runs down into the sea, a low spit on the right
-  [[600, 36, 160], [1050, 58, 130], [1180, 50, 110], [1290, 28, 90], [1900, 10, 70], [2010, 18, 90], [2560, 30, 150]],
-];
-// The trees: [x, height], in clusters on the near headland and the spit.
-const HZ_TREES = [[1074, 34], [1098, 42], [1116, 30], [1162, 38], [1181, 44], [1199, 32], [1252, 28], [1270, 34], [1318, 22], [1342, 16],
-  [1912, 15], [1930, 20], [1946, 14], [2018, 22], [2036, 17], [560, 26], [584, 32], [640, 22], [2540, 26], [2566, 20]];
-// A range's ridge: smooth peaks joined by a soft maximum (so each keeps its own height, with saddles between),
-// a little seeded roughness, as one closed path on the horizon.
-function ridge(peaks, seed, step = 20) {
-  const R = L.rng(seed), ph = [R() * 6.3, R() * 6.3, R() * 6.3];
-  const lift = x => { const s = Math.cbrt(peaks.reduce((a, [px, h, w]) => a + (h * Math.exp(-(((x - px) / w) ** 2))) ** 3, 0));
-    return s + Math.min(1, s / 18) * (2.2 * Math.sin(x / 41 + ph[0]) + 1.3 * Math.sin(x / 19 + ph[1]) + 0.7 * Math.sin(x / 8 + ph[2])); };
-  const base = LAND.horizon + 1, ys = [];
-  for (let x = 0; x <= LAND.w; x += step) ys.push([x, Math.round(base - Math.max(0, lift(x)))]);
-  // points that lie flat on the horizon, between two others that do, add nothing
-  const pts = ys.filter(([, y], i) => y < base || (ys[i - 1] || [0, base])[1] < base || (ys[i + 1] || [0, base])[1] < base);
-  return { d: `M0 ${base}` + pts.map(([x, y]) => `L${x} ${y}`).join('') + `L${LAND.w} ${base}Z`, at: x => LAND.horizon - Math.max(0, lift(x)) };
-}
-// A two-tier conifer standing on (x, y).
-const tree = (x, y, h) => { const w = h * 0.42, q = n => Math.round(n * 10) / 10;
-  return `M${q(x)} ${q(y - h)}L${q(x + w * 0.32)} ${q(y - h * 0.5)}L${q(x + w * 0.18)} ${q(y - h * 0.5)}L${q(x + w / 2)} ${q(y + 2)}L${q(x - w / 2)} ${q(y + 2)}L${q(x - w * 0.18)} ${q(y - h * 0.5)}L${q(x - w * 0.32)} ${q(y - h * 0.5)}Z`; };
+const HZ = 0.68; // the horizon, as a fraction of the view's height: low, well below the middle
+const q = n => Math.round(n);
+const q1 = n => Math.round(n * 10) / 10;
 
-// Every Horizon colour, per mode, and the list of every tone text can scroll over.
+// A mountain ridge: alpine peaks (concave flanks) joined by a soft maximum, with a little seeded crag, as one
+// closed path on the base line. `at(x)` gives the ridge height.
+function alpine(peaks, { w, base, step = 8, seed = 1, crag = 0.02, sharp = 1.3 }) {
+  const R = L.rng(seed), ph = [R() * 6.3, R() * 6.3, R() * 6.3], top = Math.max(...peaks.map(p => p[1]));
+  const raw = x => Math.pow(peaks.reduce((a, [px, h, wd]) => a + Math.pow(h * Math.pow(Math.max(0, 1 - Math.abs(x - px) / wd), sharp), 5), 0), 0.2);
+  const lift = x => { const s = raw(x); return s + crag * top * (s / top) * (0.5 * Math.sin(x / 23 + ph[0]) + 0.3 * Math.sin(x / 9.7 + ph[1]) + 0.2 * Math.sin(x / 4.1 + ph[2])); };
+  const ys = []; for (let x = 0; x <= w; x += step) ys.push([x, q(base - Math.max(0, lift(x)))]);
+  const pts = ys.filter(([, y], i) => y < base || (ys[i - 1] || [0, base])[1] < base || (ys[i + 1] || [0, base])[1] < base);
+  return { d: `M0 ${base + 2}` + pts.map(([x, y]) => `L${x} ${y}`).join('') + `L${w} ${base + 2}Z`, at: x => base - Math.max(0, lift(x)), pts };
+}
+// Snow on a peak: the ridge above the snow line, down to a ragged edge with couloirs; lit on the side of the light.
+function snowCap(r, x0, x1, line, seed, [lit, shade], peakX, litRight) {
+  const R = L.rng(seed), top = r.pts.filter(([x, y]) => x >= x0 && x <= x1 && y < line);
+  if (!top.length) return { defs: '', body: '' };
+  peakX = top.reduce((a, b) => (b[1] < a[1] ? b : a))[0];
+  const edge = []; for (let x = top[top.length - 1][0]; x >= top[0][0]; x -= 6) edge.push([x, q(line + 14 * Math.abs(Math.sin(x / 11)) + R() * 10)]);
+  const d = 'M' + top.concat(edge).map(([x, y]) => `${x} ${y}`).join('L') + 'Z';
+  return { defs: `<clipPath id='sc'><path d='${r.d}'/></clipPath><linearGradient id='sl' gradientUnits='userSpaceOnUse' x1='${peakX - 12}' y1='0' x2='${peakX + 12}' y2='0'><stop offset='0' stop-color='${litRight ? shade : lit}'/><stop offset='1' stop-color='${litRight ? lit : shade}'/></linearGradient>`,
+    body: `<path d='${d}' fill='url(#sl)' clip-path='url(#sc)'/>` };
+}
+// A lone pine bent by the wind off the sea (from the right): a leaning, tapering trunk, and flat tiers of needle
+// clumps that stream to the left, ragged at their tips.
+function pine(bx, by, h, col, seed) {
+  const R = L.rng(seed), s = h / 150, P = (x, y) => `${q1(bx + x * s)} ${q1(by - y * s)}`;
+  const trunk = `M${P(-4, 0)}C${P(-6, 40)} ${P(-24, 70)} ${P(-26, 96)}S${P(-44, 130)} ${P(-62, 146)}L${P(-58, 149)}C${P(-40, 132)} ${P(-18, 104)} ${P(-17, 94)}S${P(6, 40)} ${P(5, 0)}Z`;
+  // tiers: [height, downwind end, upwind end, thickness]; each a run of long flat clumps that thin toward the tip
+  const tiers = [[146, -128, -46, 6], [120, -118, -22, 7], [94, -92, -12, 7], [68, -58, -4, 5]];
+  let crown = '';
+  for (const [ty, xl, xr, th] of tiers) {
+    for (let x = xr; x > xl; x -= 12 + R() * 6) { const t = (xr - x) / (xr - xl), rx = (12 + R() * 8) * (1 - 0.45 * t) * s, ry = th * (0.4 + 0.3 * R()) * (1 - 0.4 * t) * s;
+      const cx = bx + x * s, cy = by - (ty + (R() - 0.4) * th * 0.5 + t * 3) * s;
+      crown += `M${q(cx - rx)} ${q(cy)}a${q(rx)} ${q(ry)} 0 1 0 ${q(2 * rx)} 0a${q(rx)} ${q(ry)} 0 1 0 ${q(-2 * rx)} 0`; }
+  }
+  const limbs = `M${P(-26, 96)}L${P(-70, 92)}M${P(-40, 120)}L${P(-90, 120)}M${P(-12, 70)}L${P(-44, 66)}M${P(-56, 142)}L${P(-96, 146)}`;
+  return `<path d='${trunk}${crown}' fill='${col}'/><path d='${limbs}' stroke='${col}' stroke-width='${q1(2.2 * s)}' fill='none' stroke-linecap='round'/>`;
+}
+// Wave crests in perspective between the horizon (y0) and the viewer (y1): rows spaced geometrically, so they are
+// fine and dense far off and long and wide apart near; each crest an arc, the nearer ones with a darker trough
+// beneath. `px` keeps strokes in screen pixels when the drawing is stretched.
+function crests(R, { w, y0, y1, rows, col, alpha, trough, px = true, minLen = 10, maxLen = 240, grow = 1.28, lift = 5 }) {
+  const ve = px ? " vector-effect='non-scaling-stroke'" : '', g0 = (y1 - y0) * (grow - 1) / (Math.pow(grow, rows) - 1);
+  let out = '', y = y0;
+  for (let k = 1; k <= rows; k++) {
+    y += g0 * Math.pow(grow, k - 1);
+    const f = k / rows, len = minLen + (maxLen - minLen) * Math.pow(f, 1.3), b = 0.6 + lift * f;
+    let d = '', dt = '';
+    for (let x = -R() * len * 2; x < w; ) { const l = len * (0.55 + 0.9 * R()), x2 = Math.min(w, x + l);
+      if (x2 > 0) { const xa = q(Math.max(0, x)), xm = q((x + x2) / 2), xb = q(x2);
+        d += `M${xa} ${q1(y)}Q${xm} ${q1(y - b)} ${xb} ${q1(y)}`;
+        if (trough && f > 0.4) dt += `M${q(xa + l * 0.2)} ${q1(y + b * 0.9)}Q${xm} ${q1(y + b * 0.4)} ${q(xb - l * 0.05)} ${q1(y + b)}`; }
+      x = x2 + l * (0.6 + 1.4 * R()); }
+    const sw = q1(px ? 0.6 + 2.4 * f : 0.8 + 3.2 * f);
+    out += `<path d='${d}' stroke='${col}' stroke-width='${sw}' stroke-opacity='${r2(alpha * (0.4 + 0.6 * f))}'${ve}/>`;
+    if (dt) out += `<path d='${dt}' stroke='${trough[0]}' stroke-width='${sw}' stroke-opacity='${r2(trough[1] * f)}'${ve}/>`;
+  }
+  return `<g fill='none' stroke-linecap='round'>${out}</g>`;
+}
+// The sun's or moon's path on the water: short bright strokes, narrow at the horizon, widening toward the viewer.
+function glitter(R, cx, y0, y1, spread, col) {
+  let d = '';
+  for (let y = y0 + 1.5; y < y1; ) { const f = (y - y0) / (y1 - y0), half = 4 + spread * Math.pow(f, 1.1);
+    for (let n = 0; n < 2 + Math.round(3 * f); n++) { const off = (R() + R() - 1) * half, len = 2 + (6 + 30 * f) * R();
+      d += `M${q(cx + off - len / 2)} ${q(y)}h${q(len) || 1}`; }
+    y += 2.8 + 11 * f * (0.6 + R()); }
+  return `<path d='${d}' stroke='${col}' stroke-width='1.6' stroke-linecap='round' fill='none'/>`;
+}
+const svg = (w, h, body, extra = '') => svgURL(`<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'${extra}>${body}</svg>`);
+const vgrad = (id, stops) => `<linearGradient id='${id}' x1='0' y1='0' x2='0' y2='1'>${stops.map(([o, c, a]) => `<stop offset='${o}' stop-color='${c}'${a !== undefined ? ` stop-opacity='${a}'` : ''}/>`).join('')}</linearGradient>`;
+const soft = (id, c, a) => `<radialGradient id='${id}'><stop offset='0' stop-color='${c}' stop-opacity='${a}'/><stop offset='1' stop-color='${c}' stop-opacity='0'/></radialGradient>`;
+
+// The coast, as drawings in one coordinate frame per drawing; every one puts its horizon at the same height,
+// so they line up at any size. `geo` is the desktop scene or the phone's panorama.
+function coast(c, geo, day) {
+  const { w, hz, ranges, main, headland, tree, cliffEdge } = geo, R = L.rng(day ? 41 : 43), k = geo.k;
+  const rs = ranges.map((p, i) => alpine(p, { w, base: hz, seed: 21 + i, step: geo.step * [1.5, 1, 1.5][i], crag: [0.012, 0.022, 0.03][i] }));
+  let defs = '', body = '';
+  rs.forEach((r, i) => {
+    defs += vgrad(`r${i}`, [[0, c.ranges[i]], [1, mix(c.ranges[i], c.sky[3], c.fade[i])]]);
+    body += `<path d='${r.d}' fill='url(#r${i})'/>`;
+    if (i === 1) { const [x0, x1, line, peakX] = main, sn = snowCap(r, x0, x1, line, 7, c.snow, peakX, true); defs += sn.defs; body += sn.body; }
+    if (i === 1) { defs += soft('m', c.mist[0], c.mist[1]); body += `<ellipse cx='${q(w * 0.45)}' cy='${q(hz - (hz - geo.mistY) * 0.2)}' rx='${q(w * 0.6)}' ry='${q((hz - geo.mistY) * 0.45)}' fill='url(#m)'/>`; }
+  });
+  // surf at the foot of the near hills, far off: a thin pale line on the water
+  const near = rs[2]; let surf = '';
+  for (const [a, b] of near.pts.reduce((acc, [x, y], i, all) => { const on = y < hz - 1; if (on && !(all[i - 1] && all[i - 1][1] < hz - 1)) acc.push([x, x]); if (on) acc[acc.length - 1][1] = x; return acc; }, [])) surf += `M${a} ${hz + 1.2}H${b}`;
+  body += `<path d='${surf}' stroke='${c.foam}' stroke-opacity='.55' stroke-width='${geo.surf}' fill='none'/>`;
+  // the headland in the foreground, its cliff face to the sea, foam at its foot, and the pine
+  body += `<path d='${headland}' fill='${c.cliff}'/><path d='${geo.rimD}' stroke='${c.rim}' stroke-width='${geo.rimW}' fill='none' stroke-linecap='round'/>`;
+  // surf: white water curling along the cliff's foot, and two long lines of it drawn out to sea
+  let foam = '';
+  for (let i = 1; i < cliffEdge.length; i++) { const [xa, ya] = cliffEdge[i - 1], [xb, yb] = cliffEdge[i];
+    for (let j = 0; j < 4; j++) { const t = R(), x = xa + (xb - xa) * t + 2 * k, y = ya + (yb - ya) * t, l = (8 + 16 * R()) * k;
+      foam += `M${q(x)} ${q(y)}q${q(l * 0.5)} ${q1(-3 * k)} ${q(l)} ${q1(-0.5 * k)}`; } }
+  const [ex, ey] = cliffEdge[Math.floor(cliffEdge.length / 2)], [fx, fy] = cliffEdge[cliffEdge.length - 2];
+  foam += `M${ex} ${ey + 6 * k}c${q(30 * k)} ${q(-5 * k)} ${q(80 * k)} ${q(4 * k)} ${q(140 * k)} ${q(-2 * k)}M${fx} ${fy + 10 * k}c${q(40 * k)} ${q(-6 * k)} ${q(110 * k)} ${q(6 * k)} ${q(200 * k)} ${q(-3 * k)}`;
+  body += `<path d='${foam}' stroke='${c.foam}' stroke-width='${q1(2.6 * k)}' stroke-linecap='round' fill='none' stroke-opacity='.85'/>`;
+  body += pine(tree[0], tree[1], tree[2], c.pine, 81);
+  return { defs, body };
+}
+
+// The desktop scene, a stack of drawings behind the note: land on the left, the light on the right, then clouds and
+// wave crests over the sky-and-sea gradient. All share the horizon at HZ of their height.
+const SCENE = { w: 1300, h: 1000 };
+SCENE.hz = q(SCENE.h * HZ);
+const SCENE_GEO = {
+  w: SCENE.w, h: SCENE.h, hz: SCENE.hz, step: 9, mistY: 520, surf: 2, rimW: 3, k: 1,
+  ranges: [
+    [[40, 300, 260], [330, 340, 300], [640, 250, 300], [980, 150, 300], [1220, 80, 260]], // far: the palest, half lost in the mist
+    [[150, 470, 300], [400, 320, 250], [640, 200, 240], [880, 110, 260]], // the main range, snow on its crown
+    [[470, 90, 240], [760, 54, 220], [1010, 30, 200]], // near hills down to the water, clear of the pine
+  ],
+  main: [40, 280, 330, 150], // snow from x 40 to 280, down to y 330
+  headland: 'M0 1000L0 798C50 792 120 800 170 804S220 808 238 812L250 828L258 856L266 880L272 912L286 948L298 1000Z',
+  rimD: 'M0 799C50 793 120 801 170 805S218 809 236 813',
+  cliffEdge: [[250, 840], [258, 864], [266, 886], [272, 912], [286, 948], [298, 1000]],
+  tree: [204, 808, 140],
+};
+// The phone's panorama: the same coast in a 10:7 frame, horizon at the same 68% of its height.
+const PANO = { w: 800, h: 560 };
+PANO.hz = q(PANO.h * HZ);
+const PANO_GEO = {
+  w: PANO.w, h: PANO.h, hz: PANO.hz, step: 10, mistY: 240, surf: 1.4, rimW: 2, k: 0.7,
+  ranges: [
+    [[90, 200, 190], [320, 170, 200], [520, 100, 190], [700, 60, 160]],
+    [[170, 270, 200], [380, 170, 160], [560, 70, 150]],
+    [[430, 50, 150], [640, 26, 130]],
+  ],
+  main: [70, 280, 160, 170],
+  headland: 'M0 560L0 470C40 466 90 472 130 474S170 477 186 480L196 492L202 510L208 528L218 546L224 560Z',
+  rimD: 'M0 471C40 467 90 473 130 475S168 478 184 481',
+  cliffEdge: [[198, 500], [202, 512], [208, 528], [218, 546], [224, 560]],
+  tree: [150, 476, 112],
+};
+
+function sceneLayers(c, day) {
+  const R = L.rng(day ? 51 : 53), S = SCENE;
+  // land: the range, the near hills, the headland with its pine
+  const land = coast(c, SCENE_GEO, day);
+  const landURL = svg(S.w, S.h, `<defs>${land.defs}</defs>${land.body}`);
+  // light: the sun (by day) or the moon, its path on the water, one distant sail
+  const LW = 520, lx = 400, ly = S.hz - 118;
+  let lightBody = `<circle cx='${lx}' cy='${ly}' r='${day ? 150 : 90}' fill='url(#h)'/><circle cx='${lx}' cy='${ly}' r='${day ? 19 : 15}' fill='${c.light}'/>`;
+  lightBody += glitter(R, lx, S.hz, S.h, 110, c.glitter);
+  lightBody += `<path d='M196 ${S.hz - 2}V${S.hz - 26}L213 ${S.hz - 2}ZM193 ${S.hz - 6}L193 ${S.hz - 20}L184 ${S.hz - 6}Z' fill='${c.sail}'/><path d='M182 ${S.hz}H216' stroke='${c.sail}' stroke-width='2'/>`;
+  const lightURL = svg(LW, S.h, `<defs>${soft('h', c.halo[0], c.halo[1])}</defs>${lightBody}`);
+  // air: long soft clouds and the wave crests, stretched to the view
+  let air = `<defs>${soft('c', c.cloud[0], c.cloud[1])}</defs>`;
+  for (const [x, y, rx, ry] of [[250, 120, 260, 18], [640, 74, 330, 14], [820, 260, 280, 24], [430, 400, 380, 20]]) air += `<ellipse cx='${x}' cy='${y}' rx='${rx}' ry='${ry}' fill='url(#c)'/>`;
+  air += crests(R, { w: 1000, y0: S.hz, y1: S.h + 10, rows: 12, col: c.crest[0], alpha: c.crest[1], trough: c.trough, minLen: 10, maxLen: 200, lift: 4 });
+  const airURL = svg(1000, S.h, air, " preserveAspectRatio='none'");
+  const sky = `linear-gradient(180deg, ${c.sky[0]} 0%, ${c.sky[1]} 36%, ${c.sky[2]} 58%, ${c.sky[3]} ${HZ * 100}%, ${c.sea[0]} ${HZ * 100}%, ${c.sea[1]} 82%, ${c.sea[2]} 100%)`;
+  // the veil: mist behind the reading column, in the colours of the sky and sea it covers; a feathered band
+  const [vs, va] = c.veil;
+  const veilBand = svg(1000, S.h, `<defs>${vgrad('v', [[0, vs[0]], [HZ, vs[1]], [HZ, vs[2]], [1, vs[3]]])}<linearGradient id='f'>${[[0, 0], [0.025, 0.1], [0.05, 0.35], [0.07, 0.7], [0.095, 1], [0.905, 1], [0.93, 0.7], [0.95, 0.35], [0.975, 0.1], [1, 0]].map(([o, a]) => `<stop offset='${o}' stop-color='#fff' stop-opacity='${a}'/>`).join('')}</linearGradient><mask id='k'><rect width='1000' height='${S.h}' fill='url(#f)'/></mask></defs><rect width='1000' height='${S.h}' fill='url(#v)' mask='url(#k)' opacity='${va}'/>`, " preserveAspectRatio='none'");
+  const rgba = (hx, a) => `rgba(${L.rgb(hx).join(', ')}, ${a})`;
+  const veilFlat = `linear-gradient(180deg, ${rgba(vs[0], va)}, ${rgba(vs[1], va)} ${HZ * 100}%, ${rgba(vs[2], va)} ${HZ * 100}%, ${rgba(vs[3], va)})`;
+  return { landURL, lightURL, airURL, sky, veilBand, veilFlat };
+}
+
+// The phone's panorama under the note's title: the same coast, small, ending in the page.
+function panorama(c, day, paper) {
+  const R = L.rng(day ? 61 : 63), P = PANO, land = coast(c, PANO_GEO, day);
+  let defs = vgrad('s', [[0, c.sky[1]], [0.6, c.sky[2]], [1, c.sky[3]]]) + vgrad('w', [[0, c.sea[0]], [0.55, c.sea[1]], [1, c.sea[2]]])
+    + vgrad('e', [[0, paper, 0], [1, paper, 1]]) + soft('c', c.cloud[0], c.cloud[1]) + soft('h', c.halo[0], c.halo[1]) + land.defs;
+  const lx = 650, ly = P.hz - 96;
+  let body = `<rect width='${P.w}' height='${P.hz}' fill='url(#s)'/><rect y='${P.hz}' width='${P.w}' height='${P.h - P.hz}' fill='url(#w)'/>`;
+  body += `<ellipse cx='560' cy='90' rx='220' ry='9' fill='url(#c)'/><ellipse cx='300' cy='40' rx='260' ry='8' fill='url(#c)'/>`;
+  body += `<circle cx='${lx}' cy='${ly}' r='${day ? 90 : 60}' fill='url(#h)'/><circle cx='${lx}' cy='${ly}' r='${day ? 12 : 10}' fill='${c.light}'/>`;
+  body += crests(R, { w: P.w, y0: P.hz, y1: P.h + 6, rows: 8, col: c.crest[0], alpha: c.crest[1], trough: c.trough, px: false, minLen: 12, maxLen: 160, lift: 5 });
+  body += glitter(R, lx, P.hz, P.h, 70, c.glitter);
+  body += `<path d='M552 ${P.hz - 1}V${P.hz - 16}L562 ${P.hz - 1}Z' fill='${c.sail}'/>`;
+  body += land.body + `<rect y='${P.h - 80}' width='${P.w}' height='80' fill='url(#e)'/>`;
+  return svg(P.w, P.h, `<defs>${defs}</defs>${body}`);
+}
+
+// The phone's navigation bar as a strip of sea: a crest tile that repeats across, its crests in the bar's lower
+// part, below the icons.
+function navSea(c) {
+  const R = L.rng(71);
+  return svg(400, 80, crests(R, { w: 400, y0: 58, y1: 84, rows: 3, col: c.crest[0], alpha: c.crest[1] * 0.7, px: false, minLen: 50, maxLen: 140, lift: 3 }), " preserveAspectRatio='none'");
+}
+// The end of a note on a phone: the sea running up a beach, after the last line, fading into the page at both ends.
+function shore(c, day, paper) {
+  const R = L.rng(day ? 91 : 93), W = 800, H = 320, edge = 214;
+  let wash = `M0 ${edge}`; for (let x = 0; x <= W; x += 40) wash += `L${x} ${q(edge + 6 * Math.sin(x / 70) + 4 * R())}`;
+  const defs = vgrad('w', [[0, c.sea[0]], [1, c.sea[1]]]) + vgrad('t', [[0, paper, 1], [1, paper, 0]]) + vgrad('b', [[0, paper, 0], [1, paper, 1]]);
+  let body = `<rect width='${W}' height='${edge + 10}' fill='url(#w)'/><path d='${wash}L${W} ${H}L0 ${H}Z' fill='${c.sand[1]}'/><path d='${wash.replace(/L(\d+) (\d+)/g, (m, x, y) => `L${x} ${+y + 14}`)}L${W} ${H}L0 ${H}Z' fill='${c.sand[0]}'/>`;
+  body += crests(R, { w: W, y0: 40, y1: edge - 6, rows: 4, col: c.crest[0], alpha: c.crest[1], trough: c.trough, px: false, minLen: 40, maxLen: 200, lift: 5 });
+  body += `<path d='${wash}' stroke='${c.foam}' stroke-width='3' stroke-opacity='.9' fill='none' stroke-linejoin='round'/>`;
+  body += `<rect width='${W}' height='110' fill='url(#t)'/><rect y='${H - 70}' width='${W}' height='70' fill='url(#b)'/>`;
+  return svg(W, H, `<defs>${defs}</defs>${body}`, " preserveAspectRatio='none'");
+}
+
+// Every Horizon colour, per mode, and the list of every tone text can sit on.
 function horizonTokens() {
   const out = {};
   for (const mode of ['day', 'night']) {
-    const day = mode === 'day', c = HORIZON[mode], t = {};
-    Object.assign(t, { paper: c.paper, ink: c.ink, sea: c.accent, buoy: c.mark, pine: c.pine, chrome: c.chrome, gilt: c.gilt });
-    t.sheet = day ? mix(c.paper, '#FFFFFF', 0.55) : mix(c.paper, c.ink, 0.055);
-    t.skyLow = c.skyLow; t.haze = c.haze;
-    t.ranges = c.ranges.map(([col, k]) => mix(c.haze, col, k)); // each range at its ridge; its foot fades into the haze
-    t.trees = mix(c.haze, c.trees[0], c.trees[1]);
-    t.seaTone = c.sea; t.waveTone = mix(c.sea, c.wave, c.waveK);
-    t.moon = mix(c.skyLow, c.moon, c.moonK); t.halo = mix(c.skyLow, c.moon, c.moonK * 0.35); t.road = mix(c.sea, c.moon, c.moonK * 0.8);
-    t.wave = t.waveTone; t.highlight = c.highlight;
-    t.chromeHi = mix(c.chrome, c.paper, 0.6);
-    t.chromeInk = c.ink;
-    // every tone behind text: the sky from top to foot, the haze, each range, the trees, the sea, its waves, the moon
-    t.bgs = [c.paper, c.skyLow, c.haze, ...t.ranges, t.trees, t.seaTone, t.waveTone, t.moon, t.halo].concat(day ? [] : [t.road]);
-    // secondary text: 30% of the way to the page, darkened (lightened) until it reads at 5:1 on every tone, on cards,
-    // and on every callout's tint
-    const tints = [c.accent, c.mark, c.pine].flatMap(col => t.bgs.map(b => over(col, 0.1, b)));
-    let m = 0.3; t.muted = mix(c.ink, c.paper, m);
-    while (Math.min(...t.bgs.concat(t.sheet, tints).map(b => contrast(t.muted, b))) < 5 && m > 0.04) { m -= 0.02; t.muted = mix(c.ink, c.paper, m); }
-    t.muted = towardTinted(t.muted, t.bgs, 4.6, c.ink);
-    t.land = landscape(mode, t);
+    const day = mode === 'day', c = HORIZON[mode], t = {}, [vs, va] = c.veil, [pc, pa] = c.panel;
+    // the tones of the scene that can lie behind the column, each at its strongest
+    const tones = [...c.sky, ...c.sea, over(c.cloud[0], c.cloud[1], c.sky[0]), over(c.cloud[0], c.cloud[1], c.sky[2]), c.light, over(c.halo[0], c.halo[1], c.sky[2]),
+      c.glitter, over(c.crest[0], c.crest[1], c.sea[2]), over(c.crest[0], c.crest[1], c.sea[0]), ...c.ranges, ...c.snow, c.cliff, c.rim, c.pine, c.foam, c.sail, over(c.mist[0], c.mist[1], c.ranges[1])];
+    // behind text: the veil over each of those tones, and a frosted callout panel over each of those
+    const veiled = vs.flatMap(v => tones.map(s => over(v, va, s)));
+    t.panels = veiled.map(b => over(pc, pa, b));
+    t.bgs = veiled.concat(t.panels);
+    t.paper = over(vs[0], va, c.sky[0]); // the column's top; the page on a phone, menus, the open tab
+    Object.assign(t, { ink: c.ink, sea: c.accent, buoy: c.mark, pine: c.pine2, todo: c.todo, chrome: c.chrome, chromeHi: c.sky[0], chromeInk: c.ink, gilt: c.sky[3], sidebar: c.sidebar,
+      skyMid: c.sky[1], hlColor: c.highlight[0], highlight: c.highlight[1], navSea: c.navSea, panelCSS: `rgba(${L.rgb(pc).join(', ')}, ${pa})` });
+    t.sheet = day ? mix(t.paper, '#FFFFFF', 0.55) : mix(t.paper, c.ink, 0.055);
+    t.wave = c.sea[1];
+    // secondary text: 30% of the way to the page, darkened (lightened) until it reads at 5:1 on every tone and on cards
+    let m = 0.3; t.muted = mix(c.ink, t.paper, m);
+    while (Math.min(...t.bgs.concat(t.sheet).map(b => contrast(t.muted, b))) < 5 && m > 0.04) { m -= 0.02; t.muted = mix(c.ink, t.paper, m); }
+    // the bar's icons sit above its crests, on the sea itself
+    t.navBgs = [c.navSea[0], c.navSea[1]];
+    t.navInk = toward(c.ink, t.navBgs, 4.6, day ? '#000000' : '#FFFFFF');
+    const L1 = sceneLayers(c, day);
+    Object.assign(t, { land: L1.landURL, light: L1.lightURL, air: L1.airURL, skyCSS: L1.sky, veilBand: L1.veilBand, veilFlat: L1.veilFlat, pano: panorama(c, day, t.paper), nav: navSea(c), shore: shore(c, day, t.paper) });
     out[mode] = t;
   }
   return out;
-}
-
-// The landscape as one SVG: ranges that fade with distance into mist at their feet, a sparse treeline, long
-// waves, and a low crescent moon (a pale sun in the haze by day). The glow of the sky toward the horizon, behind
-// the ranges, is a CSS layer, so it runs the full width of any pane.
-function landscape(mode, t) {
-  const day = mode === 'day', R = L.rng(day ? 31 : 37);
-  const rs = HZ_RANGES.map((p, i) => ridge(p, 11 + i));
-  // each range fades toward the haze at its foot, the far ones most
-  let defs = rs.map((r, i) => `<linearGradient id='r${i}' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='${t.ranges[i]}'/><stop offset='1' stop-color='${mix(t.ranges[i], t.haze, [0.7, 0.55, 0.35][i])}'/></linearGradient>`).join('');
-  let s = rs.map((r, i) => `<path d='${r.d}' fill='url(#r${i})'/>`).join('');
-  const near = rs[2];
-  s += `<path d='${HZ_TREES.map(([x, h]) => tree(x, near.at(x) + 1, h)).join('')}' fill='${t.trees}'/>`;
-  // the moon (or the sun through haze), low over the gap between the middle ranges
-  const mx = 1700, my = 42, r = day ? 13 : 12, r2 = Math.round(r * 1.3 * 10) / 10;
-  defs += `<radialGradient id='h'><stop offset='0' stop-color='${t.halo}'/><stop offset='1' stop-color='${t.halo}' stop-opacity='0'/></radialGradient>`;
-  const disc = day ? `<circle cx='${mx}' cy='${my}' r='${r}' fill='${t.moon}'/>`
-    : `<path d='M${mx} ${my - r}A${r} ${r} 0 0 0 ${mx} ${my + r}A${r2} ${r2} 0 0 1 ${mx} ${my - r}Z' fill='${t.moon}' transform='rotate(-24 ${mx} ${my})'/>`;
-  s = `<circle cx='${mx}' cy='${my}' r='${day ? 62 : 50}' fill='url(#h)'/>${disc}` + s;
-  // waves: long, slow, broken lines, closer together toward the horizon; a moon road under the moon at night
-  let wv = '';
-  for (const [dy, minLen, maxLen, gap] of [[4, 90, 260, 140], [9, 140, 380, 180], [16, 200, 520, 220], [26, 260, 700, 260], [39, 320, 900, 300]]) {
-    const y = LAND.horizon + dy;
-    for (let x = -R() * 300; x < LAND.w; ) { const len = minLen + R() * (maxLen - minLen), x2 = Math.min(LAND.w, x + len);
-      if (x2 > 0) wv += `M${Math.round(Math.max(0, x))} ${y}Q${Math.round((x + x2) / 2)} ${y - 0.8} ${Math.round(x2)} ${y}`;
-      x = x2 + gap * (0.5 + R()); }
-  }
-  s += `<path d='${wv}' fill='none' stroke='${t.waveTone}' stroke-width='1.3' stroke-linecap='round'/>`;
-  if (!day) { let road = ''; for (const [dy, half] of [[3, 10], [7, 16], [12, 22], [19, 30], [28, 38], [40, 46]]) { const j = (R() - 0.5) * 8; road += `M${Math.round(mx - half + j)} ${LAND.horizon + dy}H${Math.round(mx + half * (0.6 + R() * 0.4) + j)}`; }
-    s += `<path d='${road}' fill='none' stroke='${t.road}' stroke-width='1.6' stroke-linecap='round'/>`; }
-  return svgURL(`<svg xmlns='http://www.w3.org/2000/svg' width='${LAND.w}' height='${LAND.h}' viewBox='0 0 ${LAND.w} ${LAND.h}'><defs>${defs}</defs>${s}</svg>`);
 }
 
 // ── the looks ──
@@ -210,21 +352,21 @@ const LOOKS = {
     origin: 'an Obsidian-only look, drawn in own-shelf/design/obsidian/build.mjs',
     display: 'Optima, "Avenir Next", "Gill Sans", sans-serif',
     body: '"Iowan Old Style", Palatino, Georgia, serif', weight: 400,
-    blurb: 'Open sky over a far coast: the sky pales toward a low horizon, mountain ranges fade with distance,\n   a sparse treeline and long slow waves lie along the foot of the note, and the text sits on open sky.\n   Optima headings. Night is the same coast at dusk, under a low moon.',
-    texNote: 'the landscape is one small inline SVG; the sky, its glow at the horizon and the sea are CSS gradients',
+    blurb: 'A coast seen from a cliff: a big sky over a low horizon, a snow-crowned range fading into mist on one\n   side, open sea with its waves and the light\'s path on the other, one wind-bent pine on the headland. The\n   text sits on a band of mist. Optima headings. Night is blue hour, with a moon rising over the sea.',
+    texNote: 'the scene is a few small inline SVGs over CSS gradients',
     fontNote: 'Fonts: nothing is downloaded. Optima (headings) and Iowan Old Style (text) ship on macOS and iOS.',
   },
 };
 
 // Every value the snippet needs, per look and mode.
 function palette(dir) {
-  const lk = LOOKS[dir], hz = !!lk.tokens; // hz: Horizon, whose text can scroll over every tone of its landscape
+  const lk = LOOKS[dir], hz = !!lk.tokens; // hz: Horizon, whose text sits on a mist veil over every tone of its scene
   const c = hz ? {} : Object.assign(L.defaults(dir), CFG[dir]);
   const T = hz ? lk.tokens() : L.tokens(dir, c), out = {}, report = {};
   for (const mode of ['day', 'night']) {
     const t = T[mode], day = mode === 'day', p = {};
-    const paperTex = hz ? { css: t.land } : tex(LOOKS[dir].kinds[0], c.grain, mode, t), chromeTex = hz ? { css: 'none' } : tex(LOOKS[dir].kinds[1], c.chromeGrain, mode, t);
-    // Horizon's "grain" is the landscape tone that reads worst under the text
+    const paperTex = hz ? { css: 'none' } : tex(LOOKS[dir].kinds[0], c.grain, mode, t), chromeTex = hz ? { css: 'none' } : tex(LOOKS[dir].kinds[1], c.chromeGrain, mode, t);
+    // Horizon's "grain" is the veiled scene tone that reads worst under the text
     const grained = hz ? t.bgs.reduce((w, b) => contrast(t.ink, b) < contrast(t.ink, w) ? b : w) : L.grainedPaper(t.paper, t.ink, paperTex.peaks || []);
     const page = hz ? t.bgs : [t.paper, grained];
     // Horizon holds every text tier, faint included, to 4.5:1 on every tone; the app looks keep faint at 3.1:1 on the page
@@ -232,16 +374,16 @@ function palette(dir) {
     p.paper = t.paper; p.sheet = t.sheet; p.ink = t.ink; p.muted = t.muted; p.gilt = t.gilt; p.wave = t.wave;
     p.chrome = t.chrome; p['chrome-hi'] = t.chromeHi; p['chrome-ink'] = t.chromeInk;
     p['chrome-deep'] = mix(t.chrome, '#000000', day && dir === 'scroll' ? 0.28 : 0.22);
-    p['chrome-ink-soft'] = toward(mix(t.chromeInk, t.chrome, 0.28), [t.chrome, t.chromeHi], 4.6, t.chromeInk);
+    p['chrome-ink-soft'] = toward(mix(t.chromeInk, t.chrome, 0.28), hz ? [t.chrome, t.chromeHi, t.sidebar, t.paper] : [t.chrome, t.chromeHi], 4.6, t.chromeInk);
     // text tiers
     let f = 0.62; p.faint = mix(t.ink, t.paper, f); while (Math.min(...textBgs.map(b => contrast(p.faint, b))) < faintMin && f > 0.2) { f -= 0.02; p.faint = mix(t.ink, t.paper, f); }
-    // Horizon's coloured text is also read on its own callout tint
-    p.accent = hz ? towardTinted(t.sea, page, 4.6, day ? mix(t.sea, '#000000', 0.75) : '#FFFFFF') : toward(t.sea, page, 4.5, day ? t.ink : '#FFFFFF');
+    // Horizon darkens (lightens) its coloured text toward a deep shade of its own hue, so the hue holds
+    p.accent = hz ? toward(t.sea, page, 4.6, day ? mix(t.sea, '#000000', 0.75) : '#FFFFFF') : toward(t.sea, page, 4.5, day ? t.ink : '#FFFFFF');
     p['accent-hover'] = day ? mix(p.accent, t.ink, 0.25) : mix(p.accent, '#FFFFFF', 0.2);
     p.mark = t.buoy; // ribbon, seals, drop cap: decoration
-    p['mark-text'] = hz ? towardTinted(t.buoy, page, 4.6, day ? mix(t.buoy, '#000000', 0.75) : t.ink) : toward(t.buoy, page, 4.5, day ? t.ink : t.ink); // the mark when it carries text
+    p['mark-text'] = hz ? toward(t.buoy, page, 4.6, day ? mix(t.buoy, '#000000', 0.75) : t.ink) : toward(t.buoy, page, 4.5, day ? t.ink : t.ink); // the mark when it carries text
     // surfaces
-    p.secondary = hz ? (day ? mix(t.paper, t.chrome, 0.3) : mix(t.paper, '#000000', 0.18)) : day ? mix(t.paper, t.gilt, dir === 'ukiyoe' ? 0.1 : 0.14) : mix(t.paper, '#000000', 0.18);
+    p.secondary = hz ? t.sidebar : day ? mix(t.paper, t.gilt, dir === 'ukiyoe' ? 0.1 : 0.14) : mix(t.paper, '#000000', 0.18);
     p['secondary-alt'] = day ? t.sheet : mix(t.paper, t.ink, 0.06);
     p['primary-alt'] = day ? mix(t.paper, t.ink, 0.035) : mix(t.paper, t.ink, 0.04);
     p.border = hz ? (day ? mix(t.paper, t.ink, 0.16) : mix(t.paper, t.ink, 0.16)) : day ? mix(mix(t.paper, t.gilt, 0.35), t.ink, 0.14) : mix(t.paper, t.ink, 0.16);
@@ -252,17 +394,18 @@ function palette(dir) {
     if (dir === 'ukiyoe')  { p.h2 = p.accent; p.h3 = p['mark-text']; p.rule = mix(p.accent, t.paper, 0.55); p.marker = toward(t.buoy, [t.paper], 3, t.ink); p.quote = p.accent; p['band-rule'] = t.buoy; }
     if (dir === 'scroll')  { p.h2 = p['mark-text']; p.h3 = p.accent; p.rule = toward(t.wave, [t.paper], 1.6, t.ink); p.marker = toward(t.buoy, [t.paper], 3, t.ink); p.quote = p.accent; p['band-rule'] = '#5A3A22'; }
     // Horizon: ink H2 over a horizon line, sea-blue H3; bullets and "done" in pine, as text (4.5:1)
-    if (hz) { p.h2 = t.ink; p.h3 = p.accent; p.rule = mix(p.accent, t.paper, 0.6); p.marker = towardTinted(t.pine, page, 4.6, day ? mix(t.pine, '#000000', 0.75) : '#FFFFFF'); p.quote = mix(p.accent, t.paper, 0.35); p['band-rule'] = mix(t.chrome, t.ink, 0.22); }
+    if (hz) { p.h2 = t.ink; p.h3 = p.accent; p.rule = mix(p.accent, t.paper, 0.6); p.marker = toward(t.pine, page, 4.6, day ? mix(t.pine, '#000000', 0.75) : '#FFFFFF'); p.quote = mix(p.accent, t.paper, 0.35); p['band-rule'] = mix(t.chrome, t.ink, 0.22); }
     p['quote-bg'] = over(dir === 'leather' ? t.gilt : p.quote, day ? 0.1 : 0.09, t.paper);
     p['code-bg'] = over(t.sea, day ? 0.09 : 0.1, t.paper);
     p['code-pre-bg'] = day ? mix(t.sheet, t.paper, 0.35) : mix(t.paper, t.ink, 0.05);
     p['code-keyword'] = toward(t.buoy, [p['code-bg'], p['code-pre-bg']], 4.5, t.ink);
     p['code-string'] = toward(t.sea, [p['code-bg'], p['code-pre-bg']], 4.5, day ? t.ink : '#FFFFFF');
     p['code-comment'] = toward(t.muted, [p['code-bg'], p['code-pre-bg']], 4.5, day ? t.ink : '#FFFFFF');
-    p['table-head'] = hz ? (day ? mix(t.paper, t.chrome, 0.75) : mix(t.paper, t.ink, 0.08)) : day ? mix(t.paper, t.gilt, 0.2) : mix(t.paper, t.gilt, 0.09);
-    p.highlight = hz ? `rgba(255, 212, 59, ${t.highlight})` : day ? 'rgba(255, 212, 59, 0.6)' : 'rgba(255, 212, 59, 0.38)'; // own-shelf's "sun" tint
+    p['table-head'] = hz ? (day ? mix(t.paper, t.chromeHi, 0.4) : mix(t.paper, t.ink, 0.08)) : day ? mix(t.paper, t.gilt, 0.2) : mix(t.paper, t.gilt, 0.09);
+    p.highlight = hz ? `rgba(${L.rgb(t.hlColor).join(', ')}, ${t.highlight})` : day ? 'rgba(255, 212, 59, 0.6)' : 'rgba(255, 212, 59, 0.38)'; // own-shelf's "sun" tint
     p.selection = `color-mix(in srgb, ${p.accent} ${day ? 22 : 30}%, transparent)`;
-    if (hz) Object.assign(p, { 'sky-low': t.skyLow, haze: t.haze, sea: t.seaTone });
+    if (hz) Object.assign(p, { todo: toward(t.todo, page, 4.6, day ? mix(t.todo, '#000000', 0.75) : '#FFFFFF'), shore: t.shore, sky: t.skyCSS, air: t.air, land: t.land, light: t.light, 'veil-band': t.veilBand, 'veil-flat': t.veilFlat, pano: t.pano, 'sky-mid': t.skyMid,
+      nav: t.nav, 'nav-sea-top': t.navSea[0], 'nav-sea-low': t.navSea[1], 'nav-ink': t.navInk, panel: t.panelCSS });
     // Obsidian's neutral ramp, re-tinted from the page to the ink
     const base = day ? [['00', t.sheet], ['05', mix(t.sheet, t.paper, 0.5)], ['10', t.paper], ['20', mix(t.paper, t.ink, 0.04)], ['25', mix(t.paper, t.ink, 0.08)],
       ['30', mix(t.paper, t.ink, 0.14)], ['35', mix(t.paper, t.ink, 0.2)], ['40', mix(t.paper, t.ink, 0.32)], ['50', mix(t.paper, t.ink, 0.42)], ['60', mix(t.paper, t.ink, 0.62)], ['70', t.muted], ['100', t.ink]]
@@ -272,11 +415,11 @@ function palette(dir) {
     p.acc = hsl(p.accent);
     p['paper-tex'] = paperTex.css; p['chrome-tex'] = chromeTex.css;
     out[mode] = p;
-    const hlA = hz ? t.highlight : day ? 0.6 : 0.38, hl = over('#FFD43B', hlA, t.paper);
+    const hlC = hz ? t.hlColor : '#FFD43B', hlA = hz ? t.highlight : day ? 0.6 : 0.38, hl = over(hlC, hlA, t.paper);
     // worst contrast of fg over a set of backgrounds; for Horizon, "page" is every tone text can scroll over
     const w = (fg, bgs) => Math.min(...bgs.map(b => contrast(fg, b)));
     report[mode] = {
-      'body text / page': w(t.ink, hz ? [t.paper, t.skyLow, t.haze] : [t.paper]), [hz ? 'body text / landscape, worst tone' : 'body text / darkest grain']: contrast(t.ink, grained), 'muted / page': w(p.muted, textBgs),
+      'body text / page': w(t.ink, [t.paper]), [hz ? 'body text / veiled scene, worst tone' : 'body text / darkest grain']: contrast(t.ink, grained), 'muted / page': w(p.muted, textBgs),
       'faint / page': w(p.faint, textBgs), 'links, accent / page': Math.min(...page.map(b => contrast(p.accent, b))), 'H2 / page': Math.min(...page.map(b => contrast(p.h2, b))),
       'H3 / page': Math.min(...page.map(b => contrast(p.h3, b))), 'text / quote tint': contrast(t.ink, p['quote-bg']), 'text / inline code': contrast(t.ink, p['code-bg']),
       'text / sidebar': contrast(t.ink, p.secondary), 'muted / sidebar': contrast(p.muted, p.secondary), 'bar text / bar': Math.min(contrast(t.chromeInk, t.chrome), contrast(t.chromeInk, t.chromeHi)),
@@ -285,14 +428,15 @@ function palette(dir) {
       'code comment / code': Math.min(contrast(p['code-comment'], p['code-bg']), contrast(p['code-comment'], p['code-pre-bg'])),
     };
     if (hz) {
-      // callouts: a 10% tint of their colour over whatever tone is behind them; the title is in that colour
-      const tints = col => page.map(b => over(col, 0.1, b)), cols = [p.accent, p['mark-text'], p.marker, p.muted];
+      // callouts are frosted panels over the veiled scene; their titles are in the callout's colour
       Object.assign(report[mode], {
-        'callout title, todo and info / its tint': w(p.accent, tints(p.accent)), 'callout title, warning / its tint': w(p['mark-text'], tints(p['mark-text'])),
-        'callout title, success / its tint': w(p.marker, tints(p.marker)), 'callout title, example / its tint': w(p.muted, tints(p.muted)),
-        'text / callout tints': Math.min(...cols.map(col => w(t.ink, tints(col)))), 'muted / callout tints': Math.min(...cols.map(col => w(p.muted, tints(col)))),
+        'callout title, todo and info / panel': w(p.accent, t.panels), 'callout title, warning / panel': w(p['mark-text'], t.panels),
+        'callout title, success / panel': w(p.marker, t.panels), 'callout title, example / panel': w(p.muted, t.panels),
+        'text / panel': w(t.ink, t.panels), 'muted / panel': w(p.muted, t.panels), 'faint / panel': w(p.faint, t.panels),
         'text / table header': contrast(t.ink, p['table-head']), 'text / code block': contrast(t.ink, p['code-pre-bg']),
-        'code string / code': w(p['code-string'], [p['code-bg'], p['code-pre-bg']]), 'text / ==highlight== over landscape': w(t.ink, page.map(b => over('#FFD43B', hlA, b))),
+        'code string / code': w(p['code-string'], [p['code-bg'], p['code-pre-bg']]), 'text / ==highlight== over the veiled scene': w(t.ink, page.map(b => over(hlC, hlA, b))), 'callout title, todo (your move) / panel': w(p.todo, t.panels),
+        'header text / sky (desktop)': w(p['chrome-ink-soft'], [t.chromeHi, t.chrome]), 'muted / sidebar, worst': w(p['chrome-ink-soft'], [t.sidebar]),
+        'phone title / panorama sky': w(t.ink, [t.paper, t.skyMid]), 'phone bar icons / sea': w(t.navInk, t.navBgs),
       });
     }
     for (const k in report[mode]) report[mode][k] = r2(report[mode][k]);
@@ -308,7 +452,7 @@ const PAL_KEYS = ['paper', 'sheet', 'ink', 'muted', 'faint', 'accent', 'accent-h
 function modeBlock(dir, mode, p) {
   const sel = mode === 'day' ? ':root body.theme-light' : ':root body.theme-dark';
   const lines = PAL_KEYS.map(k => `  --shelf-${k}: ${p[k]};`);
-  if (LOOKS[dir].tokens) lines.push(...['sky-low', 'haze', 'sea'].map(k => `  --shelf-${k}: ${p[k]};`), `  --shelf-land: ${p['paper-tex']};`);
+  if (LOOKS[dir].tokens) lines.push(...['todo', 'sky-mid', 'nav-sea-top', 'nav-sea-low', 'nav-ink', 'panel', 'sky', 'veil-flat', 'veil-band', 'land', 'light', 'air', 'pano', 'nav', 'shore'].map(k => `  --shelf-${k}: ${p[k]};`));
   else lines.push(`  --shelf-paper-tex: ${p['paper-tex']};`, `  --shelf-chrome-tex: ${p['chrome-tex']};`);
   lines.push('', '  /* Obsidian\'s neutral ramp, re-tinted from page to ink (menus, modals, settings) */');
   for (const [k, v] of p.base) lines.push(`  --color-base-${k}: ${v};`);
@@ -497,32 +641,91 @@ function pageRules(dir) {
   background-image: var(--shelf-paper-tex);
 }
 `;
-  const sea = `calc(var(--shelf-land-h) * ${LAND.h - LAND.horizon} / ${LAND.h})`;
+  const H = `.workspace-split.mod-root .workspace-leaf-content[data-type="markdown"]`;
   return `
-/* Reading text: more leading than Obsidian's 1.5, for air between the lines. */
-.markdown-source-view, .markdown-rendered { --line-height-normal: 1.65; }
+/* Reading text: generous leading and room between blocks, for air. */
+.markdown-source-view, .markdown-rendered { --line-height-normal: 1.7; --p-spacing: 1.1rem; --heading-spacing: calc(var(--p-spacing) * 2.8); }
 
-/* ── the view: open sky over a low horizon, in a note's own pane (not in embeds, popovers or other views) ──
-   Layers, top first: the landscape, the glow of the sky above the horizon, the sea, the sky. The landscape stays at the foot of the view while the
-   note scrolls. It is drawn at a fixed height and centred, so a wider pane shows more of the coast and a phone
-   shows its middle. Text passes over it: every tone in it keeps the text at 4.5:1. */
-.workspace-split.mod-root .workspace-leaf-content[data-type="markdown"] { --shelf-land-h: 170px; }
-.is-phone .workspace-split.mod-root .workspace-leaf-content[data-type="markdown"] { --shelf-land-h: 112px; }
-.workspace-split.mod-root .workspace-leaf-content[data-type="markdown"] > .view-content,
-.workspace-split.mod-root .workspace-leaf-content[data-type="markdown"].is-read-mode > .view-content > .markdown-reading-view > .markdown-preview-view {
-  background-image: var(--shelf-land),
-    linear-gradient(0deg, var(--shelf-sea) ${sea}, var(--shelf-haze) ${sea}, transparent calc(var(--shelf-land-h) * 0.8)),
-    linear-gradient(180deg, var(--shelf-paper), var(--shelf-sky-low));
-  background-size: auto var(--shelf-land-h), 100% 100%, 100% 100%;
-  background-position: 50% 100%, 0 0, 0 0;
+/* ── the scene: a coast seen from a cliff, in a note's own pane (not in embeds, popovers or other views) ──
+   Painted once, on the note's leaf behind its header; the header, the editor and the reading view are clear over it.
+   Layers, top first: a mist veil behind the reading column, the land on the left, the sun or moon and its path on
+   the water on the right, clouds and wave crests, then sky and sea. Every drawing puts its horizon at ${HZ * 100}% of its
+   height, so they line up at any size. Text sits on the veil, and keeps 4.5:1 over every tone of the scene. */
+${H} {
+  --file-header-background: transparent;
+  --file-header-background-focused: transparent;
+  --shelf-veil: var(--shelf-veil-flat);
+  --shelf-veil-size: 100% 100%;
+  background-color: var(--shelf-paper);
+  background-image: var(--shelf-veil), var(--shelf-land), var(--shelf-light), var(--shelf-air), var(--shelf-sky);
+  /* the land and the light are sized to the margin beside the column (full size on a wide pane), so the crown,
+     the pine and the moon stay out from under the veil; set at ${HZ * 100}% down, their horizons stay on the sky's */
+  --shelf-margin: calc(50% - var(--file-line-width) / 2 + 20px);
+  background-size: var(--shelf-veil-size),
+    max(260px, min(125vh, calc(var(--shelf-margin) * 5))) auto,
+    max(200px, min(52vh, calc(var(--shelf-margin) * 2.8))) auto,
+    100% 100%, 100% 100%;
+  background-position: 50% 0, 0 ${HZ * 100}%, right 0 top ${HZ * 100}%, 0 0, 0 0;
   background-repeat: no-repeat;
+}
+/* with readable line length on, the veil is a band behind the column, feathered at its sides so it reads as haze */
+${H}:has(> .view-content > .markdown-source-view.is-readable-line-width, > .view-content > .markdown-reading-view > .markdown-preview-view.is-readable-line-width) {
+  --shelf-veil: var(--shelf-veil-band);
+  --shelf-veil-size: calc(var(--file-line-width) + 200px) 100%;
+}
+${H} > .view-content,
+${H} .markdown-reading-view > .markdown-preview-view {
+  background-color: transparent;
+}
+/* the note's header sits on the sky, so it takes the bars' inks */
+${H} > .view-header {
+  --text-normal: var(--shelf-chrome-ink);
+  --text-muted: var(--shelf-chrome-ink-soft);
+  --text-faint: var(--shelf-chrome-ink-soft);
+  --icon-color: var(--shelf-chrome-ink-soft);
+  --icon-color-hover: var(--shelf-chrome-ink);
+  --icon-color-focused: var(--shelf-chrome-ink);
+  --icon-color-active: var(--shelf-chrome-ink);
+}
+
+/* ── phone: the column is the whole screen ──
+   No scene behind the text: the page is the misty sky itself. The coast is a panorama under the note's title that
+   scrolls away with it, and the sea runs along the navigation bar. */
+.is-phone .workspace-split.mod-root .workspace-leaf-content[data-type="markdown"] {
+  --file-header-background: var(--shelf-paper);
+  --file-header-background-focused: var(--shelf-paper);
+  background-image: none;
+}
+.is-phone .workspace-leaf-content[data-type="markdown"] .inline-title {
+  margin-inline: calc(50% - 50vw);
+  padding: 0.8em calc(50vw - 50%) calc(${PANO.h / PANO.w * 100}vw + 0.3em);
+  background: var(--shelf-pano) 50% 100% / 100% auto no-repeat,
+    linear-gradient(180deg, transparent, var(--shelf-sky-mid) calc(100% - ${PANO.h / PANO.w * 100}vw)) 0 0 / 100% 100% no-repeat;
+}
+/* the end of a note, in reading view: the sea running up a beach */
+.is-phone .workspace-leaf-content[data-type="markdown"] .mod-footer::before {
+  content: "";
+  display: block;
+  flex: none;
+  height: 40vw;
+  margin: 3rem calc(50% - 50vw) 0;
+  background: var(--shelf-shore) 50% 0 / 100% 100% no-repeat;
+}
+.is-phone .mobile-navbar {
+  --text-normal: var(--shelf-nav-ink);
+  background-color: var(--shelf-nav-sea-low);
+  background-image: var(--shelf-nav), linear-gradient(180deg, var(--shelf-nav-sea-top), var(--shelf-nav-sea-low));
+  background-size: 400px 100%, 100% 100%;
+  background-repeat: repeat-x, no-repeat;
 }
 `;
 }
 
 function barBackground(dir, where) {
-  if (dir === 'horizon') return `  background-image: linear-gradient(180deg, var(--shelf-chrome), var(--shelf-chrome-hi));
-`;
+  if (dir === 'horizon') return {
+    tabs: `  background-image: linear-gradient(180deg, var(--shelf-chrome), var(--shelf-chrome-hi));\n`,
+    ribbon: `  background-image: linear-gradient(180deg, var(--shelf-chrome), var(--shelf-chrome-hi) 40%, var(--shelf-secondary));\n`,
+    status: `  background-image: none;\n  box-shadow: 0 -1px 0 var(--shelf-border);\n` }[where];
   if (dir === 'leather') {
     if (where === 'tabs') return `  /* a gilt fillet 4px above the bottom edge; the tab outline is the second; the open tab covers both */
   background-image: linear-gradient(var(--shelf-gilt), var(--shelf-gilt)), var(--shelf-chrome-tex),
@@ -601,17 +804,36 @@ ${H2} {
 
 function extraRules(dir) {
   if (dir === 'horizon') return `
-/* phone: the note's header fades from the upper sky into the page, in place of the bars' band */
+/* ── Horizon: quieter headings, frosted callouts, the bars' details ── */
+:root body.theme-light, :root body.theme-dark {
+  --inline-title-size: 2.1em; --inline-title-margin-bottom: 0.9em;
+  --h1-size: 1.8em; --h2-size: 1.42em; --h3-size: 1.15em; --h4-size: 1em; --h4-weight: 600;
+  --h1-letter-spacing: 0; --h2-letter-spacing: 0.01em;
+  --h4-color: var(--shelf-muted);
+  --callout-border-width: 1px; --callout-border-opacity: 0.22; --callout-radius: 10px; --callout-blend-mode: normal;
+  --callout-todo: var(--shelf-todo);
+  --status-bar-background: var(--shelf-secondary);
+  --scrollbar-thumb-bg: color-mix(in srgb, var(--shelf-ink) 16%, transparent);
+  --scrollbar-active-thumb-bg: color-mix(in srgb, var(--shelf-ink) 30%, transparent);
+}
+/* callouts: frosted panels over the scene, edged in their own colour; "your move" (todo) in the sun's gold */
+.callout {
+  background-color: var(--shelf-panel);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--shelf-sheet) 45%, transparent), 0 8px 22px -18px rgba(10, 20, 40, 0.35);
+}
+.callout-content > :last-child { margin-block-end: 0; }
+/* a quote (a desk answer, ">>") gets room above and below its line */
+.markdown-rendered blockquote { padding-block: 0.4em; }
+.markdown-rendered p, .markdown-rendered li { text-wrap: pretty; }
+/* phone: a hairline under the note's header, in place of the bars' band */
 .is-phone .workspace-leaf-content .view-header {
-  border-bottom: 0;
+  border-bottom: 1px solid var(--shelf-border);
   box-shadow: none;
-  background-image: linear-gradient(180deg, var(--shelf-chrome), var(--shelf-paper));
 }
 
-/* ── Mermaid in the look's blue-greys ── */
 /* Mermaid draws in its own lavender, which Obsidian inverts at night; turned here toward the sea's blue-grey. */
 .theme-light .mermaid > svg { filter: hue-rotate(-38deg) saturate(0.45); }
-.theme-dark .mermaid > svg { filter: invert(100%) hue-rotate(142deg) saturate(0.55); }
+.theme-dark .mermaid > svg { filter: invert(87%) hue-rotate(168deg) saturate(1.5) brightness(1.18); }
 `;
   if (dir !== 'scroll') return '';
   return `
