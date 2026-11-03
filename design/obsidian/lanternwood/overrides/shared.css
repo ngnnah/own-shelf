@@ -1,0 +1,151 @@
+/* ── fork: the band ──
+   The page is the sky (--background-primary, matched to the art). The scene is a band at the foot of each note
+   pane, and the note's view stops above it, so text is never drawn on the art. The band's top fades into the sky;
+   its foot is a calm strip of lake that holds the status bar. On a phone the band is the navigation bar: the
+   scene above the icons, which sit on the lake. */
+body {
+  --lwf-band: clamp(200px, 34vh, 320px);  /* the band's height on desktop and tablet */
+  --lwf-crop: 3.6;                         /* the art is drawn at least 3.6 band-heights wide, so narrow panes keep the centre */
+  --lwf-bar-scene: 136px;                  /* phone: the scene's height above the navigation icons */
+}
+.workspace-split.mod-root .workspace-leaf-content[data-type="markdown"] {
+  background-color: var(--background-primary);
+}
+.workspace-split.mod-root .workspace-leaf-content[data-type="markdown"] > .view-content {
+  padding-bottom: var(--lwf-band);
+}
+.workspace-split.mod-root .workspace-leaf-content[data-type="markdown"]::before,
+.workspace-split.mod-root .workspace-leaf-content[data-type="markdown"]::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: var(--lwf-band);
+  pointer-events: none;
+  content: "";
+}
+/* the scene: centred; a wide pane crops the sky first, then a little of the water's foot */
+.workspace-split.mod-root .workspace-leaf-content[data-type="markdown"]::before {
+  background: var(--lwf-scene) 50% 72% / max(100%, calc(var(--lwf-band) * var(--lwf-crop))) auto no-repeat;
+  filter: var(--lwf-scene-lift);
+}
+/* the veil: the sky over the band's top edge, so the crop never shows as a line */
+.workspace-split.mod-root .workspace-leaf-content[data-type="markdown"]::after {
+  background-image: linear-gradient(var(--background-primary), transparent 18%);
+}
+/* the status bar floats on the water at the window's foot, in the lake's own deep colour */
+.status-bar {
+  --icon-color: var(--lwf-lake-ink);
+  --status-bar-border-width: 0;
+  color: var(--lwf-lake-ink);
+  background: var(--lwf-lake);
+}
+
+/* ── phone: the band is the navigation bar ── */
+.is-phone:not(.is-floating-nav) .workspace-split.mod-root .workspace-leaf-content[data-type="markdown"] > .view-content {
+  padding-bottom: 0;
+}
+.is-phone:not(.is-floating-nav) .workspace-split.mod-root .workspace-leaf-content[data-type="markdown"]::before,
+.is-phone:not(.is-floating-nav) .workspace-split.mod-root .workspace-leaf-content[data-type="markdown"]::after {
+  display: none;
+}
+.is-phone:not(.is-floating-nav) .mobile-navbar {
+  --text-normal: var(--lwf-lake-ink);
+  position: relative;
+  isolation: isolate;
+  height: calc(var(--navbar-height) + var(--lwf-bar-scene));
+  padding-top: var(--lwf-bar-scene);
+  background: var(--lwf-lake);
+}
+.is-phone:not(.is-floating-nav) .mobile-navbar::before,
+.is-phone:not(.is-floating-nav) .mobile-navbar::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+}
+/* the art's rows 20% to 82% fill the scene: mountain, bridge and some water above the icons; the cottages fall away */
+.is-phone:not(.is-floating-nav) .mobile-navbar::before {
+  background: var(--lwf-scene) 50% calc(var(--lwf-bar-scene) * -0.323) / auto calc(var(--lwf-bar-scene) * 1.613) no-repeat;
+  filter: var(--lwf-scene-lift);
+}
+.is-phone:not(.is-floating-nav) .mobile-navbar::after {
+  background-image:
+    linear-gradient(var(--background-primary), transparent 18%),
+    linear-gradient(transparent calc(var(--lwf-bar-scene) - 8px), var(--lwf-lake) calc(var(--lwf-bar-scene) + 14px));
+}
+/* Obsidian's floating navigation: the band stays in the pane and the floating bar sits on its lake.
+   Obsidian masks the note's view there (a fade under the header), which lifts the view above the band, so the band
+   is raised over the view's empty foot; the view stops above the band, so no text is under it. Obsidian's fade at
+   the pane's foot is for text running under the bar, and no text runs there, so it goes. */
+.is-phone.is-floating-nav {
+  --lwf-band: 200px;
+}
+.is-phone.is-floating-nav .workspace-split.mod-root .workspace-leaf-content[data-type="markdown"]::before,
+.is-phone.is-floating-nav .workspace-split.mod-root .workspace-leaf-content[data-type="markdown"]::after {
+  z-index: 1;
+}
+.is-phone.is-floating-nav .workspace > .mod-root {
+  mask-image: none;
+}
+.is-phone.is-floating-nav .mobile-navbar {
+  --text-normal: var(--lwf-lake-ink);
+  background-color: var(--lwf-lake);
+}
+
+/* ── quieter chrome: thin edges, no hard shadows, interface type at its normal size ── */
+body {
+  --tab-font-size: var(--font-ui-small);
+}
+.workspace-ribbon {
+  border-right-width: 1px;
+}
+.workspace-tab-header-container {
+  border-bottom-width: 1px;
+}
+.workspace-tab-header,
+.workspace-tab-header.is-active {
+  border-color: transparent;
+}
+.workspace-tab-header.is-active {
+  box-shadow: inset 0 2px var(--lw-gold);
+}
+.markdown-rendered pre {
+  box-shadow: none;
+}
+button,
+.dropdown {
+  border-width: 1px;
+  box-shadow: none;
+}
+button.clickable-icon {
+  border: 0;
+  background-color: transparent;
+}
+
+@media print {
+  .workspace-leaf-content[data-type="markdown"]::before,
+  .workspace-leaf-content[data-type="markdown"]::after {
+    display: none;
+  }
+}
+
+/* ── callouts: flat pale panels on the sky, tinted with the callout's colour ── */
+.callout {
+  background-color: color-mix(in srgb, var(--callout-color) 7%, var(--lwf-panel));
+  background-image: none;  /* upstream's cut-corner frame: at 1px its corner notches read as glitches */
+  mix-blend-mode: normal;  /* Obsidian's light theme darkens callouts into the page, which hides a panel paler than the sky */
+}
+.callout::before,
+.callout::after {
+  content: none;
+}
+/* upstream's own callouts give r, g, b triplets, which Obsidian 1.14 no longer reads as a colour */
+.callout[data-callout="lantern"],
+.callout[data-callout="remember"] {
+  --callout-color: var(--lw-gold);
+}
+.callout[data-callout="forest"] {
+  --callout-color: var(--lw-sage);
+}

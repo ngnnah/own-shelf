@@ -1,10 +1,12 @@
 // Builds the three own-shelf looks as Obsidian CSS snippets, from design/looks.json and the themes lab's
-// own token and texture code, and reports contrast.
+// own token and texture code, and reports contrast; then the three Lanternwood looks (lanternwood.mjs), whose
+// contrast is measured in a browser and kept in lanternwood/contrast.json.
 // usage: node design/obsidian/build.mjs [outDir]   (default: design/obsidian/snippets)
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { lanternwoodSnippets } from './lanternwood.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DESIGN = path.join(HERE, '..');
@@ -494,4 +496,9 @@ fs.writeFileSync(path.join(OUT, 'contrast.json'), JSON.stringify(reports, null, 
 for (const [dir, r] of Object.entries(reports)) {
   console.log('\n' + dir);
   for (const k of Object.keys(r.day)) console.log('  ' + k.padEnd(30) + String(r.day[k]).padStart(6) + String(r.night[k]).padStart(8));
+}
+console.log('');
+for (const { file, css: s } of lanternwoodSnippets()) {
+  fs.writeFileSync(path.join(OUT, file), s);
+  console.log(file, (s.length / 1024).toFixed(1) + ' KB');
 }

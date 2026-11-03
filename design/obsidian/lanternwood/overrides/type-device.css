@@ -1,0 +1,23 @@
+/* ── fork: type ── no pixel type: headings in the reading font, the interface in the device font. */
+body {
+  --inline-title-size: 1.75em;
+  --inline-title-weight: 650;
+  --h1-size: 1.75em;
+  --h2-size: 1.4em;
+  --h3-size: 1.15em;
+  --h4-size: 1em;
+  --h1-weight: 650;
+  --h2-weight: 600;
+  --h3-weight: 600;
+  --h4-weight: 600;
+}
+.markdown-rendered h1,
+.markdown-rendered h2,
+.cm-header-1,
+.cm-header-2 {
+  letter-spacing: 0;
+}
+.callout-title-inner {
+  font-size: 1em;
+  letter-spacing: 0;
+}
