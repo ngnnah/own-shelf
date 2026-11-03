@@ -1,4 +1,4 @@
-// The Lanternwood looks: three Obsidian CSS snippets derived from Lanternwood (David Hurtado, MIT), built from
+// The Lanternwood looks: two Obsidian CSS snippets derived from Lanternwood (David Hurtado, MIT), built from
 // its vendored theme.css (lanternwood/, read as data, never run) plus our overrides. An upstream update is a
 // file swap and a rebuild; the build stops on anything it would otherwise have to guess.
 // Per variant: upstream's header, OFL notices and @font-face blocks; its Style Settings block dropped and each class
@@ -32,16 +32,11 @@ const toward = (c, bgs, target, d) => { for (let i = 0; worst(c, bgs) < target &
 // ── variants ──
 // sky: the page, matched to the art's own sky where the band's top edge fades into it (sampled from the art).
 // lake: the calm strip at the foot of the band, under the status bar and the phone's icons.
-const DETAILED_DAY = { sky: '#d3e0cf', lake: '#2f6a6e', lift: 'none' };
-const DETAILED_NIGHT = { sky: '#1f374a', lake: '#10262f', lift: 'brightness(1.12) saturate(1.05)' };
 const VARIANTS = {
   'lanternwood-still': {
-    title: 'Still', art: 'detailed', type: 'device', day: DETAILED_DAY, night: DETAILED_NIGHT,
+    title: 'Still', art: 'detailed', type: 'device',
+    day: { sky: '#d3e0cf', lake: '#2f6a6e', lift: 'none' }, night: { sky: '#1f374a', lake: '#10262f', lift: 'brightness(1.12) saturate(1.05)' },
     blurb: 'Detailed art; no pixel type anywhere: headings, text and interface in device fonts. The scene is the only pixel art.',
-  },
-  'lanternwood-lake': {
-    title: 'Lake', art: 'detailed', type: 'pixel-headings', day: DETAILED_DAY, night: DETAILED_NIGHT,
-    blurb: 'Detailed art; pixel type (Departure Mono) for headings only; device fonts for text and interface.',
   },
   'lanternwood-classic': {
     title: 'Classic', art: 'classic', type: 'pixel-headings',
@@ -344,7 +339,7 @@ ${U.lic}
   return header + fonts.pre + rest;
 }
 
-// [{ key, file, css }] for Still, Lake and Classic.
+// [{ key, file, css }] for Still and Classic.
 export function lanternwoodSnippets() {
   const U = upstream();
   return Object.keys(VARIANTS).map(key => ({ key, file: `shelf-${key}.css`, css: snippet(key, U) }));

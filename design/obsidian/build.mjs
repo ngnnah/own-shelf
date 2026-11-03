@@ -1,5 +1,5 @@
 // Builds the three own-shelf looks as Obsidian CSS snippets, from design/looks.json and the themes lab's
-// own token and texture code, and reports contrast; then the three Lanternwood looks (lanternwood.mjs), whose
+// own token and texture code, and reports contrast; then the two Lanternwood looks (lanternwood.mjs), whose
 // contrast is measured in a browser and kept in lanternwood/contrast.json.
 // usage: node design/obsidian/build.mjs [outDir]   (default: design/obsidian/snippets)
 import fs from 'node:fs';
