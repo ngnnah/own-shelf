@@ -76,4 +76,56 @@ await t.run(async()=>{
   ok('with wrappers taking their chunk’s class weight, the newsletter runs to its last link',same(kept.slice(-8,-5),LINKS)&&/^\+ These are the oddest weather records/.test(kept.at(-1)));
   ok('everything before the list is as before',same(kept.slice(0,cut.length),cut)&&kept.length===cut.length+8);
   ok('the footer, title and byline stay out',!kept.some(s=>/Share this story|©|The Morning Drip:|Ada Rivers|October 27/.test(s)));
+
+  /* ---------- the publish date when Readability finds none (pageDate) ---------- */
+  must('pageDate exists',await page.evaluate(()=>typeof window.pageDate==='function'));
+  // a made-up article page: head, then pre (above the title), body (under the byline), a long text, end (after it)
+  const FILL='<p>The nets hang between two poles on the ridge, and the morning fog leaves its water on them.</p>'.repeat(12);
+  const pg=({head='',pre='',body='',end='',wrap=s=>s}={})=>`<!doctype html><html><head><title>Mending the fog nets</title>${head}</head><body>${wrap(`<main><article>${pre}<h1>Mending the fog nets</h1><p class="byline">By Ada Rivers</p>${body}${FILL}${end}</article></main>`)}</body></html>`;
+  const when=(html,url='https://example.com/fog-nets')=>page.evaluate((h,u)=>pageDate(new DOMParser().parseFromString(h,'text/html'),u),html,url);
+  const rdTime=html=>page.evaluate(h=>new Readability(new DOMParser().parseFromString(h,'text/html')).parse().publishedTime,html);
+  const ld=o=>`<script type="application/ld+json">${JSON.stringify(o)}</script>`,meta=(a,k,v)=>`<meta ${a}="${k}" content="${v}">`;
+  const time=(d,attrs='')=>`<time datetime="${d}"${attrs}>a while ago</time>`;
+  const OCT30='October 30, 2026';
+  // JSON-LD that Readability 0.5.0 misses
+  const ldMissed=[ld({'@context':'https://schema.org/','@type':'NewsArticle',datePublished:'2026-10-30T09:00:00Z'}),
+    ld({'@context':'https://schema.org','@graph':[{'@type':['WebPage','ItemPage'],datePublished:'2026-10-29'},{'@type':'Article',datePublished:'2026-10-30'}]}),
+    ld({'@context':'https://schema.org','@type':'WebPage',mainEntity:{'@type':'NewsArticle',datePublished:'2026-10-30'}}),
+    '<script type="application/ld+json">{ not json</script>'+ld({'@context':'http://schema.org','@type':['BlogPosting'],dateCreated:'2026-10-30'})];
+  const ldRd=[],ldGot=[];for(const s of ldMissed){const h=pg({head:s});ldRd.push(await rdTime(h));ldGot.push(await when(h));}
+  ok('the JSON-LD fixtures show the problem: Readability finds no date in them',ldRd.every(d=>!d));
+  ok('JSON-LD: a "schema.org/" context, a @graph with a list @type (the article before the web page), a mainEntity, a broken script before',ldGot.every(d=>d===OCT30)||console.log('  got',ldGot));
+  const metas=[['name','article:published_time','2026-10-30T09:00:00+00:00'],['itemprop','datePublished','2026-10-30'],['name','parsely-pub-date','2026-10-30T09:00:00Z'],
+    ['name','sailthru.date','Fri, 30 Oct 2026 09:00:00 -0000'],['name','citation_publication_date','2026/10/30'],['name','DC.date.issued','2026-10-30'],
+    ['name','dcterms.created','2026-10-30'],['name','date','20261030'],['name','pubdate','2026-10-30'],['name','publishdate','October 30, 2026']];
+  const metaGot=[];for(const [a,k,v] of metas) metaGot.push(await when(pg({head:meta(a,k,v)})));
+  ok('meta tags: article:published_time as a name, itemprop, Parse.ly, Sailthru, citation, Dublin Core, date, pubdate, publishdate',metaGot.every(d=>d===OCT30)||console.log('  got',metaGot));
+  ok('…which Readability misses',!(await rdTime(pg({head:meta('name','article:published_time','2026-10-30')}))));
+  ok('a date with its day wins over one with only the month (Nature’s citation dates)',await when(pg({head:meta('name','citation_publication_date','2026/10')+meta('name','citation_online_date','2026/10/26')}))==='October 26, 2026');
+  ok('…and the month alone is kept when nothing has the day',await when(pg({head:meta('name','citation_publication_date','2026/10')}))==='October 2026');
+  ok('never a modified date: meta, JSON-LD, a <time> marked or labelled as updated',await when(pg({
+    head:meta('property','article:modified_time','2026-11-02')+meta('property','og:updated_time','2026-11-02')+ld({'@context':'https://schema.org','@type':'Article',dateModified:'2026-11-02'}),
+    body:`<p>Updated ${time('2026-11-02')}</p><p>${time('2026-11-02',' class="updated"')}</p><p class="date">Last updated 2 November 2026</p>`}))==='');
+  ok('a <time> under the byline',await when(pg({body:`<p>${time('2026-10-30T09:00:00Z')}</p>`}))===OCT30);
+  ok('…or just above the title',await when(pg({pre:`<p>Science · ${time('2026-10-30')}</p>`}))===OCT30);
+  ok('…or one marked as published anywhere in the article',await when(pg({end:`<p class="posted">Posted ${time('2026-10-30')}</p>`}))===OCT30&&await when(pg({end:`<span itemprop="datePublished" content="2026-10-30">Oct 30</span>`}))===OCT30);
+  ok('…but not an unmarked one far below the title',await when(pg({end:`<p>${time('2026-10-30')}</p>`}))==='');
+  ok('not in an aside, a sidebar, comments, related links or the page footer, even next to the title',(await Promise.all([
+    pg({body:`<aside>${time('2026-10-30')}</aside>`}),pg({body:`<div class="sidebar-box">${time('2026-10-30')}</div>`}),
+    pg({body:`<ul class="related-stories"><li><a href="/x">Other nets</a> ${time('2026-10-30')}</li></ul>`}),
+    pg({end:`<section id="comments"><p>${time('2026-10-30',' itemprop="datePublished"')}</p></section>`}),
+    pg({wrap:s=>s+`<footer>${time('2026-10-30',' pubdate')}</footer>`})].map(h=>when(h)))).every(d=>d===''));
+  ok('a page wrapper named for its sidebar ("has-sidebar") doesn’t hide the article’s date',await when(pg({body:`<p>${time('2026-10-30')}</p>`,wrap:s=>`<div class="layout has-sidebar">${s}<div class="sidebar">Links</div></div>`}))===OCT30);
+  ok('a date class with its text: after a long standfirst (Martin Fowler), a dateline (Daring Fireball)',
+    await when(pg({body:`<p class="abstract">${'A long standfirst about nets and fog. '.repeat(18)}</p><p class="date">13 October 2026</p>`}))==='October 13, 2026'&&
+    await when(pg({body:'<h6 class="dateline">Wednesday, 12 March 2025</h6>'}))==='March 12, 2025');
+  const four={head:ld({'@context':'https://schema.org/','@type':'Article',datePublished:'2026-10-27'})+meta('name','date','2026-10-28'),body:`<p>${time('2026-10-29')}</p>`};
+  const U='https://example.com/2026/10/30/fog-nets/';
+  ok('the order: JSON-LD, then meta tags, then the page, then the link',
+    await when(pg(four),U)==='October 27, 2026'&&await when(pg({...four,head:meta('name','date','2026-10-28')}),U)==='October 28, 2026'&&
+    await when(pg({body:four.body}),U)==='October 29, 2026'&&await when(pg(),U)===OCT30);
+  ok('the link: BBC’s article/20261015-…, a month only',await when(pg(),'https://www.bbc.com/future/article/20261015-fog-nets')==='October 15, 2026'&&await when(pg(),'https://example.com/2026/10/fog-nets')==='October 2026');
+  const bad={head:ld({'@context':'https://schema.org','@type':'Article',datePublished:'1850-01-01'})+meta('name','date','2099-01-01'),body:`<p>${time('2026-02-30')}</p>`};
+  ok('impossible dates are passed over: before 1900, ahead, no such day',await when(pg(bad),U)===OCT30&&await when(pg(bad))==='');
+  ok('nothing found: no date',await when(pg())==='');
 });
