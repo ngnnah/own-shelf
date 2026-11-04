@@ -261,6 +261,16 @@ function mdToBlocks(raw){
 function htmlToBlocks(html){
   const dom=new DOMParser().parseFromString(html,'text/html');
   dom.querySelectorAll('script,style,noscript,iframe,svg,button,nav,form,input,select,textarea,template,object,video,audio,canvas,meta,link').forEach(n=>n.remove());
+  // A credit drawn over a picture (BBC, 2026: a <span> beside the <img>, outside the <figcaption>) would read as a
+  // stray paragraph and part the caption from its picture. Text in a <figure>, outside its caption, that the caption
+  // or a picture's alt text already holds is dropped.
+  const pic='img,picture,figcaption';
+  dom.querySelectorAll('figure').forEach(fig=>{
+    const held=[...fig.querySelectorAll('figcaption,img')].map(e=>textKey(e.tagName==='IMG'?e.alt:e.textContent)).filter(Boolean);
+    if(held.length) [...fig.querySelectorAll('*')].filter(e=>!e.matches(pic)&&!e.querySelector(pic)&&!e.closest('figcaption')
+      &&e.parentElement.closest('figure')===fig&&(e.parentElement===fig||e.parentElement.querySelector(pic)))
+      .forEach(e=>{const k=textKey(e.textContent);if(k&&held.some(h=>h.includes(k))) e.remove();});
+  });
   const out=[];let cur=null,quote=0,inLi=0,brRun=0,pendingBrk=false;const lists=[];
   const flush=()=>{
     if(cur){
@@ -630,6 +640,27 @@ function markBareWrappers(doc){
   doc.querySelectorAll('div').forEach(d=>{
     if(d.attributes.length||d.childElementCount!==1||[...d.childNodes].some(n=>n.nodeType===3&&n.nodeValue.trim())) return;
     const c=d.firstElementChild;d.className=weight(c.getAttribute('class'))+weight(c.id)>0?'bare-wrapper bare-content':'bare-wrapper';
+  });
+  return doc;
+}
+// Readability turns a <div> holding only a <p> into that <p> (for sites that wrap each paragraph), but one level only.
+// A paragraph wrapped in several such <div>s (BBC, 2026: div > div[data-component=text-block] > div > div > p) adds
+// its score to its wrappers, and the article holding them all gets a ninth of it; a boxed aside whose paragraphs sit
+// side by side then outscores the whole article and is all that's kept. unwrapParagraphs collapses the whole chain:
+// <div>s each holding only the next one and no text, ending in a <p> under a quarter links (Readability's limit for
+// its own one-level unwrap), become that <p>. A wrapper that tells Readability something stays: a class or id its
+// patterns match, a role, hidden. So does a paragraph under 25 letters, which Readability doesn't score: wrapped,
+// clean-up removes it, as before; unwrapped, BBC's "--" separators and "More like this:" (over links that are
+// dropped) would come through.
+function unwrapParagraphs(doc){
+  const R=Readability.prototype.REGEXPS,len=e=>e.textContent.replace(/\s+/g,' ').trim().length;
+  const plain=d=>d.tagName==='DIV'&&d.childElementCount===1&&![...d.childNodes].some(n=>n.nodeType===3&&n.nodeValue.trim())
+    &&!d.hasAttribute('role')&&!d.hasAttribute('hidden')&&d.getAttribute('aria-hidden')!=='true'
+    &&!(s=>R.positive.test(s)||R.negative.test(s)||R.unlikelyCandidates.test(s))(d.className+' '+d.id);
+  doc.querySelectorAll('p').forEach(p=>{
+    const t=len(p);if(t<25||[...p.querySelectorAll('a')].reduce((a,l)=>a+len(l),0)/t>=0.25) return;
+    let w=p;while(w.parentElement&&plain(w.parentElement)) w=w.parentElement;
+    if(w!==p) w.replaceWith(p);
   });
   return doc;
 }

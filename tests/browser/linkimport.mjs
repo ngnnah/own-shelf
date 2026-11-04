@@ -1,5 +1,5 @@
 // Link import's article extraction, as the app runs it on a page the Worker fetched: parse, find the subtitle, lift
-// article headers, mark bare wrappers, Readability, htmlToBlocks, put the subtitle first.
+// article headers, unwrap paragraphs, mark bare wrappers, Readability, htmlToBlocks, put the subtitle first.
 // Usage: node tests/browser/linkimport.mjs [repo dir]
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
@@ -21,7 +21,7 @@ const blocks=(html,steps,dek)=>page.evaluate((html,steps,dek)=>{
   return withDek(htmlToBlocks(new Readability(doc).parse().content),d).filter(b=>b.text).map(b=>({t:b.t,text:b.text}));
 },html,steps,dek);
 const texts=async(...a)=>(await blocks(...a)).map(b=>b.text);
-const ALL=['liftArticleHeaders','markBareWrappers'];
+const ALL=['liftArticleHeaders','unwrapParagraphs','markBareWrappers']; // readable()'s order
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 
 await t.run(async()=>{
@@ -76,6 +76,36 @@ await t.run(async()=>{
   ok('with wrappers taking their chunk’s class weight, the newsletter runs to its last link',same(kept.slice(-8,-5),LINKS)&&/^\+ These are the oddest weather records/.test(kept.at(-1)));
   ok('everything before the list is as before',same(kept.slice(0,cut.length),cut)&&kept.length===cut.length+8);
   ok('the footer, title and byline stay out',!kept.some(s=>/Share this story|©|The Morning Drip:|Ada Rivers|October 27/.test(s)));
+
+  // An article whose every paragraph sits four plain <div>s deep, beside a boxed aside of four paragraphs side by
+  // side under a "Content" class (BBC Future, 2026)
+  must('unwrapParagraphs exists',await page.evaluate(()=>typeof window.unwrapParagraphs==='function'));
+  const nested=fixture('nested-paragraph-wrappers.html'),ASIDE=['1. Keep it taut:','2. Keep it clean:','3. Face it right:','4. Mind the gutter:'];
+  const boxed=await texts(nested,['liftArticleHeaders','markBareWrappers']);
+  ok('the nested fixture shows the problem: without unwrapping, the boxed aside is all that comes in',boxed.length===4&&boxed.every((s,i)=>s.startsWith(ASIDE[i]))||console.log('  got',boxed));
+  const whole=await blocks(nested,ALL),wt=whole.map(b=>b.text);
+  ok('with paragraphs unwrapped, the whole article comes in, from its first paragraph to its last',wt.length===21&&/^On the ridge above the village/.test(wt[0])&&/^Still, Varga says/.test(wt.at(-1))||console.log('  got',wt));
+  ok('its subheadings in place',same(whole.filter(b=>b.t==='h').map(b=>b.text),['A finer mist','The nets themselves'])&&wt.indexOf('A finer mist')===3);
+  const box=wt.indexOf('Three ways to help a fog net');
+  ok('the aside in its place: its title and four paragraphs after the tenth paragraph',box===12&&ASIDE.every((a,i)=>wt[box+1+i].startsWith(a))&&/^Varga, for her part/.test(wt[box+5]));
+  ok('the title, byline, picture credit, "More like this:" and its links, the "--" and the footer stay out',!wt.some(s=>/fog nets catch less|Ada Rivers|More like this|rain gauges|dew pond|^--$|Copyright|Terms of use/.test(s)));
+  ok('what stays wrapped: a paragraph under 25 letters (clean-up removes it, as before), one a quarter links or more, one under a "Content" class',
+    await page.evaluate(h=>{const d=new DOMParser().parseFromString(h,'text/html');unwrapParagraphs(d);const ps=[...d.querySelectorAll('article p')];
+      const up=t=>ps.find(p=>p.textContent.trim().startsWith(t)).parentElement;
+      return up('On the ridge').tagName==='ARTICLE'&&up('--').tagName==='DIV'&&up('More like this').tagName==='DIV'&&up('• How rain').tagName==='DIV'&&/ContentStyled/.test(up('1. Keep').className);},nested));
+  ok('unwrapping changes nothing on the other fixtures',same(await texts(header,ALL),await texts(header,['liftArticleHeaders','markBareWrappers']))
+    &&same(await texts(chunked,ALL,true),await texts(chunked,['liftArticleHeaders','markBareWrappers'],true)));
+  // A picture's credit drawn over it, outside the caption (BBC, 2026), in htmlToBlocks
+  const fig=html=>page.evaluate(h=>htmlToBlocks(h).map(b=>b.t==='img'?{t:'img',caption:b.caption||''}:{t:b.t,text:b.text}),html);
+  const IMG='<img src="https://example.com/net.jpg" alt="Ada Rivers A fog net at dawn">',CAP='<figcaption>A fog net at dawn (Credit: Ada Rivers)</figcaption>';
+  const hero=(await page.evaluate(h=>{const d=new DOMParser().parseFromString(h,'text/html');unwrapParagraphs(liftArticleHeaders(d));markBareWrappers(d);
+    return htmlToBlocks(new Readability(d).parse().content).slice(0,2).map(b=>b.t==='img'?'img: '+b.caption:b.t+': '+b.text);},nested));
+  ok('the nested fixture’s picture comes in with its caption, and its credit isn’t a paragraph',same(hero,['img: A fog net on the ridge at dawn (Credit: Ada Rivers)','p: On the ridge above the village, the fog nets have hung between their poles for thirty years, and for most of that time they filled the tanks below by noon. Lately, the keepers say, the tanks are half empty by the evening.'])||console.log('  got',hero));
+  ok('a credit beside the picture that the caption holds is dropped, and the caption stays with its picture',same(await fig(`<figure><div>${IMG}<span class="credit">Ada Rivers</span></div>${CAP}</figure><p>The nets.</p>`),[{t:'img',caption:'A fog net at dawn (Credit: Ada Rivers)'},{t:'p',text:'The nets.'}]));
+  ok('…and one only the alt text holds, with no caption',same(await fig(`<figure>${IMG}<span>Ada Rivers</span></figure>`),[{t:'img',caption:''}]));
+  ok('other text in a figure stays: a pull quote, a note the caption doesn’t hold',
+    same(await fig('<figure><blockquote><p>A net is patient.</p></blockquote><figcaption>Ines Varga</figcaption></figure>'),[{t:'quote',text:'A net is patient.'},{t:'p',text:'Ines Varga'}])
+    &&same(await fig(`<figure>${IMG}<p>Drawn by the keepers’ school</p>${CAP}</figure>`),[{t:'img',caption:''},{t:'p',text:'Drawn by the keepers’ school'},{t:'p',text:'A fog net at dawn (Credit: Ada Rivers)'}]));
 
   /* ---------- the publish date when Readability finds none (pageDate) ---------- */
   must('pageDate exists',await page.evaluate(()=>typeof window.pageDate==='function'));
