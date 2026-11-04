@@ -6,7 +6,7 @@
 //   search.mjs      search inside a book: accent folding, counts, the 200 cap, marking the match, Enter, Escape
 //   notefilter.mjs  the "With note" chip in the highlights drawer
 //   join.mjs        overlapping or touching highlights join into one, as on a Kindle: at either end, bridging two,
-//                   across paragraphs, a recolour inside one, notes joined, Note, keys 1–5, the pull quote,
+//                   across paragraphs, a recolour inside one, notes joined, Note, keys 1–4, the pull quote,
 //                   "Joined N highlights · Undo", a sorted Coral highlight keeping its id (To sort, its fact card)
 //   deletes.mjs     deletes that lose highlights or notes ask for "yes"
 //   trash.mjs       the Trash: removed books, highlights and notes, restore, delete forever, the 30-day purge
@@ -36,6 +36,10 @@
 //                   caret as it grows and the keyboard opens or pans; Save, a tap outside, Escape, Cancel; still a
 //                   floating, draggable card with a mouse. Delete in the word card (the underline goes, Undo) and on the
 //                   back of a Study card, a word and a fact card (the next card shows, Undo puts it back in the deck)
+//   looks.mjs       Settings → Look (Classic and three Looks, Leather & vellum by default), per device and never synced,
+//                   day and night within a Look, only the chosen Look's font and textures loading, Classic pixel for
+//                   pixel as without the Looks' CSS, no SVG filters, the band clipped by #shelf, Scroll's edge curls,
+//                   ink on the highlight tints; screenshots beside the themes lab's mocks
 //   fastscroll.mjs  the fast-scroll handle under 1180 px: shown while scrolling, dragged by finger or mouse to any part
 //                   with the section and percentage beside it, the position saved, none at 1280 px or for short texts
 //   wordcard.mjs    the richer word card (lookups mocked): synonyms, antonyms and the dictionary's examples on saving,
@@ -62,7 +66,8 @@
 //                   selected phrase as the blank), Skip and Show skipped, Make the rest facts, the sorting surviving
 //                   a Kindle re-import, the Facts chip, the Trash, fact cards in Study
 //   setup.mjs       a fork's Firebase setup errors name the setting to fix (Firebase SDK faked)
-//   colours.mjs     colour meanings: five swatches and keys 1–5, renaming a meaning in Settings, grouping by colour
+//   colours.mjs     colour meanings: the toolbar's four wider swatches (no Mint, no Copy) and keys 1–4, docked at
+//                   390 and 320 px, an existing Mint highlight, renaming a meaning in Settings, grouping by colour
 //                   in the Notebook, the drawer and the export, Kindle orange importing as amber (screenshots in out/colours/)
 //   signin.mjs      Google sign-in with the Firebase SDK stubbed: popup or redirect, the iPhone home-screen app,
 //                   the message for each failure, a redirect back without an account, local mode
@@ -100,7 +105,7 @@ import {fileURLToPath} from 'node:url';
 import {launch,quit} from './lib.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','shelves.mjs','grid.mjs','kindle.mjs','words.mjs','wordbox.mjs','notesheet.mjs','wordsheet.mjs','fastscroll.mjs','wordcard.mjs','study.mjs','progress.mjs','sort.mjs','migrate.mjs','linkimport.mjs','paste.mjs','setup.mjs','colours.mjs','signin.mjs','dialogs.mjs','overflow.mjs','listen.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','shelves.mjs','grid.mjs','kindle.mjs','words.mjs','wordbox.mjs','notesheet.mjs','wordsheet.mjs','fastscroll.mjs','wordcard.mjs','study.mjs','progress.mjs','sort.mjs','migrate.mjs','linkimport.mjs','paste.mjs','setup.mjs','colours.mjs','signin.mjs','dialogs.mjs','overflow.mjs','listen.mjs','looks.mjs'];
 const jobs=Math.max(1,Math.floor(Number(process.env.TEST_JOBS))||4),live=jobs===1;
 const timesFile=join(here,'out','times.json');
 let last={};try{last=JSON.parse(readFileSync(timesFile,'utf8'));}catch{}

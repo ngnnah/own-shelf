@@ -173,7 +173,7 @@ await t.run(async()=>{
   ok('saved from the reader, the heading shows the new title',await until(()=>[...document.querySelectorAll('.hero h1 .ln')].map(s=>s.textContent).join(' ')==='Renamed Here'));
 
   // a confirmation over Details: a tap outside answers no and leaves Details open
-  await t.select('#col p.hp');await page.click('#tool [data-c="mint"]');await until(()=>document.querySelector('#hlCount').textContent==='1');
+  await t.select('#col p.hp');await page.click('#tool [data-c="sky"]');await until(()=>document.querySelector('#hlCount').textContent==='1');
   await sleep(800); // the shelf entry's highlight count is saved after 0.5 s; Remove asks only when it has some
   await page.click('.hero h1');await page.waitForSelector('#detM:not(.hidden)');
   await page.click('#dRemove');await page.waitForSelector('#confirmM:not(.hidden)');

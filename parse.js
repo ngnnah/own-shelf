@@ -493,9 +493,25 @@ function speechWord(text,i,len){
 }
 
 /* ---------- links ---------- */
-// First http(s) link in shared text, without trailing punctuation or brackets.
-function firstUrl(s){const m=String(s||'').match(/https?:\/\/[^\s<>"'“”‘’]+/i);return m?m[0].replace(/[.,;:!?)\]}>]+$/,''):'';}
+// The http(s) links in shared text, without trailing punctuation or brackets.
+const urlsIn=s=>(String(s||'').match(/https?:\/\/[^\s<>"'“”‘’]+/gi)||[]).map(u=>u.replace(/[.,;:!?)\]}>]+$/,''));
+function firstUrl(s){return urlsIn(s)[0]||'';}
 const isLoneUrl=s=>/^\s*https?:\/\/\S+\s*$/i.test(String(s||''));
+// The first link of a text/uri-list (RFC 2483: one per line, a # line is a comment).
+const firstUri=s=>String(s||'').split(/\r?\n/).map(l=>l.trim()).find(l=>l&&l[0]!=='#')||'';
+// The one web link a short copied text stands for, or '': the link is in the text or comes in `links` (a copied URL,
+// an anchor's href), and besides it the text holds at most a title, 150 characters or fewer on one or two lines
+// ("Title https://…", "Title\nhttps://…", an anchor's own words). Two different links, or a paragraph that holds a
+// link, stand for none. The same link with other query or # parts (tracking parameters) counts once; the first given
+// is kept, so a copied URL wins over the text's.
+function sharedLink(text,links=[]){
+  const s=String(text||''),inText=urlsIn(s);
+  const all=[...links,...inText].filter(u=>/^https?:\/\/\S+$/i.test(u||''));
+  const key=u=>u.replace(/^https?:\/\/(www\.)?/i,'').replace(/[?#].*$/,'').replace(/\/+$/,'').toLowerCase();
+  if(!all.length||new Set(all.map(key)).size>1) return '';
+  const rest=inText.reduce((r,u)=>r.split(u).join(' '),s).split('\n').map(l=>l.trim()).filter(l=>/[\p{L}\p{N}]/u.test(l));
+  return rest.length<=2&&rest.join(' ').length<=150?all[0]:'';
+}
 // Readability keeps the best-scoring block and its strong siblings. An <article>'s <header> (title, standfirst,
 // summary box) scores too low as a whole and is dropped; unwrapped, its paragraphs are judged one by one.
 function liftArticleHeaders(doc){doc.querySelectorAll('article header').forEach(h=>h.replaceWith(...h.childNodes));return doc;}
@@ -568,4 +584,4 @@ function decodeBody(buf,type){
   try{return new TextDecoder(cs||'utf-8').decode(buf);}catch(e){return new TextDecoder('utf-8').decode(buf);}
 }
 // ===== PARSE END =====
-if(typeof module!=='undefined') module.exports={linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,decodeBody,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,speechChunks,speechWord,withDek};
+if(typeof module!=='undefined') module.exports={linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,firstUri,sharedLink,decodeBody,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,speechChunks,speechWord,withDek};
