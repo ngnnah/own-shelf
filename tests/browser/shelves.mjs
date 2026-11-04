@@ -194,10 +194,11 @@ await t.run(async()=>{
     await page.evaluate(()=>scrollTo(0,0));
     const a=await spot(cov(KINDLE),false);
     await page.mouse.move(a.x,a.y);await page.mouse.down();await page.mouse.move(a.x+12,a.y+12,{steps:3});
-    const y0=await page.evaluate(()=>scrollY);await page.mouse.move(a.x,836,{steps:4});await sleep(600);
+    // the page scrolls a few px each frame, and a busy machine draws few frames: wait for the distance, not a time
+    const y0=await page.evaluate(()=>scrollY);await page.mouse.move(a.x,836,{steps:4});await until(y=>scrollY>y+150,y0);
     const y1=await page.evaluate(()=>scrollY);
     ok('dragging near the bottom edge scrolls the page down',y1>y0+150);
-    await page.mouse.move(a.x,6,{steps:4});await sleep(500);
+    await page.mouse.move(a.x,6,{steps:4});await until(y=>scrollY<y-150,y1);
     ok('… and near the top edge, up',(await page.evaluate(()=>scrollY))<y1-150);
     await page.keyboard.press('Escape');await page.mouse.up();
     ok('… and Escape ends that drag too',!(await ghost())&&!(await page.$('.book.lifted')));
@@ -436,7 +437,7 @@ await t.run(async()=>{
   {
     const a=await spot(nameSel(poetry),false);
     await page.mouse.move(a.x,a.y);await page.mouse.down();await page.mouse.move(a.x+12,a.y+12,{steps:3});
-    const y0=await page.evaluate(()=>scrollY);await page.mouse.move(a.x,836,{steps:4});await sleep(600);
+    const y0=await page.evaluate(()=>scrollY);await page.mouse.move(a.x,836,{steps:4});await until(y=>scrollY>y+150,y0);
     ok('dragging a shelf near the bottom edge scrolls the page',(await page.evaluate(()=>scrollY))>y0+150&&await page.$('.shelf-label.drag-ghost'));
     await page.keyboard.press('Escape');await page.mouse.up();
   }
