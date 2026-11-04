@@ -502,9 +502,10 @@ async function insertClip(html,txt,imgs){
 pasteBox.addEventListener('paste',async e=>{
   const cd=e.clipboardData;if(!cd) return;
   e.preventDefault();
-  const html=cd.getData('text/html'),txt=cd.getData('text/plain');
-  if(isLoneUrl(txt)&&canImportLinks()){$('#link').value=txt.trim();importLink(txt);return;}
-  await insertClip(html,txt,[...(cd.files||[])].filter(f=>/^image\//.test(f.type)));
+  const c=clipOf(cd.getData('text/html'),cd.getData('text/plain'),firstUri(cd.getData('text/uri-list')),[...(cd.files||[])].filter(f=>/^image\//.test(f.type)));
+  const url=canImportLinks()&&clipLink(c);
+  if(url){$('#link').value=url;importLink(url);return;}
+  await insertClip(c.html,c.txt,c.imgs);
 });
 pasteBox.addEventListener('input',()=>{pasteBox.classList.toggle('empty',!pasteBox.textContent.trim()&&!pasteBox.querySelector('img'));clearTimeout(detect.t);detect.t=setTimeout(detect,500);});
 function currentSource(){
@@ -1449,27 +1450,45 @@ async function importLink(raw){
 }
 $('#linkGo').onclick=()=>importLink($('#link').value);
 $('#link').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();importLink($('#link').value);}});
-// The clipboard → {html, txt, imgs}; rejects when the read is refused or unsupported. Call it from a tap with no await
-// before it: iOS reads the clipboard only while the tap is fresh, and shows its own Paste bubble for it.
+// The clipboard → clipOf(); rejects when the read is refused or unsupported. Call it from a tap with no await before
+// it: iOS reads the clipboard only while the tap is fresh, and shows its own Paste bubble for it.
 async function readClip(){
-  let html='',txt='';const imgs=[];
+  let html='',txt='',uri='';const imgs=[];
   if(navigator.clipboard&&navigator.clipboard.read){
     for(const it of await navigator.clipboard.read()){
       if(!html&&it.types.includes('text/html')) html=await (await it.getType('text/html')).text();
       if(!txt&&it.types.includes('text/plain')) txt=await (await it.getType('text/plain')).text();
+      // a URL that can't be read leaves the rest as it was
+      if(!uri&&it.types.includes('text/uri-list')) uri=firstUri(await it.getType('text/uri-list').then(b=>b.text(),()=>''));
       const im=it.types.find(t=>/^image\//.test(t));if(im) imgs.push(new File([await it.getType(im)],'clipboard',{type:im}));
     }
   } else txt=await navigator.clipboard.readText();
-  return {html,txt,imgs};
+  return clipOf(html,txt,uri,imgs);
 }
+// {html, txt, uri, imgs}. A link copied in another iOS app can come as a URL alone (public.url): WebKit gives it to
+// the page as text/uri-list only, with no text/plain, so a clipboard with nothing else reads as that link's text, as
+// a paste into a text field does. A copied picture's own URL never does.
+const clipOf=(html,txt,uri,imgs)=>({html,txt:txt||(html||imgs.length?'':uri),uri,imgs});
 const clipEmpty=c=>!c.html.trim()&&!c.txt.trim()&&!c.imgs.length;
-// Paste: a lone link imports as a link, anything else goes into the paste box. From the shelf (add), the Add dialog
-// opens fresh first, and a link's book is added straight away, as a deep link's is.
+// The link a clipboard stands for, or '': its text is a lone link (as before), or, with no picture, the clipboard
+// holds one link and at most its title (sharedLink in parse.js): a copied URL beside a title, "Title https://…", or
+// copied rich text that is one anchor.
+function clipLink(c){
+  if(isLoneUrl(c.txt)) return c.txt.trim();
+  if(c.imgs.length) return '';
+  if(!c.html.trim()) return sharedLink(c.txt,[c.uri]);
+  const b=htmlToBlocks(c.html);
+  if(b.some(x=>x.t==='img')) return '';
+  return sharedLink(b.map(x=>x.text||'').join('\n'),[c.uri,...b.flatMap(x=>(x.marks||[]).filter(m=>m.k==='a').map(m=>m.href))]);
+}
+// Paste: a link imports as a link, anything else goes into the paste box. From the shelf (add), the Add dialog opens
+// fresh first, and a link's book is added straight away, as a deep link's is.
 async function pasteClip(add){
   let c;
   try{c=await readClip();}
   catch(e){if(add) openImport();toast('Couldn’t read the clipboard. Paste into the box instead.');pasteBox.focus();return;}
-  if(isLoneUrl(c.txt)){if(add) addLink(c.txt.trim()); else{$('#link').value=c.txt.trim();importLink(c.txt);}return;}
+  const url=clipLink(c);
+  if(url){if(add) addLink(url); else{$('#link').value=url;importLink(url);}return;}
   if(clipEmpty(c)){toast('The clipboard is empty');return;}
   if(add) openImport();
   await insertClip(c.html,c.txt,c.imgs);
@@ -1479,8 +1498,8 @@ $('#addPaste').onclick=()=>pasteClip(true);
 // Paste link: the clipboard's link fills the link field and is fetched for review.
 $('#linkPaste').onclick=()=>readClip().then(c=>{
   if(clipEmpty(c)){toast('The clipboard is empty');return;}
-  const url=firstUrl(c.txt);if(url) $('#link').value=url;
-  importLink(c.txt);
+  const url=clipLink(c)||firstUrl(c.txt)||firstUrl(c.uri);if(url) $('#link').value=url;
+  importLink(url||c.txt);
 },()=>{toast('Couldn’t read the clipboard. Paste the link into the field instead.');$('#link').focus();});
 
 /* ================= notebook ================= */

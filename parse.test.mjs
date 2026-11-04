@@ -4,13 +4,32 @@ import {ok,done} from './test-util.mjs';
 
 // parse.js is a classic browser script; run it in a sandbox and pick up its globals.
 const P={};vm.runInNewContext(readFileSync(new URL('./parse.js',import.meta.url),'utf8'),Object.assign(P,{TextDecoder,module:{}}));
-const {firstUrl,isLoneUrl,decodeBody,mdToBlocks,finalize,parseDate,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,withDek}=P.module.exports;
+const {firstUrl,isLoneUrl,firstUri,sharedLink,decodeBody,mdToBlocks,finalize,parseDate,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,withDek}=P.module.exports;
 
 ok('firstUrl: bare link',firstUrl('https://example.com/a?b=1')==='https://example.com/a?b=1');
 ok('firstUrl: from shared text',firstUrl('Read this: “Great essay” https://example.com/x/y.html.')==='https://example.com/x/y.html');
 ok('firstUrl: drops closing bracket',firstUrl('(see https://example.com/p)')==='https://example.com/p');
 ok('firstUrl: none',firstUrl('no link here')===''&&firstUrl(null)==='');
 ok('isLoneUrl',isLoneUrl('  https://a.com/x \n')&&!isLoneUrl('see https://a.com')&&!isLoneUrl(''));
+ok('firstUri: first line, comments and blanks skipped',firstUri('# from an app\r\n\r\nhttps://a.com/x\r\nhttps://a.com/y')==='https://a.com/x'&&firstUri('')===''&&firstUri('# only a comment')==='');
+
+// sharedLink: a copied link with at most its title, from another app's share sheet
+const U='https://example.com/2026/11/03/fog-nets/';
+ok('sharedLink: a link alone',sharedLink(U)===U&&sharedLink('',[U])===U);
+ok('sharedLink: "Title https://…"',sharedLink('How fog nets water a village '+U)===U);
+ok('sharedLink: title and link on two lines',sharedLink('How fog nets water a village\n'+U+'\n')===U);
+ok('sharedLink: a title beside a copied URL',sharedLink('How fog nets water a village | MIT Technology Review',[U])===U);
+ok('sharedLink: a "via" line and the link',sharedLink('How fog nets water a village\nvia Tech Review\n'+U)===U);
+ok('sharedLink: the link said twice (an anchor and its text)',sharedLink('Fog nets '+U,[U])===U);
+ok('sharedLink: tracking parameters count once; the copied URL is kept',sharedLink('Fog nets '+U+'?utm_source=app&utm_medium=share',[U])===U
+  &&sharedLink('Fog nets '+U+'?utm_source=app')===U+'?utm_source=app');
+ok('sharedLink: a non-web copied URL is no link',sharedLink('',['mailto:a@example.com'])===''&&sharedLink('Fog nets',['app-scheme://story/1'])==='');
+ok('sharedLink: no link',sharedLink('Just a title')===''&&sharedLink('')===''&&sharedLink(null,[''])==='');
+ok('sharedLink: two different links are none',sharedLink(U+' https://example.com/other')===''&&sharedLink('Fog nets',[U,'https://example.org/x'])==='');
+const para='Fog nets are strung between two poles on the ridge above the village, and the water they catch runs down a pipe to a tank by the school. The full report is at '+U+' and it is worth reading.';
+ok('sharedLink: a paragraph that holds a link is none',sharedLink(para)===''&&sharedLink(para,[U])==='');
+ok('sharedLink: three lines of text besides the link are none',sharedLink('Fog nets\nA village on the ridge\nShared from an app\n'+U)==='');
+ok('sharedLink: the title limit is 150 characters',sharedLink('x'.repeat(150)+' '+U)===U&&sharedLink('x'.repeat(151)+' '+U)==='');
 
 const sjis=new Uint8Array([0x93,0xfa,0x96,0x7b]); // 日本 in Shift_JIS
 ok('decodeBody: charset from header',decodeBody(sjis.buffer,'text/html; charset=Shift_JIS')==='日本');
