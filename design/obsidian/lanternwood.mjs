@@ -4,7 +4,7 @@
 // Per variant: upstream's header, OFL notices and @font-face blocks; its Style Settings block dropped and each class
 // option baked on or off (what Style Settings would toggle); its whole-workspace forest backdrop (every rule gated
 // on lw-forest) dropped, keeping the variant's day/night image pair as custom properties; then our palette (every
-// text tier pushed to >= 4.5:1 on the surfaces it sits on) and our band CSS. Last, the embedded fonts the finished
+// text tier pushed to >= 4.5:1 on the surfaces it sits on) and our scene CSS. Last, the embedded fonts the finished
 // CSS never reaches go, with their notices.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,27 +30,31 @@ const worst = (fg, bgs) => Math.min(...bgs.map(b => contrast(fg, b)));
 const toward = (c, bgs, target, d) => { for (let i = 0; worst(c, bgs) < target && i < 100; i++) c = mix(c, d, 0.03); return c; };
 
 // ── variants ──
-// sky: the page, matched to the art's own sky where the band's top edge fades into it (sampled from the art).
-// lake: the calm strip at the foot of the band, under the status bar and the phone's icons.
+// sky: the page, matched to the art's own sky where the scene's top edge fades into it (sampled from the art).
+// lift: how much brighter the scene is drawn (1 = as upstream drew it).
 const VARIANTS = {
   'lanternwood-still': {
     title: 'Still', art: 'detailed', type: 'device',
-    day: { sky: '#d3e0cf', lake: '#2f6a6e', lift: 'none' }, night: { sky: '#1f374a', lake: '#10262f', lift: 'brightness(1.12) saturate(1.05)' },
+    day: { sky: '#d3e0cf', lift: 1 }, night: { sky: '#1f374a', lift: 1.12 },
     blurb: 'Detailed art; no pixel type anywhere: headings, text and interface in device fonts. The scene is the only pixel art.',
   },
   'lanternwood-classic': {
     title: 'Classic', art: 'classic', type: 'pixel-headings',
-    day: { sky: '#a2d6df', lake: '#2f7686', lift: 'none' }, night: { sky: '#223f4f', lake: '#112833', lift: 'brightness(1.08)' },
+    day: { sky: '#a2d6df', lift: 1 }, night: { sky: '#223f4f', lift: 1.08 },
     blurb: 'Classic (chunkier, brighter) art; pixel type for headings only; device fonts for text and interface.',
   },
 };
+// The scene's art is 3:1 (2172 x 724, both landscapes); shared.css sizes the scene from it.
+// A layer the art's shape and size: an SVG with only a 3:1 viewBox scales like the art under the same background-size.
+const sceneLayer = svg => `url("data:image/svg+xml,${`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 3 1'>${svg}</svg>`
+  .replace(/#/g, '%23').replace(/</g, '%3C').replace(/>/g, '%3E')}")`;
 // Style Settings class options baked on per variant (every other lw-* option class is baked off).
 const BAKE_ON = { detailed: ['lw-art-detailed'], classic: ['lw-art-classic'] };
 const COMMON_ON = ['lw-font-departure', 'lw-plain-navigation', 'lw-native-icons'];
 const TYPE_ON = { 'pixel-headings': [], device: ['lw-system-fonts', 'lw-plain-headings'] };
 // Style Settings ids that are headings, selects and variable sliders: not classes
 const NOT_CLASSES = ['lw-landscape', 'lw-type', 'lw-art-style', 'lw-font', 'lw-forest-height', 'lw-forest-opacity', 'lw-forest-brightness', 'lw-readable-width'];
-const REPLACED = 'lw-forest'; // the backdrop: every rule gated on it is replaced by our band
+const REPLACED = 'lw-forest'; // the backdrop: every rule gated on it is replaced by our scene
 // the comment that opens upstream's own CSS; everything above it is the header, OFL notices and @font-face
 const SOURCE_HEADER = '/* Lanternwood — original theme by David Hurtado, MIT.';
 // upstream's own text colours, the starting point for each tier
@@ -207,6 +211,7 @@ function trimFonts(pre, css) {
 }
 
 // Our colours for one mode: the page is the art's sky; every text tier is pushed to >= 4.6:1 on its surfaces.
+// Also the scene's veil and lift layers, which carry the mode's sky and lift as literals (an SVG can't read a var).
 function palette(t, day, up) {
   const { sky } = t, ink = day ? '#23372f' : '#ecebdf', W = '#ffffff', K = '#000000';
   const far = day ? '#0b1a14' : '#fffaf0'; // where coloured text is pushed when it is too faint
@@ -263,10 +268,11 @@ function palette(t, day, up) {
     'code-string': 'color-green', 'code-property': 'color-cyan', 'code-tag': 'color-red', 'code-value': 'color-purple',
     'code-operator': 'color-red', 'code-punctuation': 'text-muted', 'code-important': 'color-orange' }))
     p[k] = toward(p[src], [p['code-background']], 4.6, far);
-  // the lake strip: the art's deep water at its foot, darkened until its light ink reads
-  const navInk = '#f1efe3';
-  p['lwf-lake'] = toward(t.lake, [navInk], 4.8, K); p['lwf-lake-ink'] = navInk;
-  p['lwf-scene-lift'] = t.lift;
+  // the scene's veil: the sky over the art's top 18%, fading out, so the art's top edge never shows as a line
+  p['lwf-veil'] = sceneLayer(`<linearGradient id='v' x2='0' y2='1'><stop offset='0' stop-color='${sky}'/>` +
+    `<stop offset='.18' stop-color='${sky}' stop-opacity='0'/></linearGradient><rect width='3' height='1' fill='url(#v)'/>`);
+  // the lift: a grey drawn over the art in color-dodge multiplies each channel by 1 / (1 - grey), here by t.lift
+  p['lwf-lift'] = t.lift === 1 ? 'none' : sceneLayer(`<rect width='3' height='1' fill='${hexc(Array(3).fill(255 * (1 - 1 / t.lift)))}'/>`);
   // the neutral ramp's first steps follow the sky (menus, modals, settings use them)
   p['color-base-00'] = sky; p['color-base-05'] = p['background-primary-alt'];
   p['color-base-10'] = p['background-secondary']; p['color-base-20'] = p['background-secondary-alt'];
@@ -315,11 +321,14 @@ function snippet(key, U) {
  * What we changed from upstream ${U.version}:
  *  - The forest is on without Style Settings: its settings block is removed and each option is fixed
  *    (landscape: ${V.art}; native icons; regular interface font${V.type === 'device' ? '; reading font for headings' : ''}).
- *  - The scene is a band at the foot of the note pane, and the note's view stops above it, so no text is ever drawn
- *    on the art. On a phone the band is the navigation bar; with Obsidian's floating navigation the band stays in
- *    the pane and the floating bar sits on its lake. Upstream's whole-workspace backdrop is removed.
- *  - The page is the art's own sky colour, so the band's top edge melts into the page.
- *  - The crop keeps the centre (mountain, bridge, lake); on narrow panes and phones the cottages fall away first.
+ *  - The scene is the last thing in each note, below the text and the backlinks, across the full pane at the art's
+ *    own proportions: it shows only when the note is scrolled to its end, and at the pane's foot when the note is
+ *    shorter than the pane. No text is ever drawn on the art. It takes the room Obsidian leaves past a note's end.
+ *    Upstream's whole-workspace backdrop is removed.
+ *  - The page is the art's own sky colour, so the scene's top edge melts into the page.
+ *  - The scene is never under 200 px tall (300 px with the phone's floating bar, which then sits on the water); a
+ *    narrower pane crops the art's sides and keeps the centre (mountain, bridge, lake), so the cottages go first.
+ *  - The status bar and the phone's navigation bar are plain, in the sidebar's colour.
  *  - Night: a moonlit-blue page instead of near-black, and the scene lifted slightly.
  *  - Every text tier is at least 4.5:1 on the surfaces it sits on, day and night.
  *  - Quieter chrome: no pixel type in tabs, lists, properties or the status bar; thin 1px edges; no hard drop
