@@ -23,6 +23,39 @@ ok('finalize: title, author, date from Markdown',doc.title==='The Quiet Engine'&
 ok('finalize: explicit title wins (link import)',finalize(mdToBlocks('## Intro\n\n'+'Words here. '.repeat(30)),{title:'From Readability'}).title==='From Readability');
 ok('parseDate: ISO and long forms',parseDate('2024-03-01T10:00:00Z')==='2024-03-01'&&parseDate('July 2023')==='2023-07-01');
 
+/* ---------- link import: a page's publish date (pageDate's pieces; pageDate itself in tests/browser/linkimport.mjs) ---------- */
+const {dateText,urlDate,ldDates}=P; // function declarations land on the sandbox
+const all=(f,cases)=>Object.entries(cases).every(([i,want])=>f(i)===want||console.log('  got',JSON.stringify(f(i)),'for',i));
+ok('dateText: the forms pages use, written as link import writes dates',all(dateText,{
+  '2026-10-30':'October 30, 2026','2026-10-30T09:15:00Z':'October 30, 2026','2026/10/30':'October 30, 2026','2026.10.30':'October 30, 2026',
+  '20261030':'October 30, 2026','20261030T091500Z':'October 30, 2026','Oct 30, 2026':'October 30, 2026','October 30th, 2026':'October 30, 2026',
+  '30 October 2026':'October 30, 2026','3rd November 2026':'November 3, 2026','Wednesday, 12 March 2025':'March 12, 2025',
+  'Fri, 30 Oct 2026 09:15:00 GMT':'October 30, 2026','Published On 4 Nov 2026 4 Nov 2026':'November 4, 2026',
+  '[Submitted on 12 Jun 2017 (v1), last revised 2 Aug 2023]':'June 12, 2017'}));
+ok('dateText: the page’s own day, whatever its time zone',dateText('2026-10-30T23:30:00-04:00')==='October 30, 2026'&&dateText('2026-10-31T00:30:00+09:00')==='October 31, 2026');
+ok('dateText: a month without a day',all(dateText,{'2026/10':'October 2026','2026-10':'October 2026','October 2026':'October 2026','Sept. 2026':'September 2026'}));
+ok('dateText: …which parseDate sorts',parseDate(dateText('2026/10'))==='2026-10-01'&&parseDate(dateText('3rd November 2026'))==='2026-11-03');
+const ahead=n=>{const d=new Date();d.setDate(d.getDate()+n);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+ok('dateText: impossible dates are rejected',all(dateText,{'1899-12-31':'','2026-02-30':'','2026-13-01':'','2026-00-10':'','2099-01-01':'',[ahead(3)]:''}));
+ok('dateText: today and tomorrow are fine (time zones)',!!dateText(ahead(0))&&!!dateText(ahead(1)));
+ok('dateText: a year alone, a timestamp, a relative date or nothing gives nothing',all(dateText,{'2026':'','1730246400':'','2 days ago':'','':'',undefined:''}));
+ok('urlDate: the date in a link',all(urlDate,{
+  'https://example.com/2026/10/30/fog-nets/':'October 30, 2026','https://example.com/news/2026/11/4/fog-nets':'November 4, 2026',
+  'https://example.com/2026/Nov/3/fog-nets/':'November 3, 2026','https://example.com/blog/2026-10-30-fog-nets':'October 30, 2026',
+  'https://www.bbc.com/future/article/20261015-fog-nets':'October 15, 2026','https://example.com/fog-nets-20261021/':'October 21, 2026',
+  'https://example.com/2026/10/fog-nets':'October 2026'}));
+ok('urlDate: no date, an id, an impossible date, a query or no link gives nothing',all(urlDate,{
+  'https://example.com/fog-nets':'','https://example.com/news/1025576/fog-nets':'','https://example.com/p/20261399-fog':'',
+  'https://example.com/2026/13/45/fog':'','https://example.com/2026/Foo/3/fog':'','https://example.com/read?d=2026-10-30':'','not a link':''}));
+const LD={'@context':'https://schema.org/'};
+ok('ldDates: an article’s datePublished',ldDates([{...LD,'@type':'NewsArticle',datePublished:'2026-10-30T09:00:00Z',dateModified:'2026-11-02'}])[0]==='2026-10-30T09:00:00Z');
+ok('ldDates: in a @graph, the article before the web page',ldDates([{...LD,'@graph':[{'@type':'WebSite'},{'@type':'WebPage',datePublished:'2026-10-29'},{'@type':'BlogPosting',datePublished:'2026-10-30'}]}]).join()==='2026-10-30,2026-10-29');
+ok('ldDates: across scripts and arrays, in a mainEntity, with @type as a list or a URL',
+  ldDates([null,[{'@type':'Organization',name:'Fog Weekly'}],{...LD,'@type':'WebPage',mainEntity:{'@type':['Article','Report'],datePublished:'2026-10-26'}}])[0]==='2026-10-26'&&
+  ldDates({'@type':'http://schema.org/TechArticle',datePublished:{'@value':'2026-10-25'}})[0]==='2026-10-25');
+ok('ldDates: dateCreated when there is no datePublished',ldDates({'@type':'Article',dateCreated:'2026-10-24'})[0]==='2026-10-24');
+ok('ldDates: never a modified date, nor a comment’s or a person’s date',ldDates([{'@type':'Article',dateModified:'2026-11-02'},{'@type':'Comment',datePublished:'2026-11-01'},{'@type':'Person',birthDate:'1990-01-01'}]).length===0);
+
 // finalize({verbatim}) keeps every block: no title, byline, date or footnote guessing
 const vb=finalize(mdToBlocks('By the dead, said the first line.\n\nMarch 14, 2025\n\nNotes\n\n[1] Not a footnote.'),{title:'T',verbatim:true});
 ok('finalize verbatim: keeps a "By …" first line, a date line and a Notes block',vb.blocks.length===4&&vb.blocks[0].text.startsWith('By the dead')&&!vb.author&&!vb.written&&!vb.notes.length);

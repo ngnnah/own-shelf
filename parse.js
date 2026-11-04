@@ -61,8 +61,7 @@ const META_DATES=['article:published_time','og:article:published_time','og:publi
   'date','pubdate','publishdate','publish-date','publish_date','publication_date'];
 // A link's path → the date in it: /2026/10/30/, /2026/Oct/30/, -2026-10-30-, /20261030- (BBC), then /2026/10/ (a month).
 function urlDate(url){
-  let p;try{p=new URL(url).pathname;}catch(e){return '';}
-  const Y='((?:19|20)\\d\\d)',end='(?=$|[/_.-])',mon=new RegExp('^'+MON_RE+'$','i');let m;
+  const p=String(url||'').replace(/^[a-z][\w+.-]*:\/\/[^/?#]*/i,'').split(/[?#]/)[0],Y='((?:19|20)\\d\\d)',end='(?=$|[/_.-])',mon=new RegExp('^'+MON_RE+'$','i');let m;
   if((m=p.match(new RegExp('/'+Y+'/(\\d{1,2})/(\\d{1,2})(?=/|$)')))&&dateOut(m[1],m[2],m[3])) return dateOut(m[1],m[2],m[3]);
   if((m=p.match(new RegExp('/'+Y+'/([a-z]{3,9})/(\\d{1,2})(?=/|$)','i')))&&mon.test(m[2])) return dateOut(m[1],monthIdx(m[2])+1,m[3]);
   if((m=p.match(new RegExp('(?:^|[/_-])'+Y+'-?(\\d\\d)-?(\\d\\d)'+end)))&&dateOut(m[1],m[2],m[3])) return dateOut(m[1],m[2],m[3]);

@@ -204,6 +204,11 @@ await t.run(async()=>{
   await tap('#linkPaste');
   await until(()=>document.querySelector('#det').textContent.includes('Quay Walls'));
   ok('Paste link takes the link out of shared text',await value('#link')==='https://example.com/quay-walls');
+  // the helper's page has no date in its markup, so Readability finds none: the date in the link is shown for review
+  await t.page.$eval('#link',e=>{e.value='https://example.com/2026/10/30/sea-fog';});
+  await t.page.click('#linkGo');
+  await until(()=>document.querySelector('#det').textContent.includes('Sea Fog'));
+  ok('a page with no date of its own: the review shows the one in its link, to keep or change',(await text('#det')).includes('written October 30, 2026')&&await t.page.$eval('#fWritten',e=>e.placeholder)==='October 30, 2026');
   await cancelAdd();
   await openAdd();
   await t.page.$eval('#link',e=>{e.value='https://example.com/typed';});
