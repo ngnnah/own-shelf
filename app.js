@@ -30,9 +30,12 @@ function toastBlur(){const t=$('#toast');if(!t.contains(document.activeElement))
   t.addEventListener('focusout',()=>setTimeout(resume));
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&t.classList.contains('on'))toastOff();});
 }
-// Highlight colours in the toolbar's order (keys 1–5). The UI names a colour by its meaning, which the owner can rename
-// in Settings (SETTINGS.meanings holds the renamed ones); chips and groups go in meaning order.
+// Highlight colours. The UI names a colour by its meaning, which the owner can rename in Settings (SETTINGS.meanings
+// holds the renamed ones); chips and groups go in meaning order. PICKS are the toolbar's swatches in order (keys 1–4):
+// Mint isn't offered there, but highlights that have it (Kindle's green imports as Mint) keep it, and it stays in the
+// filters, groups, the export and Settings.
 const COLORS=[['sun','Sunny'],['mint','Mint'],['coral','Coral'],['sky','Sky'],['amber','Amber']];
+const PICKS=COLORS.filter(c=>c[0]!=='mint');
 const MEANINGS={sky:'Important',coral:'Facts & words',amber:'Quotes',sun:'Lesser',mint:'Other'}; // the defaults, in meaning order
 const BY_MEANING=Object.keys(MEANINGS);
 const COLORNAME=c=>(COLORS.find(x=>x[0]===c)||[c,c])[1];
@@ -67,9 +70,28 @@ const SIZES=['1.08rem','1.22rem','1.38rem'];
 function savePrefs(){ls.set('prefs',prefs);}
 // Arrange by Shelf came after the others: everyone is switched to it once, then their choice is kept
 if(!prefs.byShelf){prefs.byShelf=1;prefs.group='shelf';if(prefs.view==='list'){prefs.sort='shelf';prefs.dir=1;}savePrefs();}
+// Looks (design/themes-lab.html; styles.css scopes each by data-look on <html>), per device in prefs.look. The Theme
+// button switches day and night within the Look. Each loads its heading font only when chosen.
+const LOOKS={classic:{name:'Classic'},leather:{name:'Leather & vellum',font:'IM+Fell+English:ital@0;1'},ukiyoe:{name:'Ukiyo-e',font:'Zen+Old+Mincho:wght@400;500;600;700;900'},scroll:{name:'Scroll',font:'IM+Fell+English:ital@0;1'}};
+const LOOK_DEFAULT='leather';
+const lookOf=()=>LOOKS[prefs.look]?prefs.look:LOOK_DEFAULT;
+function applyLook(){
+  const look=lookOf(),root=document.documentElement,f=LOOKS[look].font;
+  if(look==='classic') root.removeAttribute('data-look'); else root.setAttribute('data-look',look);
+  if(f&&!document.querySelector(`link[data-look-font="${f}"]`)){
+    const l=document.createElement('link');l.rel='stylesheet';l.dataset.lookFont=f;l.href=`https://fonts.googleapis.com/css2?family=${f}&display=swap`;document.head.append(l);
+  }
+  const sel=document.getElementById('sLook');if(sel) sel.value=look;
+  // the browser's bar takes the Look's chrome (the bands at the top), in the mode on screen; Classic keeps index.html's
+  const chrome=look==='classic'?'':getComputedStyle(root).getPropertyValue('--chrome').trim();
+  for(const [m,c] of THEME_COLORS) m.content=chrome||c;
+}
+const THEME_COLORS=[...document.querySelectorAll('meta[name="theme-color"]')].map(m=>[m,m.content]);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyLook);
 function applyPrefs(){
   document.documentElement.style.setProperty('--fs',SIZES[prefs.size]);
   if(prefs.theme==='auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',prefs.theme);
+  applyLook();
   document.querySelectorAll('#segFmt button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.fmt===prefs.fmt));
   document.querySelectorAll('#segGroup button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.g===(prefs.view==='grid'?'shelf':prefs.group))); // Grid is always by shelf
   document.querySelectorAll('#segView button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===prefs.view));
@@ -502,9 +524,10 @@ async function insertClip(html,txt,imgs){
 pasteBox.addEventListener('paste',async e=>{
   const cd=e.clipboardData;if(!cd) return;
   e.preventDefault();
-  const html=cd.getData('text/html'),txt=cd.getData('text/plain');
-  if(isLoneUrl(txt)&&canImportLinks()){$('#link').value=txt.trim();importLink(txt);return;}
-  await insertClip(html,txt,[...(cd.files||[])].filter(f=>/^image\//.test(f.type)));
+  const c=clipOf(cd.getData('text/html'),cd.getData('text/plain'),firstUri(cd.getData('text/uri-list')),[...(cd.files||[])].filter(f=>/^image\//.test(f.type)));
+  const url=canImportLinks()&&clipLink(c);
+  if(url){$('#link').value=url;importLink(url);return;}
+  await insertClip(c.html,c.txt,c.imgs);
 });
 pasteBox.addEventListener('input',()=>{pasteBox.classList.toggle('empty',!pasteBox.textContent.trim()&&!pasteBox.querySelector('img'));clearTimeout(detect.t);detect.t=setTimeout(detect,500);});
 function currentSource(){
@@ -738,7 +761,7 @@ function buildReader(){
   let h=`<header class="hero"><h1${DOC.title.length>34?' class="long"':''} title="Edit details">${lines.map(l=>`<span class="ln">${esc(l)}</span>`).join('')}</h1>
     <p class="byline">${by}<button class="ed${by?'':' solo'}" aria-label="Edit details" title="Edit details">${PENCIL}</button></p>
     <div class="log">${DOC.written?`<span>Written <b>${esc(DOC.written)}</b></span>`:''}<span><b>${DOC.words.toLocaleString()}</b> words</span><span><b>${mins}</b> min</span><span><b>${N}</b> section${N>1?'s':''}</span>${DOC.notes.length?`<span><b>${DOC.notes.length}</b> notes</span>`:''}</div>
-    <div class="howto">Select text to highlight in ${COLORS.map(c=>`<span class="sw" style="background:var(--${c[0]}S)" title="${esc(meaning(c[0]))}"></span>`).join('')} · keys 1–${COLORS.length} work too</div>
+    <div class="howto">Select text to highlight in ${PICKS.map(c=>`<span class="sw" style="background:var(--${c[0]}S)" title="${esc(meaning(c[0]))}"></span>`).join('')} · keys 1–${PICKS.length} work too</div>
     ${N>1?`<details class="toc-inline"${N<=12?' open':''}><summary>Contents · ${N} sections</summary><ol class="tocl">${tocItems()}</ol></details>`:''}</header>`;
   const pulls=pickPulls();let idx=0,wordsAfter=DOC.words;
   S.forEach((s,si)=>{
@@ -883,6 +906,9 @@ thumb.addEventListener('pointerup',endScrub);thumb.addEventListener('pointercanc
 /* bar actions */
 $('#bFocus').onclick=e=>{const on=document.body.classList.toggle('focus');e.currentTarget.setAttribute('aria-pressed',on);onScroll();};
 $('#bSize').onclick=()=>{prefs.size=(prefs.size+1)%SIZES.length;savePrefs();applyPrefs();lastH=0;onScroll();toast(['Smaller','Regular','Larger'][prefs.size]+' text');};
+$('#sLook').innerHTML=Object.entries(LOOKS).map(([k,l])=>`<option value="${k}">${l.name}</option>`).join('');
+$('#sLook').value=lookOf();
+$('#sLook').onchange=e=>{prefs.look=e.target.value;savePrefs();applyLook();};
 $('#bTheme').onclick=()=>{const dark=matchMedia('(prefers-color-scheme: dark)').matches;const cur=prefs.theme==='auto'?(dark?'dark':'light'):prefs.theme;prefs.theme=cur==='dark'?'light':'dark';savePrefs();applyPrefs();};
 $('#bToc').onclick=()=>{renderToc();openDrawer('#toc');};
 $('#bHl').onclick=()=>openDrawer('#drawer');
@@ -950,8 +976,9 @@ function updateCount(){
 }
 function showTool(rect,h){
   editing=h||null;
-  tool.innerHTML=COLORS.map((c,i)=>{const m=`${esc(meaning(c[0]))} (${i+1})`;return `<button class="sw${h&&h.color===c[0]?' on':''}" style="background:var(--${c[0]}S)" data-c="${c[0]}" aria-label="${m}" title="${m}"></button>`;}).join('')+
-    `<span class="sep"></span><button class="tb" data-a="note">${h&&h.note?'Edit note':'Note'}</button>`+(h?`<button class="tb" data-a="del">Remove</button>`:`<button class="tb" data-a="word">Word</button><button class="tb" data-a="copy">Copy</button>`);
+  // background-color, not the background shorthand, so the stylesheet's background-clip holds (styles.css, #tool .sw)
+  tool.innerHTML=PICKS.map((c,i)=>{const m=`${esc(meaning(c[0]))} (${i+1})`;return `<button class="sw${h&&h.color===c[0]?' on':''}" style="background-color:var(--${c[0]}S)" data-c="${c[0]}" aria-label="${m}" title="${m}"></button>`;}).join('')+
+    `<span class="sep"></span><button class="tb" data-a="note">${h&&h.note?'Edit note':'Note'}</button>`+(h?`<button class="tb" data-a="del">Remove</button>`:`<button class="tb" data-a="word">Word</button>`);
   tool.classList.remove('hidden');
   if(coarse){tool.classList.add('docked');return;}
   tool.classList.remove('docked');const w=tool.offsetWidth,hh=tool.offsetHeight;
@@ -968,7 +995,6 @@ tool.addEventListener('click',e=>{
     hideTool();return;}
   if(b.dataset.a==='del'&&editing){const pids=editing.segs.map(s=>s.pid),tr=trashHighlights([editing]);HL=HL.filter(x=>x!==editing);commit();rerender(pids);hideTool();movedToTrash(tr);return;}
   if(b.dataset.a==='word'&&pendingSegs){saveWordFromSel(pendingSegs);return;}
-  if(b.dataset.a==='copy'&&pendingSegs){copyText(pendingSegs.map(s=>blockIndex[s.pid].text.slice(s.s,s.e)).join('\n\n'),'Copied');return;}
   if(b.dataset.a==='note'){let h=editing;if(!h&&pendingSegs){h=addHighlight(pendingSegs,null);getSelection().removeAllRanges();}if(h)openNote(h,tool.getBoundingClientRect());hideTool();}
 });
 let selT;
@@ -985,7 +1011,7 @@ addEventListener('scroll',()=>{if(tool.classList.contains('hidden')||coarse)retu
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){hideTool();closeDrawers();saveNote();$('#lightbox').classList.add('hidden');document.querySelectorAll('.modal:not(.hidden)').forEach(dismiss);return;}
   if(e.target.matches('textarea,input,[contenteditable]'))return;
-  if(/^[1-9]$/.test(e.key)&&COLORS[+e.key-1]&&pendingSegs&&!tool.classList.contains('hidden')){addHighlight(pendingSegs,COLORS[+e.key-1][0]);getSelection().removeAllRanges();hideTool();}
+  if(/^[1-9]$/.test(e.key)&&PICKS[+e.key-1]&&pendingSegs&&!tool.classList.contains('hidden')){addHighlight(pendingSegs,PICKS[+e.key-1][0]);getSelection().removeAllRanges();hideTool();}
 });
 // The note box and the word card stay inside the visible area, which an on-screen keyboard shrinks (visualViewport;
 // on an iPhone the page keeps its full height under the keyboard): docked at the bottom when `at` is null, else with
@@ -1449,27 +1475,45 @@ async function importLink(raw){
 }
 $('#linkGo').onclick=()=>importLink($('#link').value);
 $('#link').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();importLink($('#link').value);}});
-// The clipboard → {html, txt, imgs}; rejects when the read is refused or unsupported. Call it from a tap with no await
-// before it: iOS reads the clipboard only while the tap is fresh, and shows its own Paste bubble for it.
+// The clipboard → clipOf(); rejects when the read is refused or unsupported. Call it from a tap with no await before
+// it: iOS reads the clipboard only while the tap is fresh, and shows its own Paste bubble for it.
 async function readClip(){
-  let html='',txt='';const imgs=[];
+  let html='',txt='',uri='';const imgs=[];
   if(navigator.clipboard&&navigator.clipboard.read){
     for(const it of await navigator.clipboard.read()){
       if(!html&&it.types.includes('text/html')) html=await (await it.getType('text/html')).text();
       if(!txt&&it.types.includes('text/plain')) txt=await (await it.getType('text/plain')).text();
+      // a URL that can't be read leaves the rest as it was
+      if(!uri&&it.types.includes('text/uri-list')) uri=firstUri(await it.getType('text/uri-list').then(b=>b.text(),()=>''));
       const im=it.types.find(t=>/^image\//.test(t));if(im) imgs.push(new File([await it.getType(im)],'clipboard',{type:im}));
     }
   } else txt=await navigator.clipboard.readText();
-  return {html,txt,imgs};
+  return clipOf(html,txt,uri,imgs);
 }
+// {html, txt, uri, imgs}. A link copied in another iOS app can come as a URL alone (public.url): WebKit gives it to
+// the page as text/uri-list only, with no text/plain, so a clipboard with nothing else reads as that link's text, as
+// a paste into a text field does. A copied picture's own URL never does.
+const clipOf=(html,txt,uri,imgs)=>({html,txt:txt||(html||imgs.length?'':uri),uri,imgs});
 const clipEmpty=c=>!c.html.trim()&&!c.txt.trim()&&!c.imgs.length;
-// Paste: a lone link imports as a link, anything else goes into the paste box. From the shelf (add), the Add dialog
-// opens fresh first, and a link's book is added straight away, as a deep link's is.
+// The link a clipboard stands for, or '': its text is a lone link (as before), or, with no picture, the clipboard
+// holds one link and at most its title (sharedLink in parse.js): a copied URL beside a title, "Title https://…", or
+// copied rich text that is one anchor.
+function clipLink(c){
+  if(isLoneUrl(c.txt)) return c.txt.trim();
+  if(c.imgs.length) return '';
+  if(!c.html.trim()) return sharedLink(c.txt,[c.uri]);
+  const b=htmlToBlocks(c.html);
+  if(b.some(x=>x.t==='img')) return '';
+  return sharedLink(b.map(x=>x.text||'').join('\n'),[c.uri,...b.flatMap(x=>(x.marks||[]).filter(m=>m.k==='a').map(m=>m.href))]);
+}
+// Paste: a link imports as a link, anything else goes into the paste box. From the shelf (add), the Add dialog opens
+// fresh first, and a link's book is added straight away, as a deep link's is.
 async function pasteClip(add){
   let c;
   try{c=await readClip();}
   catch(e){if(add) openImport();toast('Couldn’t read the clipboard. Paste into the box instead.');pasteBox.focus();return;}
-  if(isLoneUrl(c.txt)){if(add) addLink(c.txt.trim()); else{$('#link').value=c.txt.trim();importLink(c.txt);}return;}
+  const url=clipLink(c);
+  if(url){if(add) addLink(url); else{$('#link').value=url;importLink(url);}return;}
   if(clipEmpty(c)){toast('The clipboard is empty');return;}
   if(add) openImport();
   await insertClip(c.html,c.txt,c.imgs);
@@ -1479,8 +1523,8 @@ $('#addPaste').onclick=()=>pasteClip(true);
 // Paste link: the clipboard's link fills the link field and is fetched for review.
 $('#linkPaste').onclick=()=>readClip().then(c=>{
   if(clipEmpty(c)){toast('The clipboard is empty');return;}
-  const url=firstUrl(c.txt);if(url) $('#link').value=url;
-  importLink(c.txt);
+  const url=clipLink(c)||firstUrl(c.txt)||firstUrl(c.uri);if(url) $('#link').value=url;
+  importLink(url||c.txt);
 },()=>{toast('Couldn’t read the clipboard. Paste the link into the field instead.');$('#link').focus();});
 
 /* ================= notebook ================= */

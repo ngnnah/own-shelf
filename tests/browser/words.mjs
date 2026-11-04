@@ -181,7 +181,7 @@ await t.run(async()=>{
   await page.evaluate(()=>getSelection().removeAllRanges());
   await page.evaluate(p=>{const el=[...document.querySelectorAll('#col .hp')].find(e=>e.textContent.includes(p));el.scrollIntoView({block:'center'});const r=document.createRange();r.selectNodeContents(el);getSelection().removeAllRanges();getSelection().addRange(r);},P1);
   await until(()=>!document.querySelector('#tool').classList.contains('hidden'));
-  await page.click('#tool [data-c="mint"]');await until(()=>document.querySelector('#hlCount').textContent==='1');
+  await page.click('#tool [data-c="amber"]');await until(()=>document.querySelector('#hlCount').textContent==='1');
   const stKey='state:'+(await page.evaluate(()=>JSON.parse(localStorage.getItem('upwind:last'))));
   let st;for(let i=0;i<30&&!(st&&st.hl&&st.hl.length);i++){await sleep(100);st=await idb(stKey);} // saved after 500 ms
   ok('a highlight over saved words keeps the block’s offsets',st&&st.hl.length===1&&same(st.hl[0].segs.map(s=>[s.s,s.e]),[[0,P1.length]]));

@@ -16,7 +16,7 @@ await t.run(async()=>{
   ok('no "With note" chip before any note',(await chipText('noted'))===null);
   await t.closeDrawer();
 
-  await page.click('mark.hl.c-mint');await until(()=>!document.querySelector('#tool').classList.contains('hidden'));
+  await page.click('mark.hl.c-sky');await until(()=>!document.querySelector('#tool').classList.contains('hidden'));
   ok('tapping a highlight shows the toolbar with Note',await vis('#tool')&&(await text('#tool [data-a="note"]'))==='Note');
   await page.click('#tool [data-a="note"]');await page.waitForSelector('#noteBox:not(.hidden)');
   await page.type('#noteTa','A synthetic note');await page.click('#noteSave');

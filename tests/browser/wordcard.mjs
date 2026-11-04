@@ -206,7 +206,7 @@ await t.run(async()=>{
   /* ---------- 6. fact cards: never looked up, no picture, nothing to add ---------- */
   for(const p of [P3,P4]){
     await page.evaluate(p=>{const el=[...document.querySelectorAll('#col .hp')].find(e=>e.textContent.includes(p));el.scrollIntoView({block:'center'});const r=document.createRange();r.selectNodeContents(el);getSelection().removeAllRanges();getSelection().addRange(r);},p);
-    await until(()=>!document.querySelector('#tool').classList.contains('hidden'));await page.keyboard.press('3');
+    await until(()=>!document.querySelector('#tool').classList.contains('hidden'));await page.keyboard.press('2');
   }
   must('two coral highlights',await until(()=>document.querySelector('#hlCount').textContent==='2'));
   const bookId=await page.evaluate(()=>JSON.parse(localStorage.getItem('upwind:last')));

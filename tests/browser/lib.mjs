@@ -140,15 +140,15 @@ export async function addQuietEngine(t,check=t.ok){
 
 const hlCount=(t,n)=>t.until(n=>document.querySelector('#hlCount').textContent===n,n);
 
-// Two mint highlights in the open Quiet Engine: one paragraph (toolbar), then two list items (key 2).
+// Two sky highlights in the open Quiet Engine: one paragraph (toolbar), then two list items (key 3).
 export async function highlightQuietEngine(t,check=t.ok){
   const {page}=t;
   await t.select('#col p.hp');
   check('toolbar appears on selection',await t.vis('#tool'));
-  await page.click('#tool [data-c="mint"]');await hlCount(t,'1');
-  check('highlight created',(await page.$$('mark.hl.c-mint')).length>0&&(await t.text('#hlCount'))==='1');
+  await page.click('#tool [data-c="sky"]');await hlCount(t,'1');
+  check('highlight created',(await page.$$('mark.hl.c-sky')).length>0&&(await t.text('#hlCount'))==='1');
   await t.select('.list .li:nth-child(1)','.list .li:nth-child(2)');
-  await page.keyboard.press('2');await hlCount(t,'2');
+  await page.keyboard.press('3');await hlCount(t,'2');
   check('highlight across two list items',(await t.text('#hlCount'))==='2'&&(await page.$$('.list .li mark.hl')).length>=2);
 }
 
