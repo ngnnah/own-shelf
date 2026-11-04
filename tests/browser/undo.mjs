@@ -103,7 +103,7 @@ const NOTES=`# Undo Notes\n\nBy Kit Tester\n\nThe lantern keeper was taciturn at
 await t.run(async()=>{
   await enterLocalMode(t,must);
   await addQuietEngine(t,must);
-  await highlightQuietEngine(t,must); // 2 mint highlights: a paragraph, then two list items
+  await highlightQuietEngine(t,must); // 2 sky highlights: a paragraph, then two list items
 
   // 1. a highlight, through the toolbar's Remove
   await toolRemove();

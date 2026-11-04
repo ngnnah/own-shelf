@@ -30,9 +30,12 @@ function toastBlur(){const t=$('#toast');if(!t.contains(document.activeElement))
   t.addEventListener('focusout',()=>setTimeout(resume));
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&t.classList.contains('on'))toastOff();});
 }
-// Highlight colours in the toolbar's order (keys 1–5). The UI names a colour by its meaning, which the owner can rename
-// in Settings (SETTINGS.meanings holds the renamed ones); chips and groups go in meaning order.
+// Highlight colours. The UI names a colour by its meaning, which the owner can rename in Settings (SETTINGS.meanings
+// holds the renamed ones); chips and groups go in meaning order. PICKS are the toolbar's swatches in order (keys 1–4):
+// Mint isn't offered there, but highlights that have it (Kindle's green imports as Mint) keep it, and it stays in the
+// filters, groups, the export and Settings.
 const COLORS=[['sun','Sunny'],['mint','Mint'],['coral','Coral'],['sky','Sky'],['amber','Amber']];
+const PICKS=COLORS.filter(c=>c[0]!=='mint');
 const MEANINGS={sky:'Important',coral:'Facts & words',amber:'Quotes',sun:'Lesser',mint:'Other'}; // the defaults, in meaning order
 const BY_MEANING=Object.keys(MEANINGS);
 const COLORNAME=c=>(COLORS.find(x=>x[0]===c)||[c,c])[1];
@@ -758,7 +761,7 @@ function buildReader(){
   let h=`<header class="hero"><h1${DOC.title.length>34?' class="long"':''} title="Edit details">${lines.map(l=>`<span class="ln">${esc(l)}</span>`).join('')}</h1>
     <p class="byline">${by}<button class="ed${by?'':' solo'}" aria-label="Edit details" title="Edit details">${PENCIL}</button></p>
     <div class="log">${DOC.written?`<span>Written <b>${esc(DOC.written)}</b></span>`:''}<span><b>${DOC.words.toLocaleString()}</b> words</span><span><b>${mins}</b> min</span><span><b>${N}</b> section${N>1?'s':''}</span>${DOC.notes.length?`<span><b>${DOC.notes.length}</b> notes</span>`:''}</div>
-    <div class="howto">Select text to highlight in ${COLORS.map(c=>`<span class="sw" style="background:var(--${c[0]}S)" title="${esc(meaning(c[0]))}"></span>`).join('')} · keys 1–${COLORS.length} work too</div>
+    <div class="howto">Select text to highlight in ${PICKS.map(c=>`<span class="sw" style="background:var(--${c[0]}S)" title="${esc(meaning(c[0]))}"></span>`).join('')} · keys 1–${PICKS.length} work too</div>
     ${N>1?`<details class="toc-inline"${N<=12?' open':''}><summary>Contents · ${N} sections</summary><ol class="tocl">${tocItems()}</ol></details>`:''}</header>`;
   const pulls=pickPulls();let idx=0,wordsAfter=DOC.words;
   S.forEach((s,si)=>{
@@ -973,8 +976,9 @@ function updateCount(){
 }
 function showTool(rect,h){
   editing=h||null;
-  tool.innerHTML=COLORS.map((c,i)=>{const m=`${esc(meaning(c[0]))} (${i+1})`;return `<button class="sw${h&&h.color===c[0]?' on':''}" style="background:var(--${c[0]}S)" data-c="${c[0]}" aria-label="${m}" title="${m}"></button>`;}).join('')+
-    `<span class="sep"></span><button class="tb" data-a="note">${h&&h.note?'Edit note':'Note'}</button>`+(h?`<button class="tb" data-a="del">Remove</button>`:`<button class="tb" data-a="word">Word</button><button class="tb" data-a="copy">Copy</button>`);
+  // background-color, not the background shorthand, so the stylesheet's background-clip holds (styles.css, #tool .sw)
+  tool.innerHTML=PICKS.map((c,i)=>{const m=`${esc(meaning(c[0]))} (${i+1})`;return `<button class="sw${h&&h.color===c[0]?' on':''}" style="background-color:var(--${c[0]}S)" data-c="${c[0]}" aria-label="${m}" title="${m}"></button>`;}).join('')+
+    `<span class="sep"></span><button class="tb" data-a="note">${h&&h.note?'Edit note':'Note'}</button>`+(h?`<button class="tb" data-a="del">Remove</button>`:`<button class="tb" data-a="word">Word</button>`);
   tool.classList.remove('hidden');
   if(coarse){tool.classList.add('docked');return;}
   tool.classList.remove('docked');const w=tool.offsetWidth,hh=tool.offsetHeight;
@@ -991,7 +995,6 @@ tool.addEventListener('click',e=>{
     hideTool();return;}
   if(b.dataset.a==='del'&&editing){const pids=editing.segs.map(s=>s.pid),tr=trashHighlights([editing]);HL=HL.filter(x=>x!==editing);commit();rerender(pids);hideTool();movedToTrash(tr);return;}
   if(b.dataset.a==='word'&&pendingSegs){saveWordFromSel(pendingSegs);return;}
-  if(b.dataset.a==='copy'&&pendingSegs){copyText(pendingSegs.map(s=>blockIndex[s.pid].text.slice(s.s,s.e)).join('\n\n'),'Copied');return;}
   if(b.dataset.a==='note'){let h=editing;if(!h&&pendingSegs){h=addHighlight(pendingSegs,null);getSelection().removeAllRanges();}if(h)openNote(h,tool.getBoundingClientRect());hideTool();}
 });
 let selT;
@@ -1008,7 +1011,7 @@ addEventListener('scroll',()=>{if(tool.classList.contains('hidden')||coarse)retu
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){hideTool();closeDrawers();saveNote();$('#lightbox').classList.add('hidden');document.querySelectorAll('.modal:not(.hidden)').forEach(dismiss);return;}
   if(e.target.matches('textarea,input,[contenteditable]'))return;
-  if(/^[1-9]$/.test(e.key)&&COLORS[+e.key-1]&&pendingSegs&&!tool.classList.contains('hidden')){addHighlight(pendingSegs,COLORS[+e.key-1][0]);getSelection().removeAllRanges();hideTool();}
+  if(/^[1-9]$/.test(e.key)&&PICKS[+e.key-1]&&pendingSegs&&!tool.classList.contains('hidden')){addHighlight(pendingSegs,PICKS[+e.key-1][0]);getSelection().removeAllRanges();hideTool();}
 });
 // The note box and the word card stay inside the visible area, which an on-screen keyboard shrinks (visualViewport;
 // on an iPhone the page keeps its full height under the keyboard): docked at the bottom when `at` is null, else with

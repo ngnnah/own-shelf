@@ -208,9 +208,9 @@ await t.run(async()=>{
   await fits('sign-in');
   await clk('#siLocal');await shown('#shelf');await fits('the empty shelf');
 
-  // the books, a word with a long meaning, and highlights: mint, To sort (coral), a long link with a long note, amber
+  // the books, a word with a long meaning, and highlights: sky, To sort (coral), a long link with a long note, amber
   await add(richPaste(),'The Quiet Engine');
-  await select('#col p.hp');await clk('#tool [data-c="mint"]');
+  await select('#col p.hp');await clk('#tool [data-c="sky"]');
   await add(LONGBOOK,LONGTITLE);
   await select('#col p.hp',40);await clk('#tool [data-c="amber"]');
   await add(STRESS,'Overflow Stress Test');

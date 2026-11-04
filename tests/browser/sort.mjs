@@ -165,7 +165,7 @@ await t.run(async()=>{
   const hid=await page.evaluate(()=>JSON.parse(localStorage.getItem('upwind:last')));
   await page.evaluate(p=>{const el=[...document.querySelectorAll('#col .hp')].find(e=>e.textContent.includes(p));el.scrollIntoView({block:'center'});const r=document.createRange();r.selectNodeContents(el);getSelection().removeAllRanges();getSelection().addRange(r);},WALL);
   await until(()=>!document.querySelector('#tool').classList.contains('hidden'));
-  await page.keyboard.press('3');await until(()=>document.querySelector('#hlCount').textContent==='1');
+  await page.keyboard.press('2');await until(()=>document.querySelector('#hlCount').textContent==='1');
   must('a Coral highlight made here',(await page.$$('mark.hl.c-coral')).length>0);
   await hlOf(hid,WALL); // saved after 500 ms
 

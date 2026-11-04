@@ -16,10 +16,10 @@ await t.run(async()=>{
   await page.click('#nbBack');await page.waitForSelector('#shelf:not(.hidden)');
   ok('Shelf button leaves the notebook',!(await vis('#notebook')));
 
-  // two books: The Quiet Engine with 2 mint highlights, the older one with a note; Footnote Test with 1 sunny one
+  // two books: The Quiet Engine with 2 sky highlights, the older one with a note; Footnote Test with 1 sunny one
   await addQuietEngine(t,must);
   await highlightQuietEngine(t,must);
-  await page.click('mark.hl.c-mint');await until(()=>!document.querySelector('#tool').classList.contains('hidden'));
+  await page.click('mark.hl.c-sky');await until(()=>!document.querySelector('#tool').classList.contains('hidden'));
   await page.click('#tool [data-a="note"]');await page.waitForSelector('#noteBox:not(.hidden)');
   await page.type('#noteTa','Worth rereading. Ghi chú: đọc lại.');await page.click('#noteSave');
   ok('note saved on the highlight',(await page.$$('mark.hl.noted')).length>0&&!(await vis('#noteBox')));
@@ -37,7 +37,7 @@ await t.run(async()=>{
   ok('notebook stats',(await text('#nbStats'))==='3 highlights · 1 note · 2 books');
   ok('newest highlight first',same(await titles(),['Footnote Test','The Quiet Engine','The Quiet Engine']));
   ok('card shows section, quote and note',(await page.$eval('#nbList .hcard:last-child',e=>e.querySelector('.nt')?.textContent))==='Worth rereading. Ghi chú: đọc lại.'&&(await text('#nbList .hcard:first-child .sec')).includes('Notes'));
-  ok('chips: All, With note, one per color present',same(await chips(),['All 3','With note 1','Lesser 1','Other 2']));
+  ok('chips: All, With note, one per color present',same(await chips(),['All 3','With note 1','Important 2','Lesser 1']));
   ok('no horizontal scroll at phone width',await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth));
   await page.emulateMediaFeatures([{name:'prefers-color-scheme',value:'light'}]);await t.shot('light',{fullPage:true});
   await page.emulateMediaFeatures([{name:'prefers-color-scheme',value:'dark'}]);await t.shot('dark',{fullPage:true});
@@ -48,8 +48,8 @@ await t.run(async()=>{
   ok('With note chip filters to 1 card',await cards()===1&&(await page.$$('#nbList .hcard .nt')).length===1);
   await chip('sun');
   ok('color chip filters (Sunny)',await cards()===1&&(await titles())[0]==='Footnote Test');
-  await chip('mint');
-  ok('color chip filters (Mint)',await cards()===2);
+  await chip('sky');
+  ok('color chip filters (Important)',await cards()===2);
   await chip('all');await search('source of the claim');
   ok('search matches quote text',await cards()===1&&(await titles())[0]==='Footnote Test');
   await search('ADA rivers');
@@ -66,7 +66,7 @@ await t.run(async()=>{
   await page.select('#nbBook',await bookId('Footnote Test'));
   ok('book filter',await cards()===1&&(await titles())[0]==='Footnote Test');
   await page.select('#nbBook',await bookId('The Quiet Engine'));await chip('note');await search('rereading');
-  ok('filters combine (book + chip + search)',await cards()===1&&same(await chips(),['All 1','With note 1','Other 1']));
+  ok('filters combine (book + chip + search)',await cards()===1&&same(await chips(),['All 1','With note 1','Important 1']));
   await t.shot('filtered',{fullPage:true});
   await search('source');
   ok('combined filters with no match',(await text('#nbList'))==='Nothing matches.');
