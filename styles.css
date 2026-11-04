@@ -407,17 +407,22 @@ body.focus .fn-card .hp{opacity:1}
 .land :focus-visible{outline-color:#F3EAD7}
 
 /* toolbar, note box */
-#tool{position:fixed;z-index:60;width:max-content;display:flex;align-items:center;gap:.35rem;background:var(--ink);color:var(--sheet);border-radius:999px;padding:.4rem .5rem;box-shadow:0 10px 30px rgba(40,24,12,.28);font-family:var(--ui,system-ui)}
-#tool .sw{width:28px;height:28px;border-radius:50%;border:2px solid transparent;padding:0}
-#tool .sw.on{border-color:var(--sheet)}
-#tool .sep{width:1px;height:22px;background:color-mix(in srgb,var(--sheet) 30%,transparent);margin:0 .15rem}
-#tool .tb{border:0;background:transparent;color:var(--sheet);font-weight:650;font-size:.88rem;padding:.35rem .6rem;border-radius:999px;white-space:nowrap}
+#tool{position:fixed;z-index:60;width:max-content;max-width:calc(100vw - 20px);display:flex;align-items:center;gap:.25rem;background:var(--ink);color:var(--sheet);border-radius:999px;padding:.25rem .5rem;box-shadow:0 10px 30px rgba(40,24,12,.28);font-family:var(--ui,system-ui)}
+/* a swatch is a pill inside a bigger target: its transparent border is part of the button, so the pills stay apart
+   while their targets nearly touch. With a mouse 46×34 (a 40×28 pill), giving way when the screen is narrow; docked
+   on a touch screen the four share the bar's width (below). Its colour is an inline background-color (app.js). */
+#tool .sw{width:46px;height:34px;border:3px solid transparent;border-radius:999px;background-clip:padding-box;padding:0}
+#tool .sw.on{box-shadow:inset 0 0 0 2px var(--sheet)}
+#tool .sep{flex:none;width:1px;height:22px;background:color-mix(in srgb,var(--sheet) 30%,transparent);margin:0 .15rem}
+#tool .tb{flex:none;border:0;background:transparent;color:var(--sheet);font-weight:650;font-size:.88rem;padding:.35rem .5rem;border-radius:999px;white-space:nowrap}
 #tool .tb:hover{background:color-mix(in srgb,var(--sheet) 15%,transparent)}
-/* five swatches and three buttons: a little tighter on phones under 380 px, so a 360 px screen fits them, and
-   tighter again under 340 px for a 320 px one */
-@media (max-width:380px){#tool{gap:.2rem;padding:.35rem .4rem}#tool .sw{width:26px;height:26px}#tool .tb{padding:.35rem .45rem}}
-@media (max-width:340px){#tool{gap:.1rem;padding:.35rem .3rem}#tool .tb{padding:.35rem .3rem}}
-#tool.docked{left:50%!important;transform:translateX(-50%)!important;top:auto!important;bottom:calc(env(safe-area-inset-bottom,0px) + 18px)}
+/* four swatches and two buttons: a little tighter on phones under 380 px and tighter again under 340 px, so a 320 px
+   screen fits Edit note and Remove */
+@media (max-width:380px){#tool{gap:.2rem;padding:.25rem .4rem}#tool .tb{padding:.35rem .45rem}}
+@media (max-width:340px){#tool{gap:.1rem;padding:.25rem .3rem}#tool .tb{padding:.35rem .3rem}}
+/* docked: nearly the screen's width, the swatches sharing what the buttons leave, each a 44 px tall target */
+#tool.docked{left:50%!important;transform:translateX(-50%)!important;top:auto!important;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);width:min(calc(100vw - 16px),420px);max-width:none;padding-block:2px}
+#tool.docked .sw{flex:1 1 0;width:auto;height:44px;border-width:6px 2px}
 /* the note box and the word card stay inside the visible area (max-height set in app.js): as a flex column, a long
    or dragged-taller field gives way and scrolls, and the buttons stay in view */
 #noteBox{position:fixed;z-index:61;display:flex;flex-direction:column;overflow:auto;width:min(340px,calc(100vw - 24px));background:var(--sheet);border-radius:18px;padding:.9rem;box-shadow:0 14px 40px rgba(40,24,12,.3);border:1px solid var(--rule)}
