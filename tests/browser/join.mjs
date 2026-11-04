@@ -1,6 +1,6 @@
 // Joining highlights, as Kindle does: a new highlight that overlaps others, or touches one with only a space between,
 // becomes one with them (at its start, at its end, bridging two, across two paragraphs); a selection inside one
-// recolours it; notes join in reading order; Note on an overlapping selection; keys 1–5 and the pull quote's button;
+// recolours it; notes join in reading order; Note on an overlapping selection; keys 1–4 and the pull quote's button;
 // "Joined N highlights · Undo" putting back exactly what was there; a sorted Coral highlight keeping its id, so To sort
 // and its fact card still find it; the count, the drawer and the Notebook showing one highlight.
 // Usage: node tests/browser/join.mjs [repo dir]
@@ -96,12 +96,12 @@ await t.run(async()=>{
   const big=await idOf('gamma');
   must('a first highlight',same(await drawn(),{[big]:{text:'gamma delta',color:'sky'}}));
   await quiet();await sel(P1,'beta','gamma');await page.keyboard.press('2');
-  ok('overlapping its start (key 2): one highlight, its id kept, the colour just picked',await toastIs('Joined 2 highlights · Undo')&&same(await drawn(),{[big]:{text:'beta, gamma delta',color:'mint'}})&&(await text('#hlCount'))==='1');
+  ok('overlapping its start (key 2): one highlight, its id kept, the colour just picked',await toastIs('Joined 2 highlights · Undo')&&same(await drawn(),{[big]:{text:'beta, gamma delta',color:'coral'}})&&(await text('#hlCount'))==='1');
   await quiet();await sel(P1,'delta','epsilon');await page.click('#tool [data-c="amber"]');
   ok('overlapping its end (toolbar): joined the same way',await toastIs('Joined 2 highlights · Undo')&&same(await drawn(),{[big]:{text:'beta, gamma delta epsilon',color:'amber'}}));
 
   /* ---------- 2. touching with only a space between; words or punctuation between keep them apart ---------- */
-  await quiet();await sel(P1,'zeta');await page.keyboard.press('4');
+  await quiet();await sel(P1,'zeta');await page.keyboard.press('3');
   ok('touching it with only a space between joins it',await toastIs('Joined 2 highlights · Undo')&&same(await drawn(),{[big]:{text:'beta, gamma delta epsilon zeta',color:'sky'}}));
   await quiet();await sel(P1,'kappa','lambda');await page.keyboard.press('1');await count(2);
   const kappa=await idOf('kappa');
@@ -109,7 +109,7 @@ await t.run(async()=>{
 
   /* ---------- 3. one highlight bridging two; Undo puts them back exactly ---------- */
   const was=await saved(hl=>hl.length===2&&hl.some(h=>h.id===kappa)),drawnWas=await drawn();
-  await quiet();await sel(P1,'zeta eta','Theta iota kappa');await page.keyboard.press('5');
+  await quiet();await sel(P1,'zeta eta','Theta iota kappa');await page.keyboard.press('4');
   const bridged={[big]:{text:'beta, gamma delta epsilon zeta eta. Theta iota kappa lambda',color:'amber'}};
   ok('bridging two joins all three into the earliest-made one',await toastIs('Joined 3 highlights · Undo')&&same(await drawn(),bridged)&&(await text('#hlCount'))==='1');
   const one=await saved(hl=>hl.length===1);
@@ -117,7 +117,7 @@ await t.run(async()=>{
   await page.click('#toast button');await toastIs('Undone');
   const back=await saved(hl=>hl.length===2);
   ok('Undo puts back exactly the highlights that were joined',byId(back)===byId(was)&&same(await drawn(),drawnWas)&&(await text('#hlCount'))==='2');
-  await quiet();await sel(P1,'zeta eta','Theta iota kappa');await page.keyboard.press('5');
+  await quiet();await sel(P1,'zeta eta','Theta iota kappa');await page.keyboard.press('4');
   must('joined again',await toastIs('Joined 3 highlights · Undo')&&same(await drawn(),bridged));
   await shoot('joined',big);
   ok('the toast is still up after the screenshots',await toastOn());
@@ -125,15 +125,15 @@ await t.run(async()=>{
   /* ---------- 4. across two paragraphs ---------- */
   await quiet();await sel(P1,'pi rho.');await page.keyboard.press('1');await count(2);
   await quiet();await sel(P2,'Second','paragraph');await page.keyboard.press('1');await count(3);
-  await quiet();await select(P1,'rho.',P2,'Second');await page.keyboard.press('2');
+  await quiet();await select(P1,'rho.',P2,'Second');await page.keyboard.press('4');
   const cross=await idOf('pi rho.');
-  ok('a selection across two paragraphs joins a highlight in each',await toastIs('Joined 3 highlights · Undo')&&(await drawn())[cross].text==='pi rho.|Second paragraph'&&(await drawn())[cross].color==='mint'&&(await text('#hlCount'))==='2');
+  ok('a selection across two paragraphs joins a highlight in each',await toastIs('Joined 3 highlights · Undo')&&(await drawn())[cross].text==='pi rho.|Second paragraph'&&(await drawn())[cross].color==='amber'&&(await text('#hlCount'))==='2');
   const [p1,p2]=[await pidOf(P1),await pidOf(P2)];
   const cr=(await saved(hl=>hl.length===2&&hl.some(h=>h.id===cross&&h.segs.length===2))).find(h=>h.id===cross)||{segs:[]};
   ok('…one seg per paragraph, in reading order',same(cr.segs.map(s=>s.pid),[p1,p2])&&cr.segs[0].e===P1.length&&cr.segs[1].s===0);
 
   /* ---------- 5. inside one: a recolour ---------- */
-  await quiet();await sel(P1,'gamma');await page.keyboard.press('4');
+  await quiet();await sel(P1,'gamma');await page.keyboard.press('3');
   await until(id=>document.querySelector(`mark[data-h="${id}"]`).classList.contains('c-sky'),big);
   ok('a selection inside one recolours just that one, no toast',same((await drawn())[big],{text:bridged[big].text,color:'sky'})&&(await text('#hlCount'))==='2'&&!(await toastOn()));
 
@@ -146,28 +146,28 @@ await t.run(async()=>{
   await until(()=>!!document.querySelector('#tool:not(.hidden) [data-a="note"]'));await page.click('#tool [data-a="note"]');await page.waitForSelector('#noteBox:not(.hidden)');
   await page.type('#noteTa','Note on the crossing.');await page.click('#noteSave');
   await saved(hl=>hl.some(h=>h.id===cross&&h.note));
-  await quiet();await sel(P2,'paragraph opens','chi');await page.click('#tool [data-c="mint"]');
+  await quiet();await sel(P2,'paragraph opens','chi');await page.click('#tool [data-c="amber"]');
   ok('joining two noted highlights: one highlight',await toastIs('Joined 3 highlights · Undo')&&(await drawn())[cross].text==='pi rho.|Second paragraph opens with sigma tau upsilon phi chi psi'&&!(await drawn())[chi]);
   let st=await saved(hl=>hl.length===2&&hl.some(h=>h.id===cross&&h.note.includes('chi')));
   ok('…its notes in reading order, a blank line apart',st.find(h=>h.id===cross).note==='Note on the crossing.\n\nNote on chi.');
   await quiet();await sel(P2,'psi omega.');await page.click('#tool [data-a="note"]');await page.waitForSelector('#noteBox:not(.hidden)');
   ok('Note on a selection overlapping one: its notes to edit, its colour kept, joined',(await page.$eval('#noteTa',e=>e.value))==='Note on the crossing.\n\nNote on chi.'&&await toastIs('Joined 2 highlights · Undo')
-    &&same((await drawn())[cross],{text:'pi rho.|Second paragraph opens with sigma tau upsilon phi chi psi omega.',color:'mint'}));
+    &&same((await drawn())[cross],{text:'pi rho.|Second paragraph opens with sigma tau upsilon phi chi psi omega.',color:'amber'}));
   await shoot('note');
   await page.$eval('#noteTa',e=>{e.value+='\n\nAnd omega.';});await page.click('#noteSave');
   st=await saved(hl=>hl.some(h=>h.id===cross&&h.note.endsWith('omega.')));
   ok('…and saving it keeps them all',st.find(h=>h.id===cross).note==='Note on the crossing.\n\nNote on chi.\n\nAnd omega.'&&(await text('#hlCount'))==='2');
 
   /* ---------- 7. the pull quote's "Highlight this" joins too ---------- */
-  await quiet();await sel(P4,'small tools');await page.keyboard.press('4');await count(3);
+  await quiet();await sel(P4,'small tools');await page.keyboard.press('3');await count(3);
   const tools=await idOf('small tools');
   await page.$eval('.pull button',b=>b.scrollIntoView({block:'center'}));await page.click('.pull button');
   ok('the pull quote’s Highlight this joins it: one Sunny highlight over the sentence',await toastIs('Joined 2 highlights · Undo')&&same((await drawn())[tools],{text:'Use small tools to build large things.',color:'sun'})&&(await text('#hlCount'))==='3');
 
   /* ---------- 8. a sorted Coral highlight keeps its id: To sort and its fact card still find it ---------- */
-  await quiet();await sel(P3,'the anchor holds');await page.keyboard.press('4');await count(4);
+  await quiet();await sel(P3,'the anchor holds');await page.keyboard.press('3');await count(4);
   const anchor=await idOf('the anchor');
-  await quiet();await sel(P3,'the chain rattles');await page.keyboard.press('3');await count(5);
+  await quiet();await sel(P3,'the chain rattles');await page.keyboard.press('2');await count(5);
   const coral=await idOf('the chain');
   await saved(hl=>hl.some(h=>h.id===coral));
   await notebook('wd');await until(()=>[...document.querySelectorAll('#wdChips .chip')].some(b=>b.textContent==='To sort (1)'));
@@ -175,7 +175,7 @@ await t.run(async()=>{
   await page.click('#wdList .scard [data-st="fact"]');await toastIs('Made a fact card');
   must('sorted as a fact, with a fact card',!!(await poll('word:'+factId(book,coral)))&&(await saved(hl=>hl.some(h=>h.id===coral&&h.study))).length===5);
   await openJoinTest();
-  await quiet();await sel(P3,'anchor holds','the chain');await page.keyboard.press('3');
+  await quiet();await sel(P3,'anchor holds','the chain');await page.keyboard.press('2');
   ok('joining it with an earlier highlight keeps the sorted one’s id',await toastIs('Joined 3 highlights · Undo')&&same((await drawn())[coral],{text:'the anchor holds, the chain rattles',color:'coral'})&&!(await drawn())[anchor]);
   st=await saved(hl=>hl.length===4&&!hl.some(h=>h.id===anchor));
   const co=st.find(h=>h.id===coral);

@@ -107,7 +107,7 @@ await t.run(async()=>{
   await page.click('#bListen');
   await page.evaluate(()=>{const el=__blk('Sentence c2 ');el.scrollIntoView({block:'center'});const x=el.textContent,s=x.indexOf('the sea',x.indexOf('Sentence c2 '));__select(el,s,s+'the sea, the wind'.length);});
   await t.until(()=>!document.querySelector('#tool').classList.contains('hidden'));
-  await page.click('#tool [data-c="mint"]');
+  await page.click('#tool [data-c="amber"]');
   await t.until(()=>document.querySelector('#hlCount').textContent==='1');
   await waitFor(()=>new Promise(res=>{const id=JSON.parse(localStorage.getItem('upwind:last')),r=indexedDB.open('upwind',1);r.onsuccess=()=>{const g=r.result.transaction('kv').objectStore('kv').get('state:'+id);g.onsuccess=()=>{r.result.close();res(((g.result||{}).hl||[]).length===1);};};}),5000);
   const hl0=await storedHl(),dom0=await page.evaluate(()=>__blk('Sentence c2 ').innerHTML);

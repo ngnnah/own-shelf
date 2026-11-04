@@ -6,7 +6,7 @@
 //   search.mjs      search inside a book: accent folding, counts, the 200 cap, marking the match, Enter, Escape
 //   notefilter.mjs  the "With note" chip in the highlights drawer
 //   join.mjs        overlapping or touching highlights join into one, as on a Kindle: at either end, bridging two,
-//                   across paragraphs, a recolour inside one, notes joined, Note, keys 1–5, the pull quote,
+//                   across paragraphs, a recolour inside one, notes joined, Note, keys 1–4, the pull quote,
 //                   "Joined N highlights · Undo", a sorted Coral highlight keeping its id (To sort, its fact card)
 //   deletes.mjs     deletes that lose highlights or notes ask for "yes"
 //   trash.mjs       the Trash: removed books, highlights and notes, restore, delete forever, the 30-day purge
@@ -66,7 +66,8 @@
 //                   selected phrase as the blank), Skip and Show skipped, Make the rest facts, the sorting surviving
 //                   a Kindle re-import, the Facts chip, the Trash, fact cards in Study
 //   setup.mjs       a fork's Firebase setup errors name the setting to fix (Firebase SDK faked)
-//   colours.mjs     colour meanings: five swatches and keys 1–5, renaming a meaning in Settings, grouping by colour
+//   colours.mjs     colour meanings: the toolbar's four wider swatches (no Mint, no Copy) and keys 1–4, docked at
+//                   390 and 320 px, an existing Mint highlight, renaming a meaning in Settings, grouping by colour
 //                   in the Notebook, the drawer and the export, Kindle orange importing as amber (screenshots in out/colours/)
 //   signin.mjs      Google sign-in with the Firebase SDK stubbed: popup or redirect, the iPhone home-screen app,
 //                   the message for each failure, a redirect back without an account, local mode

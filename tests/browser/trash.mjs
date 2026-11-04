@@ -63,7 +63,7 @@ async function setNote(card,value){
 await t.run(async()=>{
   await enterLocalMode(t,must);
   await addQuietEngine(t,must);
-  await highlightQuietEngine(t,must); // 2 mint highlights: a paragraph (toolbar), then two list items
+  await highlightQuietEngine(t,must); // 2 sky highlights: a paragraph (toolbar), then two list items
 
   // one highlight, through the toolbar's Remove
   const pText=(await page.$eval('#col p.hp mark.hl',e=>e.textContent)).replace(/\s+/g,' ').trim();
