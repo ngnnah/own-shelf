@@ -171,7 +171,7 @@ const TINTS = {
 };
 const SOLIDS = { sun: '#F4C21B', mint: '#2FBF8A', coral: '#F2668A', sky: '#4E8FF0', amber: '#F28C28' };
 const MEANINGS = { sky: 'Important', coral: 'Facts & words', amber: 'Quotes', sun: 'Lesser', mint: 'Other' };
-const TOOL_ORDER = ['sun', 'mint', 'coral', 'sky', 'amber']; // keys 1–5
+const TOOL_ORDER = ['sun', 'coral', 'sky', 'amber']; // keys 1–4, as the app's toolbar (no Mint)
 
 const DIRS = {
   today: {
@@ -628,7 +628,7 @@ const READER_HTML = (phone) => `<header id="bar"><div class="bar-in">
   <header class="hero"><h1 title="Edit details"><span class="ln">Margins of</span><span class="ln">the Map</span></h1>
     <p class="byline">by Ines Calder<a href="#">Original ↗</a><button class="ed" aria-label="Edit details">${IC.pencil}</button></p>
     <div class="log"><span>Written <b>March 4, 2025</b></span><span><b>6,240</b> words</span><span><b>26</b> min</span><span><b>14</b> sections</span></div>
-    <div class="howto">Select text to highlight in ${TOOL_ORDER.map(k => `<span class="sw" style="background:var(--${k}S)" title="${MEANINGS[k]}"></span>`).join('')} · keys 1–5 work too</div>
+    <div class="howto">Select text to highlight in ${TOOL_ORDER.map(k => `<span class="sw" style="background:var(--${k}S)" title="${MEANINGS[k]}"></span>`).join('')} · keys 1–4 work too</div>
     <details class="toc-inline"><summary>Contents · 14 sections</summary></details></header>
   <div class="leg" data-sec="0"><span class="n">1</span><span class="orn" aria-hidden="true">❦</span></div>
   <p class="hp first">Every map begins with a decision about what to leave out. The cartographer who drew this coast in the winter of her fortieth year left out the roads entirely, <mark class="hl c-sky">trusting the reader to find a way between the harbours</mark>. What remained was a quiet sheet of tide lines and headland names, and <mark class="hl c-amber noted">soundings written in a hand so small it seemed meant for gulls</mark>.</p>
@@ -638,7 +638,7 @@ const READER_HTML = (phone) => `<header id="bar"><div class="bar-in">
   <p class="hp">Read now, the notebook keeps returning to the margin as a place of argument. Beside a survey of the northern shoals she pencilled a correction, then a correction of the correction, and at last a small heron standing on the disputed sandbar, as if to settle the matter by witness.</p>
   <section class="land" id="land"><h2>The end.</h2><p>You marked 5 highlights and wrote 1 note. Take them with you.</p><div class="acts"><button class="btn">Copy all highlights</button><button class="btn ghost">Review them</button><button class="btn ghost">Export</button><button class="btn ghost">Back to shelf</button></div></section>
 </div></main>
-<div id="tool" role="toolbar" aria-label="Highlight"${phone ? ' class="docked"' : ''}>${TOOL_ORDER.map((k, i) => `<button class="sw${k === 'amber' ? ' on' : ''}" style="background:var(--${k}S)" aria-label="${MEANINGS[k]} (${i + 1})" title="${MEANINGS[k]} (${i + 1})"></button>`).join('')}<span class="sep"></span><button class="tb">Edit note</button><button class="tb">Remove</button></div>`;
+<div id="tool" role="toolbar" aria-label="Highlight"${phone ? ' class="docked"' : ''}>${TOOL_ORDER.map((k, i) => `<button class="sw${k === 'amber' ? ' on' : ''}" style="background-color:var(--${k}S)" aria-label="${MEANINGS[k]} (${i + 1})" title="${MEANINGS[k]} (${i + 1})"></button>`).join('')}<span class="sep"></span><button class="tb">Edit note</button><button class="tb">Remove</button></div>`;
 // Mock-only: the toolbar for the tapped Amber highlight, placed over it as showTool() places it (docked on phones).
 const MOCK_CSS = '';
 const MOCK_JS = `function placeTool(){const t=document.getElementById('tool'),s=document.querySelector('mark.noted');
