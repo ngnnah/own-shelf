@@ -67,9 +67,28 @@ const SIZES=['1.08rem','1.22rem','1.38rem'];
 function savePrefs(){ls.set('prefs',prefs);}
 // Arrange by Shelf came after the others: everyone is switched to it once, then their choice is kept
 if(!prefs.byShelf){prefs.byShelf=1;prefs.group='shelf';if(prefs.view==='list'){prefs.sort='shelf';prefs.dir=1;}savePrefs();}
+// Looks (design/themes-lab.html; styles.css scopes each by data-look on <html>), per device in prefs.look. The Theme
+// button switches day and night within the Look. Each loads its heading font only when chosen.
+const LOOKS={classic:{name:'Classic'},leather:{name:'Leather & vellum',font:'IM+Fell+English:ital@0;1'},ukiyoe:{name:'Ukiyo-e',font:'Zen+Old+Mincho:wght@400;500;600;700;900'},scroll:{name:'Scroll',font:'IM+Fell+English:ital@0;1'}};
+const LOOK_DEFAULT='leather';
+const lookOf=()=>LOOKS[prefs.look]?prefs.look:LOOK_DEFAULT;
+function applyLook(){
+  const look=lookOf(),root=document.documentElement,f=LOOKS[look].font;
+  if(look==='classic') root.removeAttribute('data-look'); else root.setAttribute('data-look',look);
+  if(f&&!document.querySelector(`link[data-look-font="${f}"]`)){
+    const l=document.createElement('link');l.rel='stylesheet';l.dataset.lookFont=f;l.href=`https://fonts.googleapis.com/css2?family=${f}&display=swap`;document.head.append(l);
+  }
+  const sel=document.getElementById('sLook');if(sel) sel.value=look;
+  // the browser's bar takes the Look's chrome (the bands at the top), in the mode on screen; Classic keeps index.html's
+  const chrome=look==='classic'?'':getComputedStyle(root).getPropertyValue('--chrome').trim();
+  for(const [m,c] of THEME_COLORS) m.content=chrome||c;
+}
+const THEME_COLORS=[...document.querySelectorAll('meta[name="theme-color"]')].map(m=>[m,m.content]);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyLook);
 function applyPrefs(){
   document.documentElement.style.setProperty('--fs',SIZES[prefs.size]);
   if(prefs.theme==='auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',prefs.theme);
+  applyLook();
   document.querySelectorAll('#segFmt button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.fmt===prefs.fmt));
   document.querySelectorAll('#segGroup button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.g===(prefs.view==='grid'?'shelf':prefs.group))); // Grid is always by shelf
   document.querySelectorAll('#segView button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===prefs.view));
@@ -883,6 +902,9 @@ thumb.addEventListener('pointerup',endScrub);thumb.addEventListener('pointercanc
 /* bar actions */
 $('#bFocus').onclick=e=>{const on=document.body.classList.toggle('focus');e.currentTarget.setAttribute('aria-pressed',on);onScroll();};
 $('#bSize').onclick=()=>{prefs.size=(prefs.size+1)%SIZES.length;savePrefs();applyPrefs();lastH=0;onScroll();toast(['Smaller','Regular','Larger'][prefs.size]+' text');};
+$('#sLook').innerHTML=Object.entries(LOOKS).map(([k,l])=>`<option value="${k}">${l.name}</option>`).join('');
+$('#sLook').value=lookOf();
+$('#sLook').onchange=e=>{prefs.look=e.target.value;savePrefs();applyLook();};
 $('#bTheme').onclick=()=>{const dark=matchMedia('(prefers-color-scheme: dark)').matches;const cur=prefs.theme==='auto'?(dark?'dark':'light'):prefs.theme;prefs.theme=cur==='dark'?'light':'dark';savePrefs();applyPrefs();};
 $('#bToc').onclick=()=>{renderToc();openDrawer('#toc');};
 $('#bHl').onclick=()=>openDrawer('#drawer');
