@@ -258,8 +258,23 @@ function mdToBlocks(raw){
 }
 
 /* ---------- rich HTML ---------- */
+// A lazy-load placeholder: a stand-in picture (BBC, 2026: grey-placeholder.png, class hide-when-no-script) that the page's
+// script swaps for the real one, or that sits beside it. Dropped only when a real picture stands beside it in the same
+// figure (or the same parent), or in a <noscript> next to it, which is then kept in its place; a lone placeholder stays.
+const PLACEHOLDER_SRC=/(^|[\/_.-])(grey|gray|blank|spacer|placeholder|transparent|pixel)[\w.-]*\.(png|gif|jpe?g|webp|svg)(\?|$)|^data:image\/(gif|png);base64,.{0,200}$/i;
+function dropPlaceholderImages(dom){
+  const isPh=im=>PLACEHOLDER_SRC.test(im.getAttribute('src')||'');
+  dom.querySelectorAll('img').forEach(im=>{
+    if(!isPh(im)||im.closest('noscript')) return;
+    const box=im.closest('figure')||im.parentElement; if(!box) return;
+    const real=[...box.querySelectorAll('img')].find(o=>o!==im&&!isPh(o)&&(o.getAttribute('src')||o.getAttribute('data-src')||o.getAttribute('srcset')));
+    if(!real) return;
+    if(real.closest('noscript')) im.replaceWith(real); else im.remove();
+  });
+}
 function htmlToBlocks(html){
   const dom=new DOMParser().parseFromString(html,'text/html');
+  dropPlaceholderImages(dom);
   dom.querySelectorAll('script,style,noscript,iframe,svg,button,nav,form,input,select,textarea,template,object,video,audio,canvas,meta,link').forEach(n=>n.remove());
   // A credit drawn over a picture (BBC, 2026: a <span> beside the <img>, outside the <figcaption>) would read as a
   // stray paragraph and part the caption from its picture. Text in a <figure>, outside its caption, that the caption
