@@ -37,10 +37,12 @@ export function onSnapshot(c,cb){const s={path:c.path,cb};subs.push(s);setTimeou
 const SDK=/^https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/firebase-(app|auth|firestore)\.js$/;
 
 // In the page, before the app: the clipboard and the link import helper.
-// window.__clip: {txt, html, png, refuse, noRead}; refuse makes the read fail as a refused permission does, noRead
-// leaves only readText (as in browsers without clipboard.read). Each read logs 'tap' when it started inside a click's
-// dispatch, else 'late' (window.__reads). The helper answers a made-up article for any link, titled after its last
-// path segment, or {status, error} from window.__worker; each call is logged with its Authorization (window.__fetched).
+// window.__clip: {txt, html, uri, png, refuse, noRead}, one clipboard item, or {items:[{txt}, {uri}, …]} for several
+// (as an iOS share sheet's Copy of a title and a link); uri is text/uri-list, which is all WebKit gives a page for a
+// URL-only item (public.url). refuse makes the read fail as a refused permission does, noRead leaves only readText (as
+// in browsers without clipboard.read). Each read logs 'tap' when it started inside a click's dispatch, else 'late'
+// (window.__reads). The helper answers a made-up article for any link, titled after its last path segment, or
+// {status, error} from window.__worker; each call is logged with its Authorization (window.__fetched).
 function fakes(WORKER){
   window.__clip={};window.__reads=[];window.__fetched=[];window.__worker=null;
   let tap=false;
@@ -48,10 +50,13 @@ function fakes(WORKER){
   addEventListener('click',()=>{tap=false;});
   const png=()=>new Promise(r=>{const c=document.createElement('canvas');c.width=60;c.height=40;const g=c.getContext('2d');g.fillStyle='#2F5A43';g.fillRect(0,0,60,40);c.toBlob(r,'image/png');});
   const refused=()=>Promise.reject(new DOMException('Read permission denied.','NotAllowedError'));
+  const item=c=>{
+    const types=[c.html&&'text/html',c.txt&&'text/plain',c.uri&&'text/uri-list',c.png&&'image/png'].filter(Boolean);
+    return types.length?{types,getType:async ty=>ty==='image/png'?png():new Blob([{'text/html':c.html,'text/plain':c.txt,'text/uri-list':c.uri}[ty]],{type:ty})}:null;
+  };
   const read=()=>{
     window.__reads.push(tap?'tap':'late');const c=window.__clip;if(c.refuse) return refused();
-    const types=[c.html&&'text/html',c.txt&&'text/plain',c.png&&'image/png'].filter(Boolean);
-    return Promise.resolve(types.length?[{types,getType:async ty=>ty==='image/png'?png():new Blob([ty==='text/html'?c.html:c.txt],{type:ty})}]:[]);
+    return Promise.resolve((c.items||[c]).map(item).filter(Boolean));
   };
   const readText=()=>{window.__reads.push(tap?'tap':'late');const c=window.__clip;return c.refuse?refused():Promise.resolve(c.txt||'');};
   Object.defineProperty(Navigator.prototype,'clipboard',{configurable:true,get:()=>window.__clip.noRead?{readText}:{read,readText,writeText:()=>Promise.resolve()}});
@@ -89,6 +94,8 @@ const tap=sel=>t.page.$eval(sel,e=>e.click());
 // Sets the clipboard, and takes down any toast so the next one is the action's.
 const clip=c=>t.page.evaluate(c=>{window.__clip=c;const e=document.querySelector('#toast');e.classList.remove('on');e.textContent='';},c);
 const lastRead=()=>t.page.evaluate(()=>window.__reads.at(-1));
+// A paste into the Add dialog's box: a paste event carrying these clipboard types, {'text/uri-list': …}.
+const pasteInto=data=>t.page.$eval('#paste',(e,data)=>{const dt=new DataTransfer();for(const [k,v] of Object.entries(data)) dt.setData(k,v);e.focus();e.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));},data);
 const fetched=()=>t.page.evaluate(()=>window.__fetched);
 const books=()=>t.page.evaluate(()=>[...window.__docs.keys()].filter(k=>/^users\/u1\/books\/[^/]+$/.test(k)).length);
 const toastSays=m=>until(m=>{const e=document.querySelector('#toast');return e.classList.contains('on')&&e.textContent===m;},m);
@@ -241,6 +248,75 @@ await t.run(async()=>{
   ok('1280 px: the Paste link chip sits just above the link field',lp.b<=li.t&&li.t-lp.b<30);
   await t.shot('dialog-1280');
   await cancelAdd();
+  await t.page.setViewport({width:390,height:844,deviceScaleFactor:2});await shown('#shelf');
+
+  /* ---------- a link copied in another iOS app: a URL alone, beside its title, or as one anchor ---------- */
+  const lastFetch=async()=>(await fetched()).at(-1).link;
+  await clip({uri:'https://example.com/kelp-forests'});
+  await tap('#addPaste');await t.reader();
+  ok('a copied URL alone (text/uri-list, no text): the book is added and opens',(await title()).includes('Kelp Forests')&&await books()===5);
+  ok('…read inside the tap, and fetched as that link',await lastRead()==='tap'&&await lastFetch()==='https://example.com/kelp-forests');
+  await home();
+  await clip({items:[{txt:'Inside the urchin barrens | MIT Technology Review'},{uri:'https://example.com/sea-urchins'}]});
+  await tap('#addPaste');await t.reader();
+  ok('a title and the URL as two items (a share sheet’s Copy): the link’s book is added',(await title()).includes('Sea Urchins')&&await books()===6&&await lastRead()==='tap');
+  await home();
+  await clip({html:'<meta charset="utf-8"><a href="https://example.com/tide-pools">Tide pools at dawn</a>',txt:'Tide pools at dawn'});
+  await tap('#addPaste');await t.reader();
+  ok('rich text that is one anchor: its link’s book is added',(await title()).includes('Tide Pools')&&await books()===7&&await lastFetch()==='https://example.com/tide-pools');
+  await home();
+  await clip({txt:'Where the fog nets are\nhttps://example.com/fog-harvest?utm_source=ios_app&utm_medium=share\n'});
+  await tap('#addPaste');await t.reader();
+  ok('"Title\\nhttps://…" with tracking parameters: the link is added as it is',(await title()).includes('Fog Harvest')&&await books()===8
+    &&await lastFetch()==='https://example.com/fog-harvest?utm_source=ios_app&utm_medium=share');
+  await home();
+
+  const PARA='Fog nets are strung between two poles on the ridge above the village, and the water they catch runs down a pipe to a tank by the school. The full survey is at https://example.com/fog-survey and it is worth a read.';
+  const n0=(await fetched()).length;
+  await clip({html:`<p>${PARA.replace('https://example.com/fog-survey','<a href="https://example.com/fog-survey">the survey page</a>')}</p>`,txt:PARA});
+  await tap('#addPaste');
+  ok('a copied paragraph that holds a link: Add opens with it pasted, nothing fetched',await shown('#importM')&&await until(()=>document.querySelector('#paste').textContent.includes('strung between two poles'))
+    &&await value('#link')===''&&(await fetched()).length===n0&&await books()===8);
+  await cancelAdd();
+  await clip({txt:PARA});
+  await tap('#addPaste');
+  ok('…as plain text too',await shown('#importM')&&await until(()=>document.querySelector('#paste').textContent.includes('strung between two poles'))&&(await fetched()).length===n0);
+  await cancelAdd();
+  await clip({png:true,uri:'https://example.com/harbour.png'});
+  await tap('#addPaste');
+  ok('a copied picture with its own URL (as Safari copies an image): Add opens with the picture, nothing fetched',await shown('#importM')&&await until(()=>!!document.querySelector('#paste img'))
+    &&!(await text('#paste')).includes('harbour.png')&&(await fetched()).length===n0);
+  await cancelAdd();
+
+  await openAdd();
+  await clip({uri:'https://example.com/drift-nets'});
+  await tap('#linkPaste');
+  await until(()=>document.querySelector('#det').textContent.includes('Drift Nets'));
+  ok('Paste link with a copied URL alone: it fills the field and is fetched for review',await value('#link')==='https://example.com/drift-nets'&&await lastRead()==='tap'&&await books()===8);
+  await cancelAdd();
+  await openAdd();
+  await clip({items:[{txt:'The quay at low tide'},{uri:'https://example.com/low-tide'}]});
+  await tap('#linkPaste');
+  await until(()=>document.querySelector('#det').textContent.includes('Low Tide'));
+  ok('Paste link with a title and the URL as two items: the URL',await value('#link')==='https://example.com/low-tide');
+  await cancelAdd();
+
+  await openAdd();
+  await pasteInto({'text/uri-list':'# copied in an app\r\nhttps://example.com/salt-marsh'});
+  await until(()=>document.querySelector('#det').textContent.includes('Salt Marsh'));
+  ok('the paste box, a URL alone (text/uri-list): imports for review, the box stays empty',await value('#link')==='https://example.com/salt-marsh'&&!(await text('#paste')).trim()&&await books()===8);
+  await cancelAdd();
+  await openAdd();
+  await pasteInto({'text/html':'<a href="https://example.com/sea-wall">The sea wall</a>','text/plain':'The sea wall'});
+  await until(()=>document.querySelector('#det').textContent.includes('Sea Wall'));
+  ok('the paste box, one anchor: imports its link for review',await value('#link')==='https://example.com/sea-wall');
+  await cancelAdd();
+  await openAdd();
+  const n1=(await fetched()).length;
+  await pasteInto({'text/plain':PARA});
+  ok('the paste box, a paragraph that holds a link: pasted as text, nothing fetched',await until(()=>document.querySelector('#paste').textContent.includes('strung between two poles'))
+    &&await value('#link')===''&&(await fetched()).length===n1);
+  await cancelAdd();
 
   /* ---------- local mode: a link explains that link import needs sign-in, as ?add= does ---------- */
   await open({out:true});
@@ -250,4 +326,6 @@ await t.run(async()=>{
   await tap('#addPaste');
   await until(()=>!document.querySelector('#impErr').classList.contains('hidden'));
   ok('local mode: a copied link opens Add with it and says sign-in is needed',await vis('#importM')&&await value('#link')==='https://example.com/fog-nets'&&(await text('#impErr')).includes('sign-in')&&(await fetched()).length===0);
+  await pasteInto({'text/uri-list':'https://example.com/salt-marsh'});
+  ok('local mode: a URL alone pasted into the box goes in as text, as a lone link does',await until(()=>document.querySelector('#paste').textContent.includes('https://example.com/salt-marsh'))&&(await fetched()).length===0);
 });
