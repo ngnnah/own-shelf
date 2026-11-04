@@ -106,6 +106,17 @@ await t.run(async()=>{
   ok('other text in a figure stays: a pull quote, a note the caption doesn’t hold',
     same(await fig('<figure><blockquote><p>A net is patient.</p></blockquote><figcaption>Ines Varga</figcaption></figure>'),[{t:'quote',text:'A net is patient.'},{t:'p',text:'Ines Varga'}])
     &&same(await fig(`<figure>${IMG}<p>Drawn by the keepers’ school</p>${CAP}</figure>`),[{t:'img',caption:''},{t:'p',text:'Drawn by the keepers’ school'},{t:'p',text:'A fog net at dawn (Credit: Ada Rivers)'}]));
+  // A lazy-load placeholder beside the real picture (BBC, 2026: grey-placeholder.png, class hide-when-no-script)
+  const pics=html=>page.evaluate(h=>htmlToBlocks(h).map(b=>b.t==='img'?'img '+b.src.split('/').pop()+(b.caption?' | '+b.caption:''):b.t+' '+b.text),html);
+  const PH='<img src="https://example.com/static/grey-placeholder.png" class="hide-when-no-script" aria-label="image unavailable">',REAL='<img src="https://example.com/net.jpg" srcset="https://example.com/net-480.jpg 480w" alt="A fog net">';
+  ok('a placeholder image beside the real one in a figure is dropped; the real picture keeps its caption',
+    same(await pics(`<figure><div>${PH}${REAL}</div><figcaption>A fog net at dawn</figcaption></figure>`),['img net.jpg | A fog net at dawn']));
+  ok('…also when the real picture sits in a <noscript> beside it',same(await pics(`<figure>${PH}<noscript>${REAL}</noscript><figcaption>A fog net at dawn</figcaption></figure>`),['img net.jpg | A fog net at dawn']));
+  ok('…and a base64 pixel stand-in beside a real picture, outside a figure',same(await pics(`<div><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw="><img src="https://example.com/net.jpg"></div>`),['img net.jpg']));
+  ok('a real lazy-loaded picture stays: its own data-src, a picture whose file is not a placeholder, a lone placeholder',
+    same(await pics(`<figure><img data-src="https://example.com/lazy.jpg" class="lazyload" alt="A net"><figcaption>Lazy</figcaption></figure>`),['img lazy.jpg | Lazy'])
+    &&same(await pics(`<figure><img src="https://example.com/a.jpg" class="hide-when-no-script"><img src="https://example.com/b.jpg"></figure>`),['img a.jpg','img b.jpg'])
+    &&same(await pics(`<figure>${PH}</figure>`),['img grey-placeholder.png']));
 
   /* ---------- the publish date when Readability finds none (pageDate) ---------- */
   must('pageDate exists',await page.evaluate(()=>typeof window.pageDate==='function'));
