@@ -1417,7 +1417,7 @@ function readable(html,url){
   const a=new Readability(markBareWrappers(liftArticleHeaders(doc))).parse();
   if(!a||!a.content) throw new Error('no article');
   const by=(a.byline||'').replace(/^\s*by\s+/i,'').trim(),title=(a.title||'').trim();
-  return {blocks:withDek(htmlToBlocks(a.content),dek),title,hint:title,author:by.length<80?by:'',written:published(a.publishedTime),source:url};
+  return {blocks:withDek(htmlToBlocks(a.content),dek),title,hint:title,author:by.length<80?by:'',written:published(a.publishedTime)||pageDate(new DOMParser().parseFromString(html,'text/html'),url),source:url};
 }
 const LINK_ERR={'pdf.js missing':"The PDF reader didn't load. Try again, or paste the text instead.",'no text':"Couldn't read any text from that PDF.",
   'readability missing':"The article reader didn't load. Try again.",'no article':"Couldn't find an article on that page. Copy the text and paste it instead."};

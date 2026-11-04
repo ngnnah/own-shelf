@@ -17,6 +17,108 @@ function isDateLine(t){
   const core=t.replace(/^(published|posted|updated|written|last updated|date)\s*(on|:)?\s*/i,'').replace(/[.]$/,'');
   return new RegExp('^(?:'+MON_RE+'\\s+\\d{1,2}(?:st|nd|rd|th)?,?\\s+\\d{4}|\\d{1,2}\\s+'+MON_RE+',?\\s+\\d{4}|'+MON_RE+',?\\s+\\d{4}|\\d{4}-\\d{2}-\\d{2})$','i').test(core);
 }
+/* ---------- a web page's publish date (link import) ---------- */
+// Readability 0.5.0's publishedTime reads only the first schema.org JSON-LD article (its "@context" exactly
+// "http(s)://schema.org", "@type" a string) and <meta property="article:published_time"> (og:article:… too).
+// pageDate is the fallback for the rest, never a modified date, in this order: JSON-LD datePublished or dateCreated
+// (any script, arrays, @graph, mainEntity; articles before web pages), publish-date meta tags, a date on the page
+// marked as published or next to the title (not in a sidebar, comments or related links), then a date in the link,
+// which comes last because it can be the day the piece was started (BBC Future). → "October 30, 2026", "October 2026"
+// when only the month is known, or ''. Run it on a document Readability hasn't changed (it removes the scripts).
+// y, m, d → that date as link import writes it ("October 30, 2026"; no day: "October 2026"), or '' when it can't
+// be a publish date: before 1900, more than a day ahead, or no such day.
+function dateOut(y,m,d){
+  y=+y;m=+m;d=+(d||0);
+  if(y<1900||m<1||m>12||d>new Date(y,m,0).getDate()||new Date(y,m-1,d||1)-Date.now()>864e5) return '';
+  const mon=MONTHS[m-1][0].toUpperCase()+MONTHS[m-1].slice(1);
+  return d?`${mon} ${d}, ${y}`:`${mon} ${y}`;
+}
+// A date as pages write it: ISO (time and zone ignored: the date the page gives), 2026/10/30, 20261030, "Oct 30, 2026",
+// "30 October 2026", "Fri, 30 Oct 2026 …", "October 2026", 2026-10. A year alone isn't enough.
+function dateText(s){
+  s=String(s||'').trim();let m;
+  if((m=s.match(/(?:^|\D)(\d{4})([-/.])(\d{1,2})(?:\2(\d{1,2}))?(?!\d)/))) return dateOut(m[1],m[3],m[4]);
+  if((m=s.match(/^(\d{4})(\d\d)(\d\d)(?:T|$)/))) return dateOut(m[1],m[2],m[3]);
+  if((m=s.match(new RegExp('\\b('+MON_RE+')\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})\\b','i')))) return dateOut(m[3],monthIdx(m[1])+1,m[2]);
+  if((m=s.match(new RegExp('\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?('+MON_RE+'),?\\s+(\\d{4})\\b','i')))) return dateOut(m[3],monthIdx(m[2])+1,m[1]);
+  if((m=s.match(new RegExp('\\b('+MON_RE+'),?\\s+(\\d{4})\\b','i')))) return dateOut(m[2],monthIdx(m[1])+1);
+  return '';
+}
+// Parsed JSON-LD (an object, an array of them, or of whole scripts) → its publish dates, article nodes first.
+const LD_ARTICLE=/(?:Article|Posting|^Report|^APIReference)$/;
+function ldDates(json){
+  const nodes=[],walk=v=>{if(Array.isArray(v)) v.forEach(walk);else if(v&&typeof v==='object'){nodes.push(v);walk(v['@graph']);walk(v.mainEntity);}};
+  walk(json);
+  const types=n=>[].concat(n['@type']||[]).map(t=>String(t).replace(/^.*[/#:]/,'')),
+    str=v=>typeof v==='string'?v:Array.isArray(v)?str(v[0]):v&&typeof v==='object'?str(v['@value']):'',
+    of=re=>nodes.filter(n=>types(n).some(t=>re.test(t))).map(n=>str(n.datePublished)||str(n.dateCreated));
+  return [...of(LD_ARTICLE),...of(/Page$/)].filter(Boolean);
+}
+// Meta tags (property, name or itemprop) that hold a publish date, most specific first.
+const META_DATES=['article:published_time','og:article:published_time','og:published_time','published_time','article:published',
+  'datepublished','parsely-pub-date','sailthru.date','citation_publication_date','citation_date','citation_online_date',
+  'prism.publicationdate','dc.date.issued','dcterms.issued','dc.date.created','dcterms.created','dc.date','dcterms.date',
+  'date','pubdate','publishdate','publish-date','publish_date','publication_date'];
+// A link's path → the date in it: /2026/10/30/, /2026/Oct/30/, -2026-10-30-, /20261030- (BBC), then /2026/10/ (a month).
+function urlDate(url){
+  let p;try{p=new URL(url).pathname;}catch(e){return '';}
+  const Y='((?:19|20)\\d\\d)',end='(?=$|[/_.-])',mon=new RegExp('^'+MON_RE+'$','i');let m;
+  if((m=p.match(new RegExp('/'+Y+'/(\\d{1,2})/(\\d{1,2})(?=/|$)')))&&dateOut(m[1],m[2],m[3])) return dateOut(m[1],m[2],m[3]);
+  if((m=p.match(new RegExp('/'+Y+'/([a-z]{3,9})/(\\d{1,2})(?=/|$)','i')))&&mon.test(m[2])) return dateOut(m[1],monthIdx(m[2])+1,m[3]);
+  if((m=p.match(new RegExp('(?:^|[/_-])'+Y+'-?(\\d\\d)-?(\\d\\d)'+end)))&&dateOut(m[1],m[2],m[3])) return dateOut(m[1],m[2],m[3]);
+  if((m=p.match(new RegExp('/'+Y+'/(\\d{1,2})(?=/|$)')))) return dateOut(m[1],m[2]);
+  return '';
+}
+// Where a date belongs to something else: a sidebar, navigation, the page's footer, comments, related links.
+const DATE_OFF=/comment(?!ary)|related|sidebar|recommend|popular|trending|teaser|promo|widget|repl(?:y|ies)|discuss|more-?stories|read-?next|newsletter/i;
+const DATE_CLASS=/(?:^|[\s_-])(?:date(?:line)?|pubdate|published)(?=$|[\s_-])/i;
+function pageDate(doc,url){
+  const h1s=[...doc.querySelectorAll('h1')].filter(h=>!h.closest('aside,nav,[hidden]')),r=doc.createRange();
+  // off: inside an aside, a nav, the page's footer or something hidden, or under a sidebar, comments or related links
+  // (their class or id); ancestors that also hold the title are the page's own wrappers ("has-sidebar") and don't count
+  const off=el=>{
+    if(el.closest('aside,nav,[hidden],[role=complementary],[role=navigation]')) return true;
+    const f=el.closest('footer,[role=contentinfo]');if(f&&!f.closest('article')) return true;
+    for(let a=el.parentElement;a&&a!==doc.body&&!h1s.some(h=>a.contains(h));a=a.parentElement)
+      if(DATE_OFF.test((a.getAttribute('class')||'')+' '+a.id)) return true;
+    return false;
+  };
+  const scripts=[...doc.querySelectorAll('script[type="application/ld+json" i]')].map(s=>{
+    try{return JSON.parse(s.textContent.replace(/^\s*<!\[CDATA\[|\]\]>\s*$/g,''));}catch(e){return null;}
+  });
+  const metas={};
+  doc.querySelectorAll('meta[content]').forEach(m=>{
+    if(doc.body&&doc.body.contains(m)&&off(m)) return; // microdata in the body can be a comment's
+    for(const a of ['property','name','itemprop']){const k=(m.getAttribute(a)||'').trim().toLowerCase();if(k&&!(k in metas)) metas[k]=m.getAttribute('content');}
+  });
+  // On the page: <time>, itemprop=datePublished, and short elements with a date class ("date", "post-date",
+  // "dateline"); first those marked as published, then those by the title: in its <header>, under 800 letters of text
+  // below it (a long standfirst, as Martin Fowler's abstracts, comes first) or 200 above. Never one marked or
+  // labelled as updated.
+  const marks=el=>[el,el.parentElement].map(e=>e?[e.getAttribute('class'),e.id,e.getAttribute('itemprop')].join(' '):'').join(' ');
+  let tl;const times=()=>tl||(tl=[...doc.querySelectorAll('time,[itemprop~="datePublished"]:not(meta),[class*="date" i],[id*="date" i]')].filter(el=>{
+    if(!el.matches('time,[itemprop~="datePublished"]')&&(!DATE_CLASS.test(el.getAttribute('class')||'')&&!DATE_CLASS.test(el.id)||el.textContent.trim().length>80)) return false;
+    if(off(el)||/modif|updat|revis/i.test(marks(el))||/^\W*(?:last\s+)?(?:updated|modified|revised|edited)\b/i.test(el.textContent)) return false;
+    r.selectNodeContents(el.parentElement);r.setEndBefore(el);
+    return !/(?:updated|modified|revised|edited)\W*(?:on|at)?\W*$/i.test(r.toString());
+  }));
+  const marked=el=>el.matches('[itemprop~="datePublished"],[pubdate]')||/publish|posted|pub-?date|dateline/i.test(marks(el));
+  const near=el=>h1s.some(h=>{
+    if(h.closest('header')&&h.closest('header').contains(el)) return true;
+    const after=h.compareDocumentPosition(el)&Node.DOCUMENT_POSITION_FOLLOWING;
+    if(after){r.setStartAfter(h);r.setEndBefore(el);}else{r.setStartAfter(el);r.setEndBefore(h);}
+    return textKey(r.toString()).length<(after?800:200);
+  });
+  // its text nodes joined with spaces: Al Jazeera's "Published On 4 Nov 2026" and "4 Nov 2026" are two spans
+  const value=el=>el.getAttribute('datetime')||el.getAttribute('content')||[...el.childNodes].map(n=>n.nodeType===1?value(n):n.nodeType===3?n.nodeValue:'').join(' ');
+  // the sources in order, each looked at only if those before found no full date: the first date with its day wins,
+  // else the first with only a month (Nature's citation_publication_date is "2026/10", its JSON-LD has the day)
+  const sources=[()=>ldDates(scripts),()=>META_DATES.map(k=>metas[k]),()=>times().filter(marked).map(value),
+    ()=>times().filter(el=>!marked(el)&&near(el)).map(value),()=>[urlDate(url)]];
+  let month='';
+  for(const s of sources) for(const v of s()){const d=dateText(v);if(d.includes(',')) return d;month=month||d;}
+  return month;
+}
 const BULLET=/^[•●▪◦‣■□➢►✓✔–]\s*/;
 
 /* ---------- PDF ---------- */
