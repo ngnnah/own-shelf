@@ -254,5 +254,43 @@ const errs=[];
   ok('cloud: a restored log lands in settings/app beside the other settings',F.docs.get('users/u1/settings/app').studyLog['2026-10-24'].new===3&&F.docs.get('users/u1/settings/app').workerUrl==='https://w.example');
 }
 
+// entries (the commonplace book): users/{uid}/entries, coalesced like words, in backups
+{
+  const F=fakeFirestore();const C=makeCloud(F.fs,{},'u1',{onError:e=>errs.push(e),delay:10000});
+  const e={id:'e1',text:'First line\nA #lesson',date:'2026-11-05',added:1,up:1};
+  await C.put('entry:e1',e);await C.put('entry:e1',{...e,up:2});
+  ok('cloud: entry writes are coalesced and all("entry:") includes them',F.writes()===0&&(await C.all('entry:')).length===1&&(await C.all('entry:'))[0].up===2&&(await C.get('entry:e1')).up===2);
+  await C.flush();
+  ok('cloud: entries live under users/{uid}/entries',F.writes()===1&&F.docs.get('users/u1/entries/e1').text==='First line\nA #lesson');
+  await C.put('entry:e2',{id:'e2',text:'two',date:'2026-11-04',added:2,up:2});
+  ok('cloud: all("entry:") lists the saved ones and the queued',(await C.all('entry:')).length===2);
+  await C.del('entry:e1');ok('cloud: del removes an entry',!F.docs.has('users/u1/entries/e1'));
+  const L=makeLocal();await L.open();await L.put('entry:e3',{id:'e3',text:'x'});await L.put('word:w',{id:'w',term:'t'});
+  ok('local: all("entry:") lists only entries',(await L.all('entry:')).length===1);
+}
+{
+  const metaFor=(d,s)=>({id:d.id,title:d.title,hl:(s.hl||[]).length});
+  const A=makeLocal();await A.open();
+  await A.put('entry:e1',{id:'e1',text:'Old copy #a',date:'2026-10-01',added:1,up:10});
+  await A.put('entry:e2',{id:'e2',text:'Only here',date:'2026-10-02',added:2,up:20});
+  const bk=JSON.parse(JSON.stringify(await exportShelf(A)));
+  ok('backup: includes the entries',Array.isArray(bk.entries)&&bk.entries.length===2&&bk.entries.some(x=>x.id==='e2'&&x.text==='Only here'));
+  const B=makeLocal();await B.open();
+  await B.put('entry:e1',{id:'e1',text:'Newer edit',date:'2026-10-01',added:1,up:30});
+  const r=await importShelf(B,bk,[],metaFor);
+  ok('restore: adds the missing entry and keeps the newer copy of one on both sides',r.entries===1&&(await B.get('entry:e2')).text==='Only here'&&(await B.get('entry:e1')).text==='Newer edit');
+  const C=makeLocal();await C.open();await C.put('entry:e1',{id:'e1',text:'Older here',date:'2026-10-01',added:1,up:5});
+  const r2=await importShelf(C,bk,[],metaFor);
+  ok('restore: a newer entry in the backup replaces the older one here',r2.entries===2&&(await C.get('entry:e1')).text==='Old copy #a');
+  const r3=await importShelf(C,bk,[],metaFor);
+  ok('restore: the same backup again changes nothing',r3.entries===0);
+  const D=makeLocal();await D.open();
+  const bad={app:'upwind',version:1,books:[],entries:[null,{},{id:'x'},{id:'y',text:7},{id:'z',text:'  '},{id:'ok',text:'fine',date:'2026-01-01',added:1,up:1}]};
+  const r4=await importShelf(D,bad,[],metaFor);
+  ok('restore: skips malformed entries',r4.entries===1&&(await D.all('entry:')).length===1);
+  const r5=await importShelf(D,{app:'upwind',version:1,books:[]},[],metaFor);
+  ok('restore: a backup without entries still restores',r5.entries===0&&(await D.all('entry:')).length===1);
+}
+
 ok('no write errors',errs.length===0);
 done();

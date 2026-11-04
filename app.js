@@ -1530,7 +1530,6 @@ $('#linkPaste').onclick=()=>readClip().then(c=>{
 /* ================= notebook ================= */
 // Every highlight on the shelf, newest first. Read-only; the books are reloaded each time it opens.
 let NB={items:[],f:'all',run:0};
-const nbFold=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
 const nbCount=(n,w)=>`<b>${n}</b> ${w}${n===1?'':'s'}`;
 async function openNotebook(){
   const run=++NB.run;show('notebook');window.scrollTo(0,0);

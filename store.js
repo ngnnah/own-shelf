@@ -46,6 +46,7 @@ export function makeLocal({ onError = () => {} } = {}) {
 //                             the study log)
 //   trash/{id}                deleted books, highlights and notes, kept 30 days (the app purges them)
 //   words/{id}                saved vocabulary with example sentences and a flashcard schedule (see vocab.js)
+//   entries/{id}              the commonplace book: { id, text, date, added, up }, one note, lesson or journal entry
 export const CHUNK_BYTES = 700 * 1024;
 const enc = new TextEncoder();
 const size = v => enc.encode(JSON.stringify(v)).length;
@@ -68,8 +69,8 @@ export function makeCloud(fs, db, uid, { onError = () => {}, delay = 2500 } = {}
   const col = (...p) => fs.collection(db, ...base, ...p);
   const split = k => { const i = k.indexOf(':'); return [k.slice(0, i), k.slice(i + 1)]; };
   const plain = v => v == null ? v : JSON.parse(JSON.stringify(v)); // drops undefined, keeps Firestore happy
-  const COLL = { meta: 'meta', state: 'state', settings: 'settings', trash: 'trash', word: 'words' };   // key kind → collection
-  const LISTED = { meta: 'meta', trash: 'trash', word: 'words' };   // key kinds that all(prefix) can list
+  const COLL = { meta: 'meta', state: 'state', settings: 'settings', trash: 'trash', word: 'words', entry: 'entries' };   // key kind → collection
+  const LISTED = { meta: 'meta', trash: 'trash', word: 'words', entry: 'entries' };   // key kinds that all(prefix) can list
   const pathFor = (kind, id) => COLL[kind] ? [COLL[kind], id] : null;
 
   // Read the server copy when it answers quickly, otherwise the offline cache.
@@ -182,8 +183,9 @@ export function makeCloud(fs, db, uid, { onError = () => {}, delay = 2500 } = {}
 }
 
 /* ---------------- backup and restore ---------------- */
-// Format: { app: 'upwind', version: 1, exported, books: [{ meta, doc, state }], words, shelves, studyLog }.
-// The artifact's "Back up shelf" button writes the same format, without words, shelves and studyLog.
+// Format: { app: 'upwind', version: 1, exported, books: [{ meta, doc, state }], words, entries, shelves, studyLog }.
+// The artifact's "Back up shelf" button writes the same format, without words, entries, shelves and studyLog.
+// entries: the commonplace book's entries (entry:<id>); an older backup has none.
 // shelves: the shelf list ([{ id, name }] in order); each book's shelf id is in its state (state.shelf).
 // studyLog: settings:app's count of Study's reviews by day (see vocab.js).
 export async function exportShelf(db, metas, shelves, studyLog) {
@@ -193,8 +195,8 @@ export async function exportShelf(db, metas, shelves, studyLog) {
     const [doc, state] = await Promise.all([db.get('doc:' + meta.id), db.get('state:' + meta.id)]);
     if (doc) books.push({ meta, doc, state: state || null });
   }
-  const words = await db.all('word:');
-  return { app: 'upwind', version: 1, exported: new Date().toISOString(), books, words, ...(shelves ? { shelves } : {}), ...(studyLog ? { studyLog } : {}) };
+  const words = await db.all('word:'), entries = await db.all('entry:');
+  return { app: 'upwind', version: 1, exported: new Date().toISOString(), books, words, entries, ...(shelves ? { shelves } : {}), ...(studyLog ? { studyLog } : {}) };
 }
 
 // Adds books that aren't on the shelf yet. For books already there, adds the
@@ -209,7 +211,7 @@ export async function importShelf(db, data, existing, metaFor, shelves = []) {
   if (!data || data.app !== 'upwind' || !Array.isArray(data.books)) throw new Error('not_backup');
   if (data.version > 1) throw new Error('newer_version');
   const have = new Set(existing.map(m => m.id));
-  const res = { added: 0, merged: 0, highlights: 0, metas: [], words: 0 };
+  const res = { added: 0, merged: 0, highlights: 0, metas: [], words: 0, entries: 0 };
   if (Array.isArray(data.shelves) || data.studyLog) {
     const set = (await db.get('settings:app')) || {}, mine = Array.isArray(set.shelves);
     if (Array.isArray(data.shelves)) {
@@ -261,6 +263,14 @@ export async function importShelf(db, data, existing, metaFor, shelves = []) {
     if (extra.length) out.examples = [...(have.examples || []), ...extra];
     if (def) out.def = w.def;
     await db.put('word:' + w.id, out); res.words++;
+  }
+  // entries: added when missing; one on both sides keeps the newer `up`, so an old backup never undoes newer edits.
+  // Malformed ones (no id, no text) are skipped.
+  for (const e of Array.isArray(data.entries) ? data.entries : []) {
+    if (!e || typeof e.id !== 'string' || !e.id || typeof e.text !== 'string' || !e.text.trim()) continue;
+    const have = await db.get('entry:' + e.id);
+    if (have && (have.up || 0) >= (e.up || 0)) continue;
+    await db.put('entry:' + e.id, e); res.entries++;
   }
   return res;
 }
