@@ -516,6 +516,24 @@ function markBareWrappers(doc){
   });
   return doc;
 }
+// Readability turns a <div> holding only a <p> into that <p> (for sites that wrap each paragraph), but one level only.
+// A paragraph wrapped in several such <div>s (BBC, 2026: div > div[data-component=text-block] > div > div > p) adds
+// its score to its wrappers, and the article holding them all gets a ninth of it; a boxed aside whose paragraphs sit
+// side by side then outscores the whole article and is all that's kept. unwrapParagraphs collapses the whole chain:
+// <div>s each holding only the next one and no text, ending in a <p> under a quarter links (Readability's own limit),
+// become that <p>. A wrapper that tells Readability something stays: a class or id its patterns match, a role, hidden.
+function unwrapParagraphs(doc){
+  const R=Readability.prototype.REGEXPS,len=e=>e.textContent.replace(/\s+/g,' ').trim().length;
+  const plain=d=>d.tagName==='DIV'&&d.childElementCount===1&&![...d.childNodes].some(n=>n.nodeType===3&&n.nodeValue.trim())
+    &&!d.hasAttribute('role')&&!d.hasAttribute('hidden')&&d.getAttribute('aria-hidden')!=='true'
+    &&!(s=>R.positive.test(s)||R.negative.test(s)||R.unlikelyCandidates.test(s))(d.className+' '+d.id);
+  doc.querySelectorAll('p').forEach(p=>{
+    const t=len(p);if(!t||[...p.querySelectorAll('a')].reduce((a,l)=>a+len(l),0)/t>=0.25) return;
+    let w=p;while(w.parentElement&&plain(w.parentElement)) w=w.parentElement;
+    if(w!==p) w.replaceWith(p);
+  });
+  return doc;
+}
 // A page's subtitle (dek, standfirst) often sits in a header beside the article body, which Readability leaves out.
 // pageDek finds it before Readability runs: the element just under an <h1> (at most 200 letters of other text
 // between them) whose text is the page's own description (og:description, twitter:description or description).
