@@ -22,13 +22,17 @@ function nbFold(s){return String(s==null?'':s).toLowerCase().normalize('NFD').re
 /* ---------- the commonplace book ---------- */
 // An entry's topics: its #hashtags. # then a letter, then letters, digits, - or _ (any script; a trailing - or _ isn't
 // part of it), not after a letter, digit, / or & (so "# Title", a link's #fragment and "&#39;" don't count).
-// → [{key, label}], each topic once, in the order first written: key is folded for matching, label as first written.
+// tagSpans(text) → [{at, end, key, label}] for every #tag in the text, where it sits (the cards make them tappable).
+// tagsOf(text) → [{key, label}], each topic once, in the order first written: key is folded for matching, label as first written.
+function tagSpans(text){
+  const out=[];
+  for(const m of String(text||'').matchAll(/(?<![\p{L}\p{M}\p{N}\/&])#(\p{L}(?:[\p{L}\p{M}\p{N}_-]*[\p{L}\p{M}\p{N}])?)/gu))
+    out.push({at:m.index,end:m.index+m[0].length,key:nbFold(m[1]),label:m[1]});
+  return out;
+}
 function tagsOf(text){
   const out=[],seen=new Set();
-  for(const m of String(text||'').matchAll(/(?<![\p{L}\p{M}\p{N}\/&])#(\p{L}(?:[\p{L}\p{M}\p{N}_-]*[\p{L}\p{M}\p{N}])?)/gu)){
-    const key=nbFold(m[1]);
-    if(!seen.has(key)){seen.add(key);out.push({key,label:m[1]});}
-  }
+  for(const t of tagSpans(text)) if(!seen.has(t.key)){seen.add(t.key);out.push({key:t.key,label:t.label});}
   return out;
 }
 // A paste whose first non-empty line is a date on its own ("March 3, 2024", "3 March 2024", "2024-03-03", "March 2024")
@@ -737,4 +741,4 @@ function decodeBody(buf,type){
   try{return new TextDecoder(cs||'utf-8').decode(buf);}catch(e){return new TextDecoder('utf-8').decode(buf);}
 }
 // ===== PARSE END =====
-if(typeof module!=='undefined') module.exports={nbFold,tagsOf,pastedDate,linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,firstUri,sharedLink,decodeBody,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,speechChunks,speechWord,withDek};
+if(typeof module!=='undefined') module.exports={nbFold,tagSpans,tagsOf,pastedDate,linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,firstUri,sharedLink,decodeBody,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,speechChunks,speechWord,withDek};

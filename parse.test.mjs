@@ -4,7 +4,7 @@ import {ok,done} from './test-util.mjs';
 
 // parse.js is a classic browser script; run it in a sandbox and pick up its globals.
 const P={};vm.runInNewContext(readFileSync(new URL('./parse.js',import.meta.url),'utf8'),Object.assign(P,{TextDecoder,module:{}}));
-const {firstUrl,isLoneUrl,firstUri,sharedLink,decodeBody,mdToBlocks,finalize,parseDate,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,withDek,tagsOf,pastedDate,nbFold}=P.module.exports;
+const {firstUrl,isLoneUrl,firstUri,sharedLink,decodeBody,mdToBlocks,finalize,parseDate,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,withDek,tagSpans,tagsOf,pastedDate,nbFold}=P.module.exports;
 
 ok('firstUrl: bare link',firstUrl('https://example.com/a?b=1')==='https://example.com/a?b=1');
 ok('firstUrl: from shared text',firstUrl('Read this: “Great essay” https://example.com/x/y.html.')==='https://example.com/x/y.html');
@@ -217,6 +217,7 @@ ok('speech word: from the boundary’s index and length, punctuation trimmed',JS
 ok('speech word: without a length, to the next space',JSON.stringify(speechWord('the tide, rising',4))==='[4,8]'&&JSON.stringify(speechWord('a  b',1))==='[3,4]');
 
 /* ---------- the commonplace book: topics and a pasted date ---------- */
+ok('tagSpans: where each tag sits, repeats included',JSON.stringify(tagSpans('a #x b #x'))===JSON.stringify([{at:2,end:4,key:'x',label:'x'},{at:7,end:9,key:'x',label:'x'}]));
 const tg=t=>tagsOf(t).map(x=>x.label).join(',');
 ok('tagsOf: plain tags, in the order written',tg('Notes on #stoicism and #lesson today')==='stoicism,lesson');
 ok('tagsOf: folded key, label as first written, each topic once',JSON.stringify(tagsOf('#Café then #cafe and #CAFÉ'))===JSON.stringify([{key:'cafe',label:'Café'}]));
