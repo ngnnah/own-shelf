@@ -1665,7 +1665,32 @@ $('#enDel').onclick=()=>{const e=EN&&EN.e;closeEntry();if(e) deleteEntry(e);};
 /* ---------- end of the entry sheet ---------- */
 
 /* ---------- commonplace: paste ---------- */
-$('#cpPaste').onclick=()=>openEntry(null);
+// Text → a new entry's sheet, its first-line date split off (pastedDate). No text: a picture only says so, else empty.
+function cpPasted(txt,pics){
+  if(!(txt||'').trim()){toast(pics?'Commonplace keeps text only.':'The clipboard is empty');return;}
+  const {date,text}=pastedDate(txt);openEntry(null,{text,date});
+}
+// Read the clipboard from the tap itself (iOS), no await before it.
+$('#cpPaste').onclick=()=>readClip().then(c=>cpPasted(c.txt||(c.html&&new DOMParser().parseFromString(c.html,'text/html').body.textContent)||'',c.imgs.length),
+  ()=>{openEntry(null);toast('Couldn’t read the clipboard. Paste into the box instead.');$('#enTa').focus();});
+// A paste into the empty text of a new entry takes its date too; any other paste is left alone.
+$('#enTa').addEventListener('paste',e=>{
+  const ta=e.target,cd=e.clipboardData;
+  if(!EN||EN.e||ta.value||!cd) return;
+  const t=cd.getData('text/plain');if(!t.trim()) return;
+  e.preventDefault();
+  const {date,text}=pastedDate(t);ta.value=text;$('#enDate').value=ymdHuman(date||ymd());
+});
+// ⌘V / Ctrl+V on the tab outside any field, with no sheet or dialog open.
+document.addEventListener('paste',e=>{
+  if(e.defaultPrevented||!e.clipboardData) return;
+  if($('#notebook').classList.contains('hidden')||prefs.nbTab!=='cp'||$('#nbPanelCp').classList.contains('hidden')) return;
+  const a=document.activeElement;
+  if(a&&(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)||a.isContentEditable)) return;
+  if(document.querySelector('#entryBox:not(.hidden), #wordBox:not(.hidden), .modal:not(.hidden)')) return;
+  e.preventDefault();
+  cpPasted(e.clipboardData.getData('text/plain'),[...(e.clipboardData.files||[])].some(f=>/^image\//.test(f.type))||[...(e.clipboardData.items||[])].some(i=>/^image\//.test(i.type)));
+});
 /* ---------- end of paste ---------- */
 
 /* ---------- commonplace: delete ---------- */
