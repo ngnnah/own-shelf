@@ -31,14 +31,18 @@ const putEntries=list=>page.evaluate(list=>new Promise((res,rej)=>{
 // an entry for putEntries; added counts up so the order within a day is known
 let seq=0;
 const entry=(id,text,date=dayKey(),added=Date.now()-1e6+(++seq))=>({id,text,date,added,up:added});
-// Notebook → Commonplace from wherever the app is, rereading the entries.
+// Notebook → Commonplace from wherever the app is, rereading the entries. The tab first shows the entries it holds in
+// memory, so this waits until the cards match the store: opening clears the search and topic, so every stored entry
+// shows, up to the first 100.
 async function openTab(){
   await page.keyboard.press('Escape');
   if(await vis('#notebook')){await page.click('#nbBack');await page.waitForSelector('#shelf:not(.hidden)');}
   await page.click('#nbBtn');await page.waitForSelector('#notebook:not(.hidden)');
   if(await page.$eval('#nbTabCp',b=>b.getAttribute('aria-selected')!=='true')) await page.click('#nbTabCp');
   await page.waitForSelector('#nbPanelCp:not(.hidden)');
-  await until(()=>!document.querySelector('#cpList').textContent.includes('Gathering'));
+  const ids=Object.keys(await storedEntries());
+  await until((ids,n)=>{const l=document.querySelector('#cpList'),c=[...l.querySelectorAll('.cp-card')].map(e=>e.dataset.id);
+    return n?c.length===n&&c.every(id=>ids.includes(id)):!l.textContent.includes('Gathering')&&!c.length;},ids,Math.min(ids.length,100));
 }
 const cardIds=()=>page.$$eval('#cpList .cp-card',els=>els.map(e=>e.dataset.id));
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
