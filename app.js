@@ -740,14 +740,14 @@ function pickPulls(){
 const minsOf=w=>Math.max(1,Math.round(w/230));
 const CHECK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 const PENCIL='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>';
-function blockHTML(b,first){
+function blockHTML(b,first,plain){
   const pid=`data-pid="${b.id}"`;
-  if(b.t==='h'){const lv=Math.min(4,Math.max(3,(b.level||2)-(DOC.secLevel||1)+3));return `<h${lv} class="hp" id="h-${b.id}" ${pid}>${inlineHTML(b)}</h${lv}>`;}
-  if(b.t==='quote') return `<blockquote class="hp" ${pid}>${inlineHTML(b)}</blockquote>`;
+  if(b.t==='h'){const lv=Math.min(4,Math.max(3,(b.level||2)-(DOC&&DOC.secLevel||1)+3));return `<h${lv} class="hp" id="h-${b.id}" ${pid}>${inlineHTML(b,plain)}</h${lv}>`;}
+  if(b.t==='quote') return `<blockquote class="hp" ${pid}>${inlineHTML(b,plain)}</blockquote>`;
   if(b.t==='code') return `<pre class="hp" ${pid}>${esc(b.text)}</pre>`;
   if(b.t==='hr') return '<hr class="hr">';
   if(b.t==='img') return `<figure class="fig"><img src="${esc(b.src)}" alt="${esc(b.alt||'')}" loading="lazy" referrerpolicy="no-referrer">${b.caption?`<figcaption>${esc(b.caption)}</figcaption>`:''}</figure>`;
-  return `<p class="hp${first&&b.text.length>140&&/^[A-Za-z"“]/.test(b.text)?' first':''}" ${pid}>${inlineHTML(b)}</p>`;
+  return `<p class="hp${first&&b.text.length>140&&/^[A-Za-z"“]/.test(b.text)?' first':''}" ${pid}>${inlineHTML(b,plain)}</p>`;
 }
 function listMark(b,depth){return b.list==='ol'?(b.num||1)+'.':(depth%2?'◦':'•');}
 function buildReader(){
@@ -1625,21 +1625,21 @@ async function openCommonplace(){
 /* ---------- commonplace: the list (stats, months, cards, Show more) ---------- */
 // Draws the stats line, the chips and the cards for cpFiltered(), grouped by month. A tap on a card opens it in the entry
 // sheet; a #tag in it picks that topic, a link opens as a link, Show more unclips a tall card.
-const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
-const cpMonth=d=>{const [y,m]=String(d||'').split('-').map(Number);return m?`${MONTHS[m-1]} ${y}`:'Undated';};
+// "2026-11-05" → "November 2026" (a month heading) and "Nov 5" (a card's day)
+const cpDay=(d,o)=>{const [y,m,n]=String(d||'').split('-').map(Number);return m?new Date(y,m-1,n||1).toLocaleDateString('en-US',o):'';};
+const cpMonth=d=>cpDay(d,{month:'long',year:'numeric'})||'Undated';
 // A card's text as Markdown through the reader's blockHTML (plain: no highlights, words or notes; pictures skipped).
 function cpBody(text){
-  const had=DOC;if(!DOC) DOC={}; // blockHTML reads DOC.secLevel for headings
   let h='',inList=false;
-  try{mdToBlocks(text).filter(b=>b.t!=='img').forEach((b,i)=>{
+  mdToBlocks(text).filter(b=>b.t!=='img').forEach(b=>{
     const x={...b,id:'',marks:b.marks||[]};
     if(b.t==='li'){ // the reader draws list items itself (buildReader), so the same markup here
       if(!inList){h+='<div class="list" role="list">';inList=true;}
       const d=b.depth||0;h+=`<div class="hp li" role="listitem" style="--d:${d}" data-mark="${listMark(b,d)}">${inlineHTML(x,true)}</div>`;return;
     }
     if(inList){h+='</div>';inList=false;}
-    h+=blockHTML(x,i===0).replace(/ ?data-pid=""/g,'').replace(/ id="h-"/g,'');
-  });}finally{if(!had) DOC=null;}
+    h+=blockHTML(x,false,true).replace(/ ?data-pid=""/g,'').replace(/ id="h-"/g,'');
+  });
   return h+(inList?'</div>':'');
 }
 // Wraps each #tag found in a card's text nodes in a button (not inside a link, code or an existing button).
@@ -1669,8 +1669,7 @@ function renderEntries(){
   shown.forEach(e=>{const m=cpMonth(e.date),g=groups[groups.length-1];if(g&&g.m===m) g.l.push(e);else groups.push({m,l:[e]});});
   const total={};list.forEach(e=>{const m=cpMonth(e.date);total[m]=(total[m]||0)+1;});
   box.innerHTML=groups.map(g=>`<h3 class="cgh">${esc(g.m)}<small> · ${total[g.m]}</small></h3>`+g.l.map(e=>{
-    const [,mo,d]=String(e.date||'').split('-').map(Number);
-    return `<article class="cp-card" data-id="${esc(e.id)}" tabindex="0"><div class="cp-day">${mo?MONTHS[mo-1].slice(0,3)+' '+d:''}</div><div class="cp-text">${cpBody(e.text)}</div></article>`;}).join('')).join('')
+    return `<article class="cp-card" data-id="${esc(e.id)}" tabindex="0"><div class="cp-day">${cpDay(e.date,{month:'short',day:'numeric'})}</div><div class="cp-text">${cpBody(e.text)}</div></article>`;}).join('')).join('')
     +(list.length>shown.length?`<button class="btn ghost cp-more-list" id="cpMoreList">Show more</button>`:'');
   box.querySelectorAll('.cp-text').forEach(t=>{
     cpTagify(t);
