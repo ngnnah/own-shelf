@@ -427,13 +427,13 @@ body.focus .fn-card .hp{opacity:1}
 /* the note box and the word card stay inside the visible area (max-height set in app.js): as a flex column, a long
    or dragged-taller field gives way and scrolls, and the buttons stay in view */
 #noteBox{position:fixed;z-index:61;display:flex;flex-direction:column;overflow:auto;width:min(340px,calc(100vw - 24px));background:var(--sheet);border-radius:18px;padding:.9rem;box-shadow:0 14px 40px rgba(40,24,12,.3);border:1px solid var(--rule)}
-#noteBox>*,#wordBox>*,#wbBody>*{flex:none}
-#noteBox textarea{flex:0 1 auto;min-height:90px;font:1rem/1.45 var(--body);resize:vertical}
-#noteBox .row{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.6rem}
-#noteBox .btn{padding:.5rem 1rem;font-size:.9rem}
+#noteBox>*,#wordBox>*,#wbBody>*,#entryBox>*{flex:none}
+#noteBox textarea,#entryBox textarea{flex:0 1 auto;min-height:90px;font:1rem/1.45 var(--body);resize:vertical}
+#noteBox .row,#entryBox .row{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.6rem}
+#noteBox .btn,#entryBox .btn{padding:.5rem 1rem;font-size:.9rem}
 /* on a phone: a sheet across the screen, docked above the keyboard; its fields grow with their text (app.js) */
-#noteBox.sheet,#wordBox.sheet{width:min(640px,calc(100vw - 16px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)))}
-#noteBox.sheet textarea,#wordBox.sheet textarea{resize:none}
+#noteBox.sheet,#wordBox.sheet,#entryBox.sheet{width:min(640px,calc(100vw - 16px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)))}
+#noteBox.sheet textarea,#wordBox.sheet textarea,#entryBox.sheet textarea{resize:none}
 
 /* drawers */
 .drawer{position:fixed;z-index:50;top:0;bottom:0;width:min(420px,100vw);background:var(--sheet);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 0 40px rgba(40,24,12,.14);visibility:hidden;transition:transform .3s cubic-bezier(.2,.8,.2,1),visibility 0s .3s}
@@ -489,7 +489,7 @@ body.focus .fn-card .hp{opacity:1}
 #toast{position:fixed;z-index:140;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);transform:translate(-50%,20px);width:max-content;max-width:calc(100vw - 2rem - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px));box-sizing:border-box;text-align:center;background:var(--ink);color:var(--sheet);font:650 .95rem var(--display);padding:.7rem 1.2rem;border-radius:999px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s,transform .25s,visibility 0s .25s}
 #toast.on{opacity:1;transform:translate(-50%,0);visibility:visible;transition-delay:0s}
 /* while the note box or word card is open (docked at the bottom on phones), toasts show at the top instead */
-body:has(#noteBox:not(.hidden),#wordBox:not(.hidden)) #toast{top:calc(env(safe-area-inset-top,0px) + 14px);bottom:auto}
+body:has(#noteBox:not(.hidden),#wordBox:not(.hidden),#entryBox:not(.hidden)) #toast{top:calc(env(safe-area-inset-top,0px) + 14px);bottom:auto}
 #toast.act{display:flex;align-items:center;padding-right:.6rem;box-shadow:0 10px 30px rgba(40,24,12,.28)}
 #toast.on.act{pointer-events:auto}
 /* a flex item, so the spaces around the dot collapse: the margin and the button's padding space it evenly */
@@ -797,7 +797,12 @@ body.focus .hp.ls-block{opacity:1}
 /* ===== end of the Commonplace list ===== */
 
 /* ===== Commonplace: the entry sheet ===== */
-#entryBox{position:fixed;z-index:61;left:12px;right:12px;bottom:12px;display:flex;flex-direction:column;gap:.5rem;background:var(--sheet);border:1px solid var(--rule);border-radius:18px;padding:.9rem}
+#entryBox{position:fixed;z-index:61;display:flex;flex-direction:column;overflow:auto;width:min(480px,calc(100vw - 24px));background:var(--sheet);border-radius:18px;padding:.85rem .9rem .9rem;box-shadow:0 14px 40px rgba(40,24,12,.3);border:1px solid var(--rule)}
+#entryBox textarea{min-height:140px}
+#entryBox.sheet textarea{min-height:90px}
+.en-head{display:flex;align-items:baseline;gap:.2rem .6rem;margin-bottom:.55rem}
+.en-head h2{font:600 1.5rem/1.15 var(--display);margin:0}
+.en-date{margin-top:.6rem}
 #entryBox.hidden{display:none}
 /* ===== end of the entry sheet ===== */
 
