@@ -794,6 +794,21 @@ body.focus .hp.ls-block{opacity:1}
 @media (max-width:360px){.bar-in .ib{padding-left:.16rem;padding-right:.16rem}.bar-in .home{padding-left:.55rem;padding-right:.7rem}}
 /* ===== Commonplace: the tab and its list (New entry, Paste, chips, months, cards) ===== */
 .cp-card{display:block;padding:.8rem 1rem;margin:.6rem 0;background:var(--sheet);border:1px solid var(--rule);border-radius:12px;cursor:pointer;overflow-wrap:anywhere}
+.cp-top{display:flex;gap:.6rem;flex-wrap:wrap;margin:.2rem 0 .9rem}
+#cpList .cgh{margin:1.4rem 0 .5rem}
+#cpList .cgh:first-child{margin-top:.2rem}
+.cp-day{font:600 .78rem var(--ui);color:var(--muted);margin-bottom:.35rem;letter-spacing:.02em}
+.cp-text{overflow:hidden}
+.cp-text:not(.open){max-height:14rem}
+.cp-text .hp{font-size:1.05rem;margin:0 0 .7em}
+.cp-text .hp:last-child,.cp-text .list:last-child{margin-bottom:0}
+.cp-text .list{margin-bottom:.7em}
+.cp-text .list .li{margin:0 0 .25em;font-size:1.05rem}
+.cp-text.clip{-webkit-mask-image:linear-gradient(#000 80%,transparent);mask-image:linear-gradient(#000 80%,transparent)}
+.cp-more,.cp-tag{font:inherit;background:none;border:0;padding:0;color:var(--sea);cursor:pointer}
+.cp-more{display:block;margin-top:.4rem;font:600 .88rem var(--ui)}
+.cp-tag{text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:2px}
+.cp-more-list{display:flex;margin:1rem auto}
 /* ===== end of the Commonplace list ===== */
 
 /* ===== Commonplace: the entry sheet ===== */
