@@ -13,6 +13,11 @@ const t=await start('progress',8159);
 const {page,ok,must,vis,text,until}=t;
 const shotDir=join(dirname(fileURLToPath(import.meta.url)),'out','progress');mkdirSync(shotDir,{recursive:true});
 const DAY=864e5,HOUR=36e5,MIN=6e4;
+// The seeded words have no meaning, so the Words tab looks them up. Nothing here asks a real dictionary: the lookups
+// fail as if offline (the app tries again later), and the answer of a live service never reaches the page.
+await page.setBypassServiceWorker(true);
+await page.setRequestInterception(true);
+page.on('request',req=>['api.datamuse.com','en.wiktionary.org','en.wikipedia.org'].includes(new URL(req.url()).hostname)?req.abort('internetdisconnected'):req.continue());
 
 /* ---------- the cards ---------- */
 const now=Date.now();
