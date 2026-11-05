@@ -1726,7 +1726,12 @@ document.addEventListener('paste',e=>{
 /* ---------- end of paste ---------- */
 
 /* ---------- commonplace: delete ---------- */
-function deleteEntry(e){ENTRIES.delete(e.id);DB.del('entry:'+e.id);renderEntries();toast('Entry deleted');}
+// To the Trash as it was; Undo and the Trash's Restore put it back (restoreEntry).
+function deleteEntry(e){
+  const first=(e.text.split('\n').find(l=>l.trim())||'').trim(),title=first.length>80?first.slice(0,80).replace(/\s+\S*$/,'')+'…':first;
+  const tr=toTrash('entry',{title,entry:e});
+  if(ENTRIES) ENTRIES.delete(e.id);DB.del('entry:'+e.id);renderEntries();movedToTrash(tr);
+}
 /* ---------- end of delete ---------- */
 
 /* ================= vocabulary ================= */
@@ -2403,6 +2408,7 @@ $('#restoreFile').onchange=async e=>{
   try{
     const r=await importShelf(DB,data,META,metaFor,shelves());if(r.shelves) SETTINGS={...SETTINGS,shelves:r.shelves};if(r.studyLog) SETTINGS={...SETTINGS,studyLog:r.studyLog};
     r.metas.forEach(m=>{META=META.filter(x=>x.id!==m.id).concat(m);untrashBook(m.id);});if(r.shelves) untrashShelves();
+    cpStale=true;
     closeModal('#setM');renderShelf();
     toast(r.added||r.merged?`Restored ${r.added} book${r.added===1?'':'s'}${r.highlights?` and ${r.highlights} highlight${r.highlights===1?'':'s'}`:''}`:'Everything in that backup is already here');
   }catch(err){
@@ -2418,6 +2424,7 @@ $('#restoreFile').onchange=async e=>{
 //   {id, kind:'note', deletedAt, bookId, title, hlId, text, quote, color}
 //   {id, kind:'word', deletedAt, title, word}                         word: the whole word (title is its term), or a
 //                                                                     fact card (title is its book's)
+//   {id, kind:'entry', deletedAt, title, entry}                       entry: the whole commonplace entry; title is its first line
 //   {id, kind:'shelf', deletedAt, title, shelf, at}                   shelf: {id, name} as it was in the list; at: its
 //                                                                     place there. Its books keep its id (Unsorted)
 // Backups (exportShelf) cover the shelf only, so trashed books, words and shelves aren't in them.
@@ -2439,12 +2446,14 @@ function afterRestore(e){
   const nb=!$('#notebook').classList.contains('hidden'),words=prefs.nbTab==='wd';
   if(onShelf()) renderShelf();
   else if(nb&&words&&e.kind==='word') renderWords();
-  else if(nb&&!words&&e.kind!=='word') openNotebook(); // the Highlights tab reads the books again
+  else if(nb&&prefs.nbTab==='cp'){if(e.kind==='entry') renderEntries();}
+  else if(nb&&!words&&e.kind!=='word'&&e.kind!=='entry') openNotebook(); // the Highlights tab reads the books again
   if(e.kind==='word'){underline(e.word);syRestored(e.word);}
 }
 // Puts an entry back. Returns '' or why it can't.
 async function restoreEntry(e){
   if(e.kind==='word'){await restoreWord(e.word);DB.del('trash:'+e.id);return '';}
+  if(e.kind==='entry'){const x=e.entry;DB.put('entry:'+x.id,x);if(ENTRIES) ENTRIES.set(x.id,x);DB.del('trash:'+e.id);return '';}
   if(e.kind==='shelf') return restoreShelf(e);
   const id=e.bookId,open=!!(DOC&&DOC.id===id);
   const doc=open?DOC:await DB.get('doc:'+id);
@@ -2502,6 +2511,9 @@ function trashRow(e){
   if(e.kind==='book'){
     const m=e.meta||{id:e.bookId};what='Book';stripe=coverOf(m)[0];
     body=`<p class="tr-meta">${esc([m.author,e.hl?lossText(e.hl,e.notes):'No highlights'].filter(Boolean).join(' · '))}</p>`;
+  } else if(e.kind==='entry'){
+    const x=e.entry||{};what='Entry';stripe='var(--sea)';
+    body=`<p class="q" style="white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden">${esc(x.text||'')}</p><p class="tr-meta">${esc(ymdHuman(x.date))}</p>`;
   } else if(e.kind==='shelf'){
     const n=META.filter(m=>m.shelf===e.shelf.id).length;what='Shelf';stripe='var(--plank)';
     body=`<p class="tr-meta">${n?plural(n,'book'):'No books'}</p>`;
