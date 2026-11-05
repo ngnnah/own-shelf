@@ -76,8 +76,8 @@
 //   dialogs.mjs     a tap outside a dialog starts and ends outside; outside or Escape saves Book details (quietly when
 //                   nothing changed) and Settings, keeps the Add dialog's draft, cancels the rest; the date quick picks
 //                   (Today, Yesterday, the native picker) and their sorting; the reader's heading opening Details on a phone
-//   overflow.mjs    the page never scrolls sideways on a phone (375 and 320 px, touch): every screen, drawer, dialog
-//                   and card, with unbroken links and titles, long words, a wide table and picture; the overflow-x:clip
+//   overflow.mjs    the page never scrolls sideways on a phone (375 and 320 px, touch): every screen (the Commonplace tab and its
+//                   entry sheet too), drawer, dialog and card, with unbroken links and titles, long words, a wide table and picture; the overflow-x:clip
 //                   backstop, the window's scroll and Study's sticky buttons under it; text fields at 16 px or more
 //   listen.mjs      Listen (read aloud) with a fake speechSynthesis: where it starts (the screen, a selection), the
 //                   sentence and word marks (across highlights, which stay unchanged), Pause and Resume, reading on

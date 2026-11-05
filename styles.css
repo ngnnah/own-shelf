@@ -809,6 +809,8 @@ body.focus .hp.ls-block{opacity:1}
 .cp-more{display:block;margin-top:.4rem;font:600 .88rem var(--ui)}
 .cp-tag{text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:2px}
 .cp-more-list{display:flex;margin:1rem auto}
+#cpChips .chip{min-width:0;max-width:100%;text-align:left;overflow-wrap:anywhere}
+@media (max-width:359px){.nb-tabs{gap:1rem}.nb-tabs button{font-size:1.1rem}}
 /* ===== end of the Commonplace list ===== */
 
 /* ===== Commonplace: the entry sheet ===== */

@@ -1,17 +1,18 @@
 // The page never scrolls sideways on a phone: on every screen and in every state, at 375 px with a touch screen (and
-// at 320 px for the shelf, the reader and the Words tab), nothing in the page is wider than the screen, no drawer or dialog scrolls
+// at 320 px for the shelf, the reader, the Words tab and the Commonplace tab with its entry sheet), nothing in the page is wider than the screen, no drawer or dialog scrolls
 // sideways inside, and the fixed bar, toolbar, cards, toast, drawers and dialogs stay inside the screen (with the
 // Date written quick picks in Add and Book details, the byline's pencil, every arrangement including by Shelf, the Grid view, the shelf
 // dialog, a shelf name without spaces, every shelf collapsed and the New shelf and Collapse all buttons, at both widths).
 // The books:
 // the rich paste; a stress paste (a 300-character unbroken link in a paragraph, a list item, a quote, a caption, a
 // footnote and a note; long words in headings; a wide table; a long code line; a wide picture; a pull quote); a
-// Kindle notebook (its contents list chapters); a book whose title and author have no spaces.
+// Commonplace entries (a long word, link and #tag, Markdown, 30 topics in the chips) and the New entry sheet with
+// long text; a Kindle notebook (its contents list chapters); a book whose title and author have no spaces.
 // The page measures with the html/body overflow-x:clip backstop turned off, so the checks test each cause; then the
 // backstop itself, and what it must not break: the window scrolls, the bar stays fixed, Study's sticky buttons.
 // Clicks are DOM clicks: a page wider than the screen widens Chrome's layout viewport and real clicks miss.
 // Dictionaries are mocked. Usage: node tests/browser/overflow.mjs [repo dir]
-// Screenshots (the stress book and the Kindle contents at 320 px, the Notebook and the List view) go to
+// Screenshots (the stress book and the Kindle contents at 320 px, the Notebook, the Commonplace tab and its sheet, and the List view) go to
 // tests/browser/out/overflow/.
 import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {dirname,join} from 'node:path';
@@ -93,10 +94,10 @@ const measure=()=>page.evaluate(()=>{
   const shows=e=>{const s=getComputedStyle(e);return s.display!=='none'&&s.visibility!=='hidden'&&e.getClientRects().length;};
   const past=e=>{const r=e.getBoundingClientRect();return r.right>cw+.5||r.left<-.5;};
   // the culprits: elements in the page whose box or content passes the right edge, innermost first
-  const wide=sw>cw?[...document.body.querySelectorAll('*')].filter(e=>shows(e)&&getComputedStyle(e).position!=='fixed'&&!e.closest('.drawer,.modal,#tool,#noteBox,#wordBox,#toast,#bar')&&
+  const wide=sw>cw?[...document.body.querySelectorAll('*')].filter(e=>shows(e)&&getComputedStyle(e).position!=='fixed'&&!e.closest('.drawer,.modal,#tool,#noteBox,#wordBox,#entryBox,#toast,#bar')&&
     (past(e)||e.getBoundingClientRect().left+e.scrollWidth>cw+.5)&&!e.querySelector('*:not(br)')).slice(0,4).map(name):[];
-  const inner=[...document.querySelectorAll('.dr-list,.dlg,#noteBox,#wordBox,#wbBody,#wbMore')].filter(e=>shows(e)&&e.scrollWidth>e.clientWidth+1).map(name);
-  const fixed=[...document.querySelectorAll('#bar .bar-in>*,#tool,#noteBox,#wordBox,#toast.on,.drawer.open,.modal .dlg')].filter(e=>shows(e)&&past(e)).map(name);
+  const inner=[...document.querySelectorAll('.dr-list,.dlg,#noteBox,#wordBox,#entryBox,#wbBody,#wbMore')].filter(e=>shows(e)&&e.scrollWidth>e.clientWidth+1).map(name);
+  const fixed=[...document.querySelectorAll('#bar .bar-in>*,#tool,#noteBox,#wordBox,#entryBox,#toast.on,.drawer.open,.modal .dlg')].filter(e=>shows(e)&&past(e)).map(name);
   off.remove();
   return {cw,sw,wide,inner,fixed};
 });
@@ -202,6 +203,35 @@ async function notebook(){
   await clk('#wdChips [data-f="all"]');await clk('#nbTabHl');
 }
 
+// Notebook → Commonplace: entries with an unbroken word, a long link, a long #tag, a Markdown heading and list, three
+// months, 30 topics in the chips row, then the entry sheet (New entry) holding long text. Seeded straight into the
+// local store (IndexedDB "upwind", store "kv", entry:<id>); the Notebook rereads them when it opens.
+const CPLONG='Supercalifragilisticexpialidocious'.repeat(6);
+async function commonplace(shot){
+  const list=[
+    ['w1','Unbroken: '+CPLONG,'2026-11-05'],
+    ['w2','A link https://example.com/'+'a-very-long-path-segment/'.repeat(8)+'end and [a link](https://example.com/'+'x'.repeat(200)+')','2026-11-04'],
+    ['w3','A long tag #'+'topic'.repeat(30)+' and #short','2026-11-03'],
+    ['w4','## A heading '+CPLONG+'\n\n- one '+CPLONG+'\n- two\n\n> a quote '+CPLONG+'\n\n`'+'code'.repeat(40)+'`','2026-10-20'],
+    ['w5','An older note '+'#t'.repeat(1)+'old','2026-09-02'],
+    ...Array.from({length:30},(_,i)=>['tg'+i,'Topic note #chipsrowtopic'+i+'x','2026-08-'+String(1+i%28).padStart(2,'0')])];
+  await page.evaluate(list=>new Promise((res,rej)=>{
+    const r=indexedDB.open('upwind',1);r.onerror=()=>rej(r.error);
+    r.onsuccess=()=>{const tx=r.result.transaction('kv','readwrite'),s=tx.objectStore('kv');
+      list.forEach(([id,text,date],i)=>s.put({id,text,date,added:1e6+i,up:1e6+i},'entry:'+id));
+      tx.oncomplete=()=>{r.result.close();res();};tx.onerror=()=>rej(tx.error);};
+  }),list);
+  await home();await clk('#nbBtn');await shown('#notebook');await clk('#nbTabCp');await shown('#nbPanelCp');
+  await until(n=>document.querySelectorAll('#cpList .cp-card').length>=n&&!document.querySelector('#cpList').textContent.includes('Gathering'),5);
+  await fits('Notebook, Commonplace (long word, link, #tag, Markdown, months, 30 topics in the chips)');
+  if(shot) await page.screenshot({path:join(shots,shot+'.png'),fullPage:true});
+  await clk('#cpNew');await shown('#entryBox');await sleep(300);
+  await page.$eval('#enTa',(e,v)=>{e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}));},'Long text: '+CPLONG+' https://example.com/'+'z'.repeat(300)+' #'+'tag'.repeat(40)+'\n\n'+'words '.repeat(200));
+  await fits('Commonplace, the entry sheet (New entry) with long text');
+  if(shot) await page.screenshot({path:join(shots,shot+'-sheet.png')});
+  await clk('#enCancel');await hidden('#entryBox');await clk('#nbTabHl');
+}
+
 await t.run(async()=>{
   await phone(375);
   await page.goto(t.base,{waitUntil:'networkidle0'});await page.waitForSelector('#signin:not(.hidden)',{timeout:15000});
@@ -229,6 +259,7 @@ await t.run(async()=>{
   await clk('#segView [data-v="list"]');await page.screenshot({path:join(shots,'list-375.png'),fullPage:true});await clk('#segView [data-v="shelves"]');
   await dialogs();
   await notebook();
+  await commonplace('commonplace-375');
   await page.goto(t.base+'?study=1',{waitUntil:'networkidle0'});await shown('#study');await fits('Study, the front');
   await clk('#syActs [data-sy="show"]');await until(()=>document.querySelector('#syActs .sy-rate'));await fits('Study, the back');
   // the backstop doesn't break sticky: the long card scrolls under Study's buttons, which stay at the bottom
@@ -258,6 +289,7 @@ await t.run(async()=>{
   await dialogs(false);
   await clk('#nbBtn');await shown('#notebook');await clk('#nbTabWd');await until(()=>document.querySelectorAll('#wdList .wcard').length>0);
   await fits('Notebook, Words with the Progress panel');await clk('#nbTabHl');
+  await commonplace('commonplace-320');
   await reader();
   await openBook('Overflow Stress Test');await select('#col p.hp',30);await fits('highlight toolbar');
   await page.evaluate(()=>getSelection().removeAllRanges());
