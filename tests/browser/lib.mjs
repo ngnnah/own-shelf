@@ -4,7 +4,7 @@
 // (each check counts), t.must in files that only need the state (a failed step stops the file).
 import puppeteer from 'puppeteer-core';
 import {spawn} from 'node:child_process';
-import {mkdirSync,mkdtempSync,readFileSync,readdirSync,rmSync,writeFileSync} from 'node:fs';
+import {mkdirSync,mkdtempSync,readFileSync,readdirSync,rmSync,statSync,writeFileSync} from 'node:fs';
 import {dirname,join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
@@ -25,9 +25,13 @@ function serve(port){
   });
 }
 
-// Wait until a file matching re appears in dir (a finished download, not a .crdownload).
+// Wait until a finished download matching re is in dir. Chrome writes the data to <name>.crdownload, and just before
+// renaming it to <name> it leaves an empty file there, so a file counts only once it has content and no .crdownload.
 export async function waitForFile(dir,re,ms=5000){
-  for(const end=Date.now()+ms;Date.now()<end;await sleep(50)){const f=readdirSync(dir).find(n=>re.test(n));if(f)return f;}
+  for(const end=Date.now()+ms;Date.now()<end;await sleep(50)){
+    const names=readdirSync(dir),f=names.find(n=>re.test(n)&&!names.includes(n+'.crdownload')&&statSync(join(dir,n),{throwIfNoEntry:false})?.size>0);
+    if(f)return f;
+  }
   return null;
 }
 
