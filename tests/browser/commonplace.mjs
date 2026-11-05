@@ -50,6 +50,35 @@ async function testList(){
 
 /* ---------- topics and search ---------- */
 async function testTopics(){
+  await putEntries([
+    entry('a','Notes on #Lesson and #stoicism','2026-03-03'),
+    entry('b','A Café visit #lesson','2026-03-02'),
+    entry('c','Plain thought #journal','2026-03-01'),
+    entry('d','Another #lesson, no cafe','2026-02-01')]);
+  await openTab();await until(()=>document.querySelectorAll('#cpList .cp-card').length===4);
+  const chips=()=>page.$$eval('#cpChips .chip',b=>b.map(x=>x.textContent.trim()));
+  const click=label=>page.evaluate(l=>[...document.querySelectorAll('#cpChips .chip')].find(b=>b.textContent.trim().startsWith(l)).click(),label);
+  const type=async v=>{await page.$eval('#cpQ',(e,v)=>{e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}));},v);};
+  ok('chips: All, then by count, then name',same(await chips(),['All 4','#Lesson 3','#journal 1','#stoicism 1']));
+  await click('#Lesson');
+  ok('a chip filters the cards',same(await cardIds(),['a','b','d']));
+  ok('the chosen chip is pressed',await page.$eval('#cpChips .chip[aria-pressed="true"]',b=>b.textContent.includes('Lesson')));
+  await click('#Lesson');
+  ok('tapping it again clears',(await cardIds()).length===4);
+  await click('#journal');await click('All');
+  ok('All clears the topic',(await cardIds()).length===4);
+  await type('cafe');
+  ok('search folds accents',same(await cardIds(),['b','d']));
+  ok('counts follow the search',same(await chips(),['All 2','#lesson 2']));
+  await type('#journal');
+  ok('search by #tag',same(await cardIds(),['c']));
+  await type('lesson');await click('#stoicism');
+  ok('search and topic together',same(await cardIds(),['a']));
+  await type('cafe');
+  ok('a chosen topic stays at count 0',(await chips()).some(c=>c.startsWith('#stoicism 0')));
+  await type('');await click('#stoicism');
+  await clearEntries();await openTab();await until(()=>document.querySelector('#cpCtrl').classList.contains('hidden'));
+  ok('#cpCtrl hidden with no entries',!(await vis('#cpCtrl')));
 }
 /* ---------- end of topics and search ---------- */
 
