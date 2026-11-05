@@ -630,6 +630,8 @@ body:has(#noteBox:not(.hidden),#wordBox:not(.hidden),#entryBox:not(.hidden)) #to
 .nb-tabs button{border:0;background:none;padding:.4rem 0 .55rem;margin-bottom:-1px;border-bottom:2.5px solid transparent;font:600 1.2rem var(--display);color:var(--muted)}
 .nb-tabs button:hover{color:var(--ink)}
 .nb-tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--sea)}
+/* three tabs fit at 320 px */
+@media (max-width:359px){.nb-tabs{gap:1rem}.nb-tabs button{font-size:1.1rem}}
 /* the Words tab; the book filter matches the Highlights tab's */
 #wdList{max-width:46rem}
 #wdBook{flex:0 1 20rem;min-width:0;width:auto;appearance:none;-webkit-appearance:none;border:2px solid var(--rule);border-radius:999px;color:var(--ink);font:500 .92rem var(--ui);padding:.5rem 2.2rem .5rem 1rem;text-overflow:ellipsis;
@@ -810,7 +812,6 @@ body.focus .hp.ls-block{opacity:1}
 .cp-tag{text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:2px}
 .cp-more-list{display:flex;margin:1rem auto}
 #cpChips .chip{min-width:0;max-width:100%;text-align:left;overflow-wrap:anywhere}
-@media (max-width:359px){.nb-tabs{gap:1rem}.nb-tabs button{font-size:1.1rem}}
 /* ===== end of the Commonplace list ===== */
 
 /* ===== Commonplace: the entry sheet ===== */
