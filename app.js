@@ -1009,7 +1009,7 @@ document.addEventListener('selectionchange',()=>{clearTimeout(selT);selT=setTime
 document.addEventListener('mousedown',e=>{if(!tool.contains(e.target)&&!e.target.closest('mark.hl')&&!$('#noteBox').contains(e.target)){editing=null;if(getSelection().isCollapsed)hideTool();}});
 addEventListener('scroll',()=>{if(tool.classList.contains('hidden')||coarse)return;if(editing){hideTool();return;}const sel=getSelection();if(pendingSegs&&sel.rangeCount&&!sel.isCollapsed){const s=pendingSegs;showTool(sel.getRangeAt(0).getBoundingClientRect(),null);pendingSegs=s;}},{passive:true});
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){hideTool();closeDrawers();saveNote();$('#lightbox').classList.add('hidden');document.querySelectorAll('.modal:not(.hidden)').forEach(dismiss);return;}
+  if(e.key==='Escape'){hideTool();closeDrawers();saveNote();saveEntry();$('#lightbox').classList.add('hidden');document.querySelectorAll('.modal:not(.hidden)').forEach(dismiss);return;}
   if(e.target.matches('textarea,input,[contenteditable]'))return;
   if(/^[1-9]$/.test(e.key)&&PICKS[+e.key-1]&&pendingSegs&&!tool.classList.contains('hidden')){addHighlight(pendingSegs,PICKS[+e.key-1][0]);getSelection().removeAllRanges();hideTool();}
 });
@@ -1644,24 +1644,39 @@ function cpPick(key){CP.topic=CP.topic===key?'':key;CP.shown=100;renderEntries()
 
 /* ---------- commonplace: the entry sheet ---------- */
 let EN=null; // the open entry sheet: {e: the entry, or null for a new one}
-// Opens an entry, or a new one (e null) holding text and date (YYYY-MM-DD; today when none).
+const ENTRY_MAX=800*1024; // bytes of text one entry may hold (a Firestore document is 1 MiB)
+const growEntry=end=>{if($('#entryBox').classList.contains('sheet')) growTa($('#enTa'),Infinity,end);};
+// Opens an entry, or a new one (e null) holding text and date (YYYY-MM-DD; today when none), as the note box opens.
 function openEntry(e,{text='',date=''}={}){
-  EN={e:e||null};
-  $('#enTa').value=e?e.text:text;$('#enDate').value=ymdHuman(e?e.date:date||ymd());
-  $('#enDel').classList.toggle('hidden',!e);$('#entryBox').classList.remove('hidden');
-  setTimeout(()=>$('#enTa').focus(),30);
+  saveCards(); // another sheet open: saved first (one that can't be saved, a bad date, is replaced)
+  EN={e:e||null};const box=$('#entryBox'),ta=$('#enTa'),sheet=asSheet(box,ta);
+  ta.value=e?e.text:text;$('#enDate').value=ymdHuman(e?e.date:date||ymd());
+  $('#enDel').classList.toggle('hidden',!e);box.classList.remove('hidden');growEntry();
+  EN.at=placeCard(box,null);
+  setTimeout(()=>ta.focus(),30);
 }
 function closeEntry(){$('#entryBox').classList.add('hidden');EN=null;}
+// Save, a tap outside and Escape: the entry is written (an unchanged one just closes, a new empty one is dropped). A date
+// parseDate can't read, or text over the limit, keeps the sheet open with a toast and writes nothing.
 function saveEntry(){
   if(!EN) return;
-  const e=EN.e,v=$('#enTa').value.replace(/\s+$/,''),date=parseDate($('#enDate').value)||(e?e.date:ymd());closeEntry();
+  const e=EN.e,v=$('#enTa').value.replace(/\s+$/,''),shown=$('#enDate').value.trim();
+  const date=shown?parseDate(shown):(e?e.date:ymd());
+  if(!date){toast('Write the date like November 5, 2026');return;}
+  if(new TextEncoder().encode(v).length>ENTRY_MAX){toast('Too long for one entry. Add it to the shelf as a book instead.');return;}
+  closeEntry();
   if(!e&&!v.trim()) return;
+  if(e&&v===e.text.replace(/\s+$/,'')&&date===e.date) return;
   const n=e||{id:newEntryId(),added:Date.now()};
   Object.assign(n,{text:v,date});putEntry(n);renderEntries();toast('Entry saved');
 }
 $('#cpNew').onclick=()=>openEntry(null);
 $('#enSave').onclick=saveEntry;$('#enCancel').onclick=closeEntry;
 $('#enDel').onclick=()=>{const e=EN&&EN.e;closeEntry();if(e) deleteEntry(e);};
+$('#enTa').addEventListener('input',()=>growEntry());
+// follows the visible area, as the note box does (keyboard, pan, resize)
+function keepEntryInView(){const box=$('#entryBox');if(!EN||box.classList.contains('hidden')) return;const end=showsEnd($('#enTa'));EN.at=placeCard(box,EN.at);growEntry(end);}
+window.visualViewport?.addEventListener('resize',keepEntryInView);window.visualViewport?.addEventListener('scroll',keepEntryInView);
 /* ---------- end of the entry sheet ---------- */
 
 /* ---------- commonplace: paste ---------- */
@@ -1951,10 +1966,10 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape') saveWordCard();});
 // another note's Edit note. Only a tap: a press that moves (scrolling, a drag) or that selects text doesn't count, nor
 // one on the toast (its Undo) or the picture viewer.
 let outTap=null,tapped=0; // tapped: the timer of a tap outside, until it's saved
-function saveCards(){clearTimeout(tapped);tapped=0;saveNote();saveWordCard();}
+function saveCards(){clearTimeout(tapped);tapped=0;saveNote();saveWordCard();saveEntry();}
 const far=(e,o)=>Math.hypot(e.clientX-o.x,e.clientY-o.y)>8;
-const inCards=n=>{const el=n&&(n.nodeType===1?n:n.parentElement);return !!el&&!!el.closest('#noteBox,#wordBox');};
-document.addEventListener('pointerdown',e=>{outTap=(noteTarget||CARD)&&!e.target.closest('#noteBox,#wordBox,#toast,#lightbox')?{id:e.pointerId,x:e.clientX,y:e.clientY}:null;},true);
+const inCards=n=>{const el=n&&(n.nodeType===1?n:n.parentElement);return !!el&&!!el.closest('#noteBox,#wordBox,#entryBox');};
+document.addEventListener('pointerdown',e=>{outTap=(noteTarget||CARD||EN)&&!e.target.closest('#noteBox,#wordBox,#entryBox,#toast,#lightbox')?{id:e.pointerId,x:e.clientX,y:e.clientY}:null;},true);
 document.addEventListener('pointermove',e=>{if(outTap&&e.pointerId===outTap.id&&far(e,outTap)) outTap=null;},true);
 document.addEventListener('pointercancel',()=>{outTap=null;},true);
 document.addEventListener('pointerup',e=>{
