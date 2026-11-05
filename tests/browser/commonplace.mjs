@@ -2,7 +2,7 @@
 // docs/superpowers/specs/2026-10-26-commonplace-book-design.md). Usage: node tests/browser/commonplace.mjs [repo dir]
 // Each section starts with no entries and seeds or types what it needs, so CP_ONLY=<section> runs one alone
 // (list, topics, sheet, paste, trash) after the shared checks.
-import {start,enterLocalMode,sleep,dayKey} from './lib.mjs';
+import {start,enterLocalMode,sleep,dayKey,waitForFile} from './lib.mjs';
 
 const t=await start('commonplace',8166);
 const {page,ok,must,vis,text,until}=t;
@@ -313,7 +313,7 @@ async function testTrash(){
   const fs=await import('node:fs'),path=await import('node:path');
   for(const f of fs.readdirSync(t.dl)) if(f.startsWith('own-shelf-backup')) fs.unlinkSync(path.join(t.dl,f));
   await page.click('#backupBtn');
-  let bk;for(let i=0;i<50&&!bk;i++){await sleep(100);bk=fs.readdirSync(t.dl).find(f=>f.startsWith('own-shelf-backup')&&!f.endsWith('.crdownload'));}
+  const bk=await waitForFile(t.dl,/^own-shelf-backup.*\.json$/);
   ok('Back up shelf writes a file',!!bk);
   const data=JSON.parse(fs.readFileSync(path.join(t.dl,bk),'utf8'));
   ok('… holding the entries',(data.entries||[]).map(e=>e.id).sort().join()==='tr2,tr3');
