@@ -1623,14 +1623,68 @@ async function openCommonplace(){
 }
 
 /* ---------- commonplace: the list (stats, months, cards, Show more) ---------- */
-// Draws the stats line, the chips and the cards for cpFiltered(). A tap on a card opens it in the entry sheet.
+// Draws the stats line, the chips and the cards for cpFiltered(), grouped by month. A tap on a card opens it in the entry
+// sheet; a #tag in it picks that topic, a link opens as a link, Show more unclips a tall card.
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const cpMonth=d=>{const [y,m]=String(d||'').split('-').map(Number);return m?`${MONTHS[m-1]} ${y}`:'Undated';};
+// A card's text as Markdown through the reader's blockHTML (plain: no highlights, words or notes; pictures skipped).
+function cpBody(text){
+  const had=DOC;if(!DOC) DOC={}; // blockHTML reads DOC.secLevel for headings
+  let h='',inList=false;
+  try{mdToBlocks(text).filter(b=>b.t!=='img').forEach((b,i)=>{
+    const x={...b,id:'',marks:b.marks||[]};
+    if(b.t==='li'){ // the reader draws list items itself (buildReader), so the same markup here
+      if(!inList){h+='<div class="list" role="list">';inList=true;}
+      const d=b.depth||0;h+=`<div class="hp li" role="listitem" style="--d:${d}" data-mark="${listMark(b,d)}">${inlineHTML(x,true)}</div>`;return;
+    }
+    if(inList){h+='</div>';inList=false;}
+    h+=blockHTML(x,i===0).replace(/ ?data-pid=""/g,'').replace(/ id="h-"/g,'');
+  });}finally{if(!had) DOC=null;}
+  return h+(inList?'</div>':'');
+}
+// Wraps each #tag found in a card's text nodes in a button (not inside a link, code or an existing button).
+function cpTagify(root){
+  const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[];
+  for(let n;n=w.nextNode();) if(!n.parentElement.closest('a,code,pre,button')) nodes.push(n);
+  nodes.forEach(n=>{
+    const sp=tagSpans(n.data);if(!sp.length) return;
+    const f=document.createDocumentFragment();let at=0;
+    sp.forEach(s=>{
+      if(s.at>at) f.append(n.data.slice(at,s.at));
+      const b=document.createElement('button');b.className='cp-tag';b.type='button';b.dataset.tag=s.key;b.textContent=n.data.slice(s.at,s.end);f.append(b);at=s.end;
+    });
+    if(at<n.data.length) f.append(n.data.slice(at));
+    n.replaceWith(f);
+  });
+}
 function renderEntries(){
   const list=cpFiltered();renderCpChips();
-  const n=ENTRIES?ENTRIES.size:0;$('#cpStats').innerHTML=n?`<b>${n}</b> ${n===1?'entry':'entries'}`:'';
-  $('#cpList').innerHTML=list.length?list.map(e=>`<article class="cp-card" data-id="${esc(e.id)}" tabindex="0"><div class="cp-text">${esc(e.text)}</div></article>`).join('')
-    :'<div class="empty">Your own notes, lessons and journals. Paste or type one; #tags make topics.</div>';
+  const n=ENTRIES?ENTRIES.size:0,tp=new Set();
+  if(n) ENTRIES.forEach(e=>tagsOf(e.text).forEach(t=>tp.add(t.key)));
+  $('#cpStats').innerHTML=n?`<b>${n}</b> ${n===1?'entry':'entries'}${tp.size?` · <b>${tp.size}</b> ${tp.size===1?'topic':'topics'}`:''}`:'';
+  const box=$('#cpList');
+  if(!list.length){box.innerHTML=n?'<div class="empty">Nothing matches.</div>'
+    :'<div class="empty">Your own notes, lessons and journals. Paste or type one; #tags make topics.</div>';return;}
+  const shown=list.slice(0,CP.shown),groups=[];
+  shown.forEach(e=>{const m=cpMonth(e.date),g=groups[groups.length-1];if(g&&g.m===m) g.l.push(e);else groups.push({m,l:[e]});});
+  const total={};list.forEach(e=>{const m=cpMonth(e.date);total[m]=(total[m]||0)+1;});
+  box.innerHTML=groups.map(g=>`<h3 class="cgh">${esc(g.m)}<small> · ${total[g.m]}</small></h3>`+g.l.map(e=>{
+    const [,mo,d]=String(e.date||'').split('-').map(Number);
+    return `<article class="cp-card" data-id="${esc(e.id)}" tabindex="0"><div class="cp-day">${mo?MONTHS[mo-1].slice(0,3)+' '+d:''}</div><div class="cp-text">${cpBody(e.text)}</div></article>`;}).join('')).join('')
+    +(list.length>shown.length?`<button class="btn ghost cp-more-list" id="cpMoreList">Show more</button>`:'');
+  box.querySelectorAll('.cp-text').forEach(t=>{
+    cpTagify(t);
+    if(t.scrollHeight>t.clientHeight+2){t.classList.add('clip');t.insertAdjacentHTML('afterend','<button class="cp-more" type="button">Show more</button>');}
+  });
 }
-$('#cpList').onclick=e=>{const c=e.target.closest('.cp-card');if(c&&getSelection().isCollapsed&&ENTRIES.has(c.dataset.id)) openEntry(ENTRIES.get(c.dataset.id));};
+$('#cpList').onclick=e=>{
+  const tg=e.target.closest('.cp-tag');if(tg){cpPick(tg.dataset.tag);return;}
+  const mb=e.target.closest('.cp-more');if(mb){const tx=mb.previousElementSibling;tx.classList.remove('clip');tx.classList.add('open');mb.remove();return;}
+  if(e.target.closest('#cpMoreList')){CP.shown+=100;renderEntries();return;}
+  if(e.target.closest('a')) return;
+  const c=e.target.closest('.cp-card');if(c&&getSelection().isCollapsed&&ENTRIES.has(c.dataset.id)) openEntry(ENTRIES.get(c.dataset.id));
+};
+$('#cpList').onkeydown=e=>{if(e.key==='Enter'&&e.target.classList.contains('cp-card')&&ENTRIES.has(e.target.dataset.id)) openEntry(ENTRIES.get(e.target.dataset.id));};
 /* ---------- end of the list ---------- */
 
 /* ---------- commonplace: topics and search ---------- */

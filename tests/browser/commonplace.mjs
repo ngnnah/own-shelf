@@ -45,6 +45,53 @@ const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 
 /* ---------- list: stats, months, cards, Markdown, Show more ---------- */
 async function testList(){
+  // the tab may draw the cached list before the reread lands: wait for n cards
+  const cardsAre=n=>page.waitForFunction(n=>document.querySelectorAll('#cpList .cp-card').length===n&&!document.querySelector('#cpList').textContent.includes('Gathering'),{timeout:5000},n).then(()=>sleep(150));
+  const A=1e6;
+  await putEntries([
+    entry('a1','First of the day #alpha','2026-11-05',A+1),entry('a2','Second of the day','2026-11-05',A+2),
+    entry('b1','## Heading here\n\nSome **bold** words and [a link](https://example.com/x).\n\n- one\n- two\n\n![pic](https://example.com/p.png)\n\nEnd #beta #alpha','2026-11-02',A+3),
+    entry('c1','October note','2026-10-30',A+4),entry('d1','Old note #gamma','2026-09-01',A+5)]);
+  await openTab();await cardsAre(5);
+  ok('stats line counts entries and topics',(await text('#cpStats')).replace(/\s+/g,' ').trim()==='5 entries · 3 topics',await text('#cpStats'));
+  ok('newest first, a later add first within a day',same(await cardIds(),['a2','a1','b1','c1','d1']),JSON.stringify(await cardIds()));
+  const heads=await page.$$eval('#cpList .cgh',h=>h.map(x=>x.textContent.replace(/\s+/g,' ').trim()));
+  ok('month headings with counts, newest first',same(heads,['November 2026 · 3','October 2026 · 1','September 2026 · 1']),JSON.stringify(heads));
+  ok('a card shows its day',(await text('#cpList .cp-card[data-id="a1"] .cp-day')).trim()==='Nov 5');
+  const b=await page.$eval('#cpList [data-id="b1"] .cp-text',el=>({h:!!el.querySelector('h3,h4'),s:!!el.querySelector('strong'),li:el.querySelectorAll('.li').length,a:el.querySelector('a')&&el.querySelector('a').href,img:!!el.querySelector('img,figure')}));
+  ok('Markdown is formatted: heading, bold, list, link',b.h&&b.s&&b.li===2&&b.a==='https://example.com/x',JSON.stringify(b));
+  ok('an image line is skipped',!b.img);
+  ok('a link opens as a link, not the sheet',await (async()=>{await page.evaluate(()=>{document.querySelector('#cpList [data-id="b1"] a').addEventListener('click',e=>e.preventDefault(),{once:true});});await page.click('#cpList [data-id="b1"] a');return !(await vis('#entryBox'));})());
+  // a tapped #tag
+  await page.click('#cpList [data-id="a1"] .cp-tag');
+  ok('a tapped #tag does not open the sheet',!(await vis('#entryBox')));
+  await openTab();await cardsAre(5);
+  // a card opens from a tap and Enter
+  await page.click('#cpList [data-id="c1"] .cp-text');
+  ok('a tap on a card opens it',await vis('#entryBox'));
+  await page.keyboard.press('Escape');await page.click('#enCancel').catch(()=>{});
+  ok('no card is clipped when short',(await page.$$('#cpList .cp-more')).length===0);
+
+  await page.evaluate(()=>{document.documentElement.dataset.theme='light';});
+  await t.shot('commonplace-list-light');
+  await page.evaluate(()=>{document.documentElement.dataset.theme='dark';});
+  await t.shot('commonplace-list-dark');
+  await page.evaluate(()=>{document.documentElement.dataset.theme='light';});
+  // a long entry
+  await clearEntries();
+  await putEntries([entry('long',Array.from({length:30},(_,i)=>`Line number ${i} of a long entry.`).join('\n\n'),'2026-11-05')]);
+  await openTab();await cardsAre(1);
+  ok('a long entry is clipped with Show more',(await page.$('#cpList .cp-text.clip'))&&(await page.$('#cpList .cp-more')));
+  await page.click('#cpList .cp-more');
+  ok('Show more unclips it and does not open the sheet',!(await page.$('#cpList .cp-text.clip'))&&!(await page.$('#cpList .cp-more'))&&!(await vis('#entryBox')));
+
+  // 105 entries
+  await clearEntries();
+  await putEntries(Array.from({length:105},(_,i)=>entry('n'+i,'Note '+i,'2026-11-05')));
+  await openTab();await cardsAre(100);
+  ok('105 entries draw 100 cards and a Show more',(await cardIds()).length===100&&!!(await page.$('#cpMoreList')));
+  await page.click('#cpMoreList');
+  ok('Show more adds the rest',(await cardIds()).length===105&&!(await page.$('#cpMoreList')));
 }
 /* ---------- end of list ---------- */
 
