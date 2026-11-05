@@ -1534,7 +1534,7 @@ const nbCount=(n,w)=>`<b>${n}</b> ${w}${n===1?'':'s'}`;
 async function openNotebook(){
   const run=++NB.run;show('notebook');window.scrollTo(0,0);
   SORT=sortReset(); // the Words tab's To sort waits for the books below
-  nbTab(prefs.nbTab==='wd'?'wd':'hl',true);
+  nbTab(prefs.nbTab,true);
   NB.f='all';$('#nbQ').value='';$('#nbStats').innerHTML='';$('#nbCtrl').classList.add('hidden');
   $('#nbList').innerHTML='<div class="empty">Gathering your highlights…</div>';
   const books=(await Promise.all(META.filter(m=>m.hl>0).map(async m=>{const [d,s]=await Promise.all([DB.get('doc:'+m.id),DB.get('state:'+m.id)]);return d&&s?{doc:d,hl:s.hl||[]}:null;}))).filter(Boolean);
@@ -1570,19 +1570,107 @@ $('#nbGroup').onclick=e=>groupBy(e,renderNotebook);
 $('#nbExp').onclick=()=>openExport('shelf');
 $('#nbList').onclick=e=>nbOpen(e.target.closest('[data-hl]'));
 $('#nbList').onkeydown=e=>{if(e.key==='Enter') nbOpen(e.target.closest('[data-hl]'));};
-// Two tabs: Highlights (above) and Words (see vocabulary). The last one picked opens next time; opening resets its filters.
+// Three tabs: Highlights (above), Words (see vocabulary) and Commonplace (see commonplace). The last one picked opens
+// next time; opening resets its filters.
+const NB_TABS={hl:'Hl',wd:'Wd',cp:'Cp'}; // tab → the suffix of its button, panel and stats line ids
 function nbTab(tab,opening){
-  const wd=tab==='wd';
+  if(!NB_TABS[tab]) tab='hl';
   if(prefs.nbTab!==tab){prefs.nbTab=tab;savePrefs();}
-  $('#nbTabHl').setAttribute('aria-selected',!wd);$('#nbTabWd').setAttribute('aria-selected',wd);
-  $('#nbTabHl').tabIndex=wd?-1:0;$('#nbTabWd').tabIndex=wd?0:-1;
-  $('#nbPanelHl').classList.toggle('hidden',wd);$('#nbPanelWd').classList.toggle('hidden',!wd);
-  $('#nbStats').classList.toggle('hidden',wd);$('#wdStats').classList.toggle('hidden',!wd);
-  if(opening){$('#wdQ').value='';$('#wdBook').value='';WD.f='all';}
-  if(wd) openWords(opening);
+  for(const [k,s] of Object.entries(NB_TABS)){
+    const on=k===tab;
+    $('#nbTab'+s).setAttribute('aria-selected',on);$('#nbTab'+s).tabIndex=on?0:-1;$('#nbPanel'+s).classList.toggle('hidden',!on);
+  }
+  $('#nbStats').classList.toggle('hidden',tab!=='hl');$('#wdStats').classList.toggle('hidden',tab!=='wd');$('#cpStats').classList.toggle('hidden',tab!=='cp');
+  if(opening){$('#wdQ').value='';$('#wdBook').value='';WD.f='all';cpReset();}
+  if(tab==='wd') openWords(opening);
+  if(tab==='cp') openCommonplace();
 }
 $('#nbTabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(b&&b.getAttribute('aria-selected')!=='true') nbTab(b.dataset.tab);};
-$('#nbTabs').onkeydown=e=>{if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;const t=prefs.nbTab==='wd'?'hl':'wd';nbTab(t);$(t==='wd'?'#nbTabWd':'#nbTabHl').focus();};
+$('#nbTabs').onkeydown=e=>{
+  if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+  const k=Object.keys(NB_TABS),t=k[(k.indexOf(prefs.nbTab)+(e.key==='ArrowRight'?1:k.length-1))%k.length];
+  nbTab(t);$('#nbTab'+NB_TABS[t]).focus();
+};
+
+/* ================= commonplace ================= */
+// The Notebook's Commonplace tab: your own notes, lessons and journals, not tied to a book (spec:
+// docs/superpowers/specs/2026-10-26-commonplace-book-design.md). An entry is entry:<id> → {id, text, date, added, up}:
+// text is Markdown as typed or pasted, date the entry's own day (YYYY-MM-DD, local), added and up in ms. Topics are
+// the #tags in the text (tagsOf, tagSpans in parse.js), never stored. ENTRIES caches the account's entries (id →
+// entry), loaded like WORDS: on first use, kept in step with every change made here, reread each time the Notebook opens.
+let ENTRIES=null,entriesDb=null,entriesLoad=null,cpStale=true; // cpStale: the Notebook opened since the last read
+function loadEntries(fresh){
+  if(entriesDb!==DB){entriesDb=DB;ENTRIES=null;entriesLoad=null;}
+  if(fresh) entriesLoad=null;
+  if(!entriesLoad){const db=DB;entriesLoad=db.all('entry:').catch(()=>[]).then(list=>{if(db===DB) ENTRIES=new Map(list.filter(e=>e&&e.id&&typeof e.text==='string').map(e=>[e.id,e]));return ENTRIES;});}
+  return entriesLoad;
+}
+function putEntry(e){e.up=Date.now();(ENTRIES||(ENTRIES=new Map())).set(e.id,e);DB.put('entry:'+e.id,e);}
+const newEntryId=()=>'e'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+// a day as entries store it, in local time, and as the date row shows it ("2026-11-05" ↔ "November 5, 2026"; parseDate
+// turns the shown form back)
+const ymd=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const ymdHuman=s=>{const [y,m,d]=String(s||'').split('-').map(Number);return d?published(new Date(y,m-1,d)):'';};
+// the tab's state: its search, the chosen topic (a folded key, '' for all) and how many cards to draw
+const CP={q:'',topic:'',shown:100};
+function cpReset(){CP.q='';CP.topic='';CP.shown=100;$('#cpQ').value='';cpStale=true;}
+// Shows what's in memory at once, then rereads the entries once per Notebook open.
+async function openCommonplace(){
+  if(ENTRIES&&entriesDb===DB) renderEntries();
+  else{$('#cpStats').innerHTML='';$('#cpList').innerHTML='<div class="empty">Gathering your entries…</div>';}
+  const fresh=cpStale;cpStale=false;await loadEntries(fresh);
+  if(prefs.nbTab==='cp'&&!$('#notebook').classList.contains('hidden')) renderEntries();
+}
+
+/* ---------- commonplace: the list (stats, months, cards, Show more) ---------- */
+// Draws the stats line, the chips and the cards for cpFiltered(). A tap on a card opens it in the entry sheet.
+function renderEntries(){
+  const list=cpFiltered();renderCpChips();
+  const n=ENTRIES?ENTRIES.size:0;$('#cpStats').innerHTML=n?`<b>${n}</b> ${n===1?'entry':'entries'}`:'';
+  $('#cpList').innerHTML=list.length?list.map(e=>`<article class="cp-card" data-id="${esc(e.id)}" tabindex="0"><div class="cp-text">${esc(e.text)}</div></article>`).join('')
+    :'<div class="empty">Your own notes, lessons and journals. Paste or type one; #tags make topics.</div>';
+}
+$('#cpList').onclick=e=>{const c=e.target.closest('.cp-card');if(c&&getSelection().isCollapsed&&ENTRIES.has(c.dataset.id)) openEntry(ENTRIES.get(c.dataset.id));};
+/* ---------- end of the list ---------- */
+
+/* ---------- commonplace: topics and search ---------- */
+// The entries to show: every entry, newest first (by date, then added). Later: only those matching the search and topic.
+function cpFiltered(){return [...(ENTRIES||new Map()).values()].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.added||0)-(a.added||0));}
+// The topic chips row (#cpChips).
+function renderCpChips(){}
+// Picks a topic by its folded key, or clears it when it's the one chosen (its chip, or a #tag tapped in a card).
+function cpPick(key){CP.topic=CP.topic===key?'':key;CP.shown=100;renderEntries();}
+/* ---------- end of topics and search ---------- */
+
+/* ---------- commonplace: the entry sheet ---------- */
+let EN=null; // the open entry sheet: {e: the entry, or null for a new one}
+// Opens an entry, or a new one (e null) holding text and date (YYYY-MM-DD; today when none).
+function openEntry(e,{text='',date=''}={}){
+  EN={e:e||null};
+  $('#enTa').value=e?e.text:text;$('#enDate').value=ymdHuman(e?e.date:date||ymd());
+  $('#enDel').classList.toggle('hidden',!e);$('#entryBox').classList.remove('hidden');
+  setTimeout(()=>$('#enTa').focus(),30);
+}
+function closeEntry(){$('#entryBox').classList.add('hidden');EN=null;}
+function saveEntry(){
+  if(!EN) return;
+  const e=EN.e,v=$('#enTa').value.replace(/\s+$/,''),date=parseDate($('#enDate').value)||(e?e.date:ymd());closeEntry();
+  if(!e&&!v.trim()) return;
+  const n=e||{id:newEntryId(),added:Date.now()};
+  Object.assign(n,{text:v,date});putEntry(n);renderEntries();toast('Entry saved');
+}
+$('#cpNew').onclick=()=>openEntry(null);
+$('#enSave').onclick=saveEntry;$('#enCancel').onclick=closeEntry;
+$('#enDel').onclick=()=>{const e=EN&&EN.e;closeEntry();if(e) deleteEntry(e);};
+/* ---------- end of the entry sheet ---------- */
+
+/* ---------- commonplace: paste ---------- */
+$('#cpPaste').onclick=()=>openEntry(null);
+/* ---------- end of paste ---------- */
+
+/* ---------- commonplace: delete ---------- */
+function deleteEntry(e){ENTRIES.delete(e.id);DB.del('entry:'+e.id);renderEntries();toast('Entry deleted');}
+/* ---------- end of delete ---------- */
 
 /* ================= vocabulary ================= */
 // Words saved from the reader with the sentences they were found in (format: vocab.js). The toolbar's Word saves the
