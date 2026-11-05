@@ -139,9 +139,12 @@ async function testSheet(){
   const shots=join(dirname(fileURLToPath(import.meta.url)),'out','commonplace');mkdirSync(shots,{recursive:true});
   const stored=async()=>Object.values(await storedEntries());
   const settle=async f=>{for(let i=0;i<40;i++){if(await f())return true;await sleep(100);}return false;};
+  const frame=()=>page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+  const hiddenNow=()=>until(()=>document.querySelector('#entryBox').classList.contains('hidden'));
+  const toastIs=m=>until(m=>{const e=document.querySelector('#toast');return e.classList.contains('on')&&e.textContent===m;},m);
   const boxHidden=()=>page.$eval('#entryBox',b=>b.classList.contains('hidden'));
   const openNew=async()=>{await page.click('#cpNew');await page.waitForSelector('#entryBox:not(.hidden)');};
-  const card=async id=>{await page.waitForSelector(`.cp-card[data-id="${id}"]`);await page.click(`.cp-card[data-id="${id}"]`);};
+  const card=async id=>{await hiddenNow();await frame();await page.waitForSelector(`.cp-card[data-id="${id}"]`);await page.click(`.cp-card[data-id="${id}"]`);await until(()=>!document.querySelector('#entryBox').classList.contains('hidden')&&document.querySelector('#enDate').value);};
   const outside=()=>page.mouse.click(5,5);
   const today=dayKey();
 
@@ -158,16 +161,16 @@ async function testSheet(){
   await openNew();await page.type('#enTa','Saved by Escape');await page.keyboard.press('Escape');
   ok('Escape saves',await settle(async()=>(await stored()).length===2)&&await boxHidden());
 
-  await openNew();await page.type('#enTa','Dropped');await page.click('#enCancel');await sleep(300);
+  await openNew();await page.type('#enTa','Dropped');await page.click('#enCancel');await hiddenNow();
   ok('Cancel drops what was typed',(await stored()).length===2&&await boxHidden());
-  await openNew();await page.keyboard.press('Escape');await sleep(300);
+  await openNew();await page.keyboard.press('Escape');await hiddenNow();
   ok('an empty new entry is not saved',(await stored()).length===2&&await boxHidden());
 
   await clearEntries();await putEntries([entry('s1','Original text','2026-01-02')]);await openTab();
   await card('s1');await page.waitForSelector('#entryBox:not(.hidden)');
   ok('an existing entry opens with its text and date, and shows Delete',await page.$eval('#enTa',x=>x.value)==='Original text'&&await page.$eval('#enDate',i=>i.value)==='January 2, 2026'&&await vis('#enDel'));
   const up0=(await storedEntries()).s1.up;
-  await page.keyboard.press('Escape');await sleep(400);
+  await page.keyboard.press('Escape');await hiddenNow();
   const s1=(await storedEntries()).s1;
   ok('saving it unchanged writes nothing (up unchanged) and gives no toast',s1.up===up0&&await boxHidden()&&!(await page.$eval('#toast',e=>e.classList.contains('on')&&/saved/i.test(e.textContent))));
 
@@ -186,14 +189,14 @@ async function testSheet(){
 
   await card('s1');await page.waitForSelector('#entryBox:not(.hidden)');
   await page.$eval('#enDate',i=>{i.value='';});await page.type('#enDate','sometime soon');await page.type('#enTa',' changed');await page.click('#enSave');
-  await sleep(300);
+  await toastIs('Write the date like November 5, 2026');
   ok('an unreadable date keeps the sheet open with a toast',!(await boxHidden())&&await page.$eval('#toast',e=>e.classList.contains('on')&&e.textContent==='Write the date like November 5, 2026'));
   ok('and writes nothing',!((await storedEntries()).s1.text.includes('changed')));
   await page.$eval('#enDate',i=>{i.value='';});await page.click('#enSave');
   ok('an empty date keeps the entry’s own',await settle(async()=>(await storedEntries()).s1?.text.endsWith('changed'))&&(await storedEntries()).s1.date==='2024-03-03');
 
   await openNew();
-  await page.$eval('#enTa',x=>{x.value='x'.repeat(800*1024+1);});await page.click('#enSave');await sleep(300);
+  await page.$eval('#enTa',x=>{x.value='x'.repeat(800*1024+1);});await page.click('#enSave');await toastIs('Too long for one entry. Add it to the shelf as a book instead.');
   ok('text over 800 KB is refused, the sheet stays open',!(await boxHidden())&&await page.$eval('#toast',e=>e.textContent==='Too long for one entry. Add it to the shelf as a book instead.')&&(await stored()).length===1);
   await page.click('#enCancel');
 
@@ -201,18 +204,18 @@ async function testSheet(){
   await clearEntries();await putEntries([entry('s2','A line to look at.\nAnother line, with #topic.','2026-01-02')]);await openTab();
   for(const dark of [false,true]){
     await page.emulateMediaFeatures([{name:'prefers-color-scheme',value:dark?'dark':'light'}]);
-    await card('s2');await page.waitForSelector('#entryBox:not(.hidden)');await sleep(250);
+    await card('s2');await page.waitForSelector('#entryBox:not(.hidden)');await frame();
     await page.screenshot({path:join(shots,`sheet-${dark?'dark':'light'}.png`)});await page.click('#enCancel');
   }
   await page.emulateMediaFeatures([{name:'prefers-color-scheme',value:'light'}]);
   const cls=()=>page.$eval('#entryBox',b=>({sheet:b.classList.contains('sheet'),r:b.getBoundingClientRect().toJSON(),w:innerWidth}));
   await page.setViewport({width:390,height:844,deviceScaleFactor:2,hasTouch:true,isMobile:true});await page.reload();await openTab();
-  await page.tap('#cpNew');await page.waitForSelector('#entryBox:not(.hidden)');await sleep(250);
+  await page.tap('#cpNew');await page.waitForSelector('#entryBox:not(.hidden)');await frame();
   let c=await cls();
   ok('at 390 px with a touch screen it is a full-width sheet above the bottom edge',c.sheet&&c.r.width>=c.w-20&&c.r.width<=640&&c.r.bottom<=844);
   await page.click('#enCancel');
   await page.setViewport({width:1280,height:900,deviceScaleFactor:1});await page.reload();await openTab();
-  await openNew();await sleep(250);c=await cls();
+  await openNew();await frame();c=await cls();
   ok('with a mouse at 1280 px it floats, not a sheet',!c.sheet&&c.r.width<700);
   await page.screenshot({path:join(shots,'float.png')});await page.click('#enCancel');
 }
@@ -281,7 +284,7 @@ async function testTrash(){
   const openTrash=async()=>{await page.keyboard.press('Escape');if(await vis('#notebook')){await page.click('#nbBack');await page.waitForSelector('#shelf:not(.hidden)');}
     await page.click('#setBtn');await page.waitForSelector('#setM:not(.hidden)');await page.click('#trashBtn');await page.waitForSelector('#trashM:not(.hidden)');
     await until(()=>!document.querySelector('#trashList').textContent.includes('Opening'));};
-  const delFirst=async()=>{await page.waitForSelector('#cpList .cp-card');await sleep(300);await page.click('#cpList .cp-card');await page.waitForSelector('#entryBox:not(.hidden)');await page.click('#enDel');};
+  const delFirst=async()=>{await page.waitForSelector('#cpList .cp-card');await page.click('#cpList .cp-card');await page.waitForSelector('#entryBox:not(.hidden)');await page.click('#enDel');};
   const E1=entry('tr1','  \nFirst line of a trash note\nsecond line #lesson','2026-10-03');
   await putEntries([E1]);await openTab();
   await delFirst();
@@ -290,7 +293,7 @@ async function testTrash(){
   await page.click('#toast button');await until(()=>document.querySelectorAll('#cpList .cp-card').length===1);
   ok('Undo brings it back as it was',same((await storedEntries()).tr1,E1)&&(await cardIds()).join()==='tr1');
   await delFirst();await until(()=>document.querySelectorAll('#cpList .cp-card').length===0);
-  await sleep(300);await openTrash();
+  await openTrash();
   const r1=await rows();
   ok('the Trash lists "Entry · <first line>" with the text and date',r1.length===1&&r1[0].includes('Entry · First line of a trash note')&&r1[0].includes('second line #lesson')&&r1[0].includes('October 3, 2026'));
   await page.click('#trashList [data-a="restore"]');await until(()=>document.querySelectorAll('#trashList .tr-row').length===0);
@@ -298,9 +301,8 @@ async function testTrash(){
   await page.keyboard.press('Escape');await openTab();
   ok('… and the card shows',(await cardIds()).join()==='tr1');
   await delFirst();await until(()=>document.querySelectorAll('#cpList .cp-card').length===0);
-  await sleep(300);await openTrash();await page.waitForSelector('#trashList [data-a="forget"]');await page.click('#trashList [data-a="forget"]');await page.click('#trashList [data-a="forget"]');
+  await openTrash();await page.waitForSelector('#trashList [data-a="forget"]');await page.click('#trashList [data-a="forget"]');await page.click('#trashList [data-a="forget"]');
   await until(()=>document.querySelectorAll('#trashList .tr-row').length===0);
-  await sleep(300);
   ok('Delete forever removes it from the Trash and the store',!(await storedEntries()).tr1&&(await rows()).length===0);
   // backup round trip
   await page.keyboard.press('Escape');
