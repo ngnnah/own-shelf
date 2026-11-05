@@ -1634,10 +1634,27 @@ $('#cpList').onclick=e=>{const c=e.target.closest('.cp-card');if(c&&getSelection
 /* ---------- end of the list ---------- */
 
 /* ---------- commonplace: topics and search ---------- */
-// The entries to show: every entry, newest first (by date, then added). Later: only those matching the search and topic.
-function cpFiltered(){return [...(ENTRIES||new Map()).values()].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.added||0)-(a.added||0));}
-// The topic chips row (#cpChips).
-function renderCpChips(){}
+// The entries matching the search: every word typed appears in the folded text (topics are part of it), newest first
+// (by date, then added).
+function cpSearched(){
+  const terms=nbFold(CP.q).split(/\s+/).filter(Boolean);
+  return [...(ENTRIES||new Map()).values()].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.added||0)-(a.added||0))
+    .filter(e=>{const h=nbFold(e.text);return terms.every(t=>h.includes(t));});
+}
+// The entries to show: those matching the search and, when a topic is chosen, holding it.
+function cpFiltered(){const l=cpSearched();return CP.topic?l.filter(e=>tagsOf(e.text).some(t=>t.key===CP.topic)):l;}
+// The topic chips row (#cpChips): All, then each topic with its count over the search, most used first, then by name.
+function renderCpChips(){
+  $('#cpCtrl').classList.toggle('hidden',!(ENTRIES&&ENTRIES.size));
+  const base=cpSearched(),by=new Map();
+  for(const e of base) for(const t of tagsOf(e.text)){const o=by.get(t.key);if(o)o.n++;else by.set(t.key,{key:t.key,label:t.label,n:1});}
+  if(CP.topic&&!by.has(CP.topic)) by.set(CP.topic,{key:CP.topic,label:CP.topic,n:0});
+  const tops=[...by.values()].sort((a,b)=>b.n-a.n||a.key.localeCompare(b.key));
+  $('#cpChips').innerHTML=tops.length?`<button class="chip" aria-pressed="${!CP.topic}" data-t="">All ${base.length}</button>`
+    +tops.map(t=>`<button class="chip" aria-pressed="${CP.topic===t.key}" data-t="${esc(t.key)}">#${esc(t.label.replace(/^#/,''))} ${t.n}</button>`).join(''):'';
+}
+$('#cpChips').onclick=e=>{const b=e.target.closest('[data-t]');if(b) b.dataset.t?cpPick(b.dataset.t):(CP.topic='',CP.shown=100,renderEntries());};
+$('#cpQ').oninput=()=>{CP.q=$('#cpQ').value;CP.shown=100;renderEntries();};
 // Picks a topic by its folded key, or clears it when it's the one chosen (its chip, or a #tag tapped in a card).
 function cpPick(key){CP.topic=CP.topic===key?'':key;CP.shown=100;renderEntries();}
 /* ---------- end of topics and search ---------- */
