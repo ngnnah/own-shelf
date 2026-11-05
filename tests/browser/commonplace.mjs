@@ -60,6 +60,58 @@ async function testSheet(){
 
 /* ---------- paste ---------- */
 async function testPaste(){
+  // a clipboard stub (as paste.mjs's): window.__clip {txt, png, refuse}; each read logs 'tap' when it started inside a click
+  await page.evaluateOnNewDocument(()=>{
+    window.__clip={};window.__reads=[];let tap=false;
+    addEventListener('click',()=>{tap=true;},true);addEventListener('click',()=>{tap=false;});
+    const refused=()=>Promise.reject(new DOMException('Read permission denied.','NotAllowedError'));
+    const png=()=>new Promise(r=>{const c=document.createElement('canvas');c.width=4;c.height=4;c.getContext('2d').fillRect(0,0,4,4);c.toBlob(r,'image/png');});
+    const read=()=>{window.__reads.push(tap?'tap':'late');const c=window.__clip;if(c.refuse) return refused();
+      const types=[c.txt&&'text/plain',c.png&&'image/png'].filter(Boolean);
+      return Promise.resolve(types.length?[{types,getType:async ty=>ty==='image/png'?png():new Blob([c.txt],{type:ty})}]:[]);};
+    Object.defineProperty(Navigator.prototype,'clipboard',{configurable:true,get:()=>({read,readText:()=>Promise.resolve(window.__clip.txt||''),writeText:()=>Promise.resolve()})});
+  });
+  await page.reload({waitUntil:'networkidle0'});await openTab();
+  const clip=c=>page.evaluate(c=>{window.__clip=c;const e=document.querySelector('#toast');e.classList.remove('on');e.textContent='';},c);
+  const tap=()=>page.$eval('#cpPaste',e=>e.click());
+  const toastSays=m=>until(m=>{const e=document.querySelector('#toast');return e.classList.contains('on')&&e.textContent===m;},m);
+  const closeSheet=async()=>{await page.click('#enCancel');await until(()=>document.querySelector('#entryBox').classList.contains('hidden'));};
+  const sheet=()=>page.evaluate(()=>({ta:document.querySelector('#enTa').value,date:document.querySelector('#enDate').value,open:!document.querySelector('#entryBox').classList.contains('hidden')}));
+  const pasteOn=(sel,txt)=>page.$eval(sel,(e,txt)=>{const dt=new DataTransfer();dt.setData('text/plain',txt);if(e!==document.body)e.focus();
+    const ev=new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true});e.dispatchEvent(ev);return ev.defaultPrevented;},txt);
+  const sheetUp=()=>page.waitForSelector('#entryBox:not(.hidden)');
+
+  await clip({txt:'March 3, 2024\nA note on fog #weather'});await tap();await sheetUp();
+  let s=await sheet();
+  ok('Paste with a first-line date: the sheet holds the rest and the date',s.ta==='A note on fog #weather'&&s.date==='March 3, 2024');
+  ok('…read inside the tap',(await page.evaluate(()=>window.__reads.at(-1)))==='tap');
+  ok('…and nothing is stored until Save',Object.keys(await storedEntries()).length===0);
+  await closeSheet();
+
+  await clip({txt:'Plain thought'});await tap();await sheetUp();s=await sheet();
+  ok('Plain text opens with today’s date',s.ta==='Plain thought'&&s.date===new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}));
+  await page.click('#enSave');await until(()=>document.querySelectorAll('#cpList .cp-card').length===1);
+  const st=Object.values(await storedEntries());
+  ok('Save stores the pasted entry',st.length===1&&st[0].text==='Plain thought'&&st[0].date===dayKey());
+
+  await clip({png:true});await tap();await toastSays('Commonplace keeps text only.');
+  ok('a picture only: the toast, no sheet',!(await sheet()).open);
+  await clip({});await tap();await toastSays('The clipboard is empty');
+  ok('an empty clipboard: the toast, no sheet',!(await sheet()).open);
+
+  await clip({refuse:true});await tap();await sheetUp();await toastSays('Couldn’t read the clipboard. Paste into the box instead.');
+  ok('a refused read: a new sheet with the field focused',await until(()=>document.activeElement.id==='enTa')&&(await sheet()).ta==='');
+  ok('…a paste into that empty field takes the date',await pasteOn('#enTa','2024-03-03\nFrom the box')===true&&(s=await sheet()).ta==='From the box'&&s.date==='March 3, 2024');
+  await page.evaluate(()=>{document.querySelector('#enTa').value='typed already';});
+  ok('a paste into a field with text stays a normal paste',await pasteOn('#enTa','March 3, 2024\nmore')===false&&(await sheet()).ta==='typed already');
+  await closeSheet();
+
+  await page.evaluate(()=>document.activeElement&&document.activeElement.blur());
+  await clip({txt:'July 4, 2025\nFrom the keyboard'});
+  await pasteOn('body',  'July 4, 2025\nFrom the keyboard');await sheetUp();s=await sheet();
+  ok('a paste event on the tab outside a field opens the sheet',s.ta==='From the keyboard'&&s.date==='July 4, 2025');
+  await closeSheet();
+  ok('nothing was stored beyond the one saved entry',Object.keys(await storedEntries()).length===1);
 }
 /* ---------- end of paste ---------- */
 
