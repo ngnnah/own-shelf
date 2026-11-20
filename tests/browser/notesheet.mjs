@@ -1,13 +1,13 @@
 // The note box on a phone, and a tap outside saving the note box and the word card.
 // On a touch screen (a coarse pointer, as on an iPhone) at 390×844 and 375×667, with an iPhone keyboard faked
 // (visualViewport shrunk, then panned): the note box is a full-width sheet above the keyboard whose field grows with
-// the note, so a long one fills the visible area and a short one shows whole; Save and Cancel stay in view and the
+// the note, so a long one fills the visible area and a short one shows whole; Done stays in view (there is no Cancel) and the
 // caret's line is visible; opened from the toolbar's Note, from a highlight tapped in the text and from the
 // highlights drawer. Scrolling with it open, as WebKit moves the visible area over a keyboard (inside the layout
 // viewport first, then the page): near the start, middle and end of the text the sheet comes back above the keyboard,
 // and a long note scrolled to its start stays there as the visible area moves; with the keyboard down, Safari's
-// toolbar changing the page's height; a long note opened on a fresh page shows its end. Then a tap outside (the text, the bar, the scrim) saves the note as Save does, a cleared one going
-// to the Trash with Undo; Cancel drops it; Escape saves; scrolling, a press that selects text and a drag don't count;
+// toolbar changing the page's height; a long note opened on a fresh page shows its end. Then a tap outside (the text, the bar, the scrim; on a phone the top strip) saves the note as Done does, a cleared one going
+// to the Trash with Undo; the note autosaves about 1 s after typing stops and closing it offers "Note saved · Undo"; on a phone the sheet leaves the top 12% as dimmed page, a tap there or on the quoted passage closes it; Escape saves; scrolling, a press that selects text and a drag don't count;
 // opening another note or the word card saves the open note first. The word card the same: a tap outside saves,
 // Cancel drops, Escape saves. With a mouse, the note box still floats by the passage.
 // Dictionaries are mocked (none has the word). Usage: node tests/browser/notesheet.mjs [repo dir]
@@ -110,8 +110,8 @@ const sheet=()=>page.evaluate(()=>{
   const inside=r=>r.top>=top-.5&&r.bottom<=bottom+.5&&r.left>=-.5&&r.right<=v.width+.5;
   const b=document.querySelector('#noteBox').getBoundingClientRect(),ta=document.querySelector('#noteTa'),f=ta.getBoundingClientRect();
   const btn=s=>{const r=document.querySelector(s).getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return inside(r)&&!!hit&&!!hit.closest(s);};
-  return {inside:inside(b),buttons:btn('#noteSave')&&btn('#noteCancel'),width:Math.round(b.width),vw:Math.round(v.width),above:Math.round(b.top-top),below:Math.round(bottom-b.bottom),
-    full:b.height>=v.height-.5&&b.width>=v.width-.5,whole:ta.scrollHeight<=ta.clientHeight+2,end:inside(f)&&ta.scrollTop+ta.clientHeight>=ta.scrollHeight-2,start:inside(f)&&ta.scrollTop<20};
+  return {inside:inside(b),buttons:btn('#noteSave')&&!document.querySelector('#noteCancel'),width:Math.round(b.width),vw:Math.round(v.width),above:Math.round(b.top-top-v.height*.12),below:Math.round(bottom-b.bottom),strip:Math.round(b.top-top),
+    full:Math.abs(b.top-top-v.height*.12)<=1&&b.bottom>=bottom-.5&&b.width>=v.width-.5,whole:ta.scrollHeight<=ta.clientHeight+2,end:inside(f)&&ta.scrollTop+ta.clientHeight>=ta.scrollHeight-2,start:inside(f)&&ta.scrollTop<20};
 });
 // A point on plain text in the article, high on the screen: not on a highlight, a saved word, the toolbar or a card.
 const textPoint=()=>page.evaluate(()=>{
@@ -141,7 +141,7 @@ await t.run(async()=>{
       const long=note===LONG,at=`${size}, from the ${how}`;
       await openNote(how,'ledger');await clearNote();await typeAtEnd(note);await sleep(50);
       let s=await sheet();
-      ok(`${at}: the note box is a full-screen sheet, Done and Cancel in view`,s.inside&&s.buttons&&s.full&&s.width>=s.vw-24);
+      ok(`${at}: the note box is a sheet below a 12% strip of page, Done in view and no Cancel`,s.inside&&s.buttons&&s.full&&s.width>=s.vw-24);
       ok(long?`${at}: a long note shows whole or fills the screen, the caret's line in view`:`${at}: a short note shows whole, the text in view above it`,
         s.end&&(long?s.whole||s.above<=24:s.whole&&s.full));
       await iosKeyboard(kb);await sleep(50);s=await sheet();
@@ -159,10 +159,10 @@ await t.run(async()=>{
       await iosKeyboard(kb,vh-kb);await sleep(50);s=await sheet();
       ok(`${at}: with the visible area panned down, the sheet follows it`,s.inside&&s.buttons&&s.below<=24&&(!long||s.above<=24));
       await iosKeyboard(null);await sleep(50);
-      await tap(how==='toolbar'?'#noteSave':'#noteCancel');await hidden('#noteBox');
+      await tap('#noteSave');await hidden('#noteBox');
       await quiet();
     }
-    ok(`${size}: Save saved the short note, Cancel dropped the long ones`,await noteIs('ledger',SHORT+' More.'));
+    ok(`${size}: Done kept the last note typed`,await noteIs('ledger',LONG+' More.'));
   }
   // light and dark at both sizes, a long note above the keyboard
   for(const [vw,vh,kb] of [[375,667,363],[390,844,460]]){
@@ -170,7 +170,7 @@ await t.run(async()=>{
     for(const dark of [false,true]){
       await page.emulateMediaFeatures([{name:'prefers-color-scheme',value:dark?'dark':'light'}]);
       await openNote('mark','ledger');await typeAtEnd('\n'+LONG);await iosKeyboard(kb);await sleep(50);
-      await shot(`${vw}-long-${dark?'dark':'light'}`);await iosKeyboard(null);await tap('#noteCancel');await hidden('#noteBox');
+      await shot(`${vw}-long-${dark?'dark':'light'}`);await iosKeyboard(null);await tap('#noteSave');await hidden('#noteBox');
     }
   }
   await page.emulateMediaFeatures([{name:'prefers-color-scheme',value:'light'}]);
@@ -182,7 +182,7 @@ await t.run(async()=>{
   for(const where of ['start','middle','end']){
     if(where==='middle') await openNote('mark','ledger');
     else{await page.evaluate(w=>scrollTo(0,w==='start'?0:document.documentElement.scrollHeight),where);await openNote('drawer','ledger');}
-    await typeAtEnd('\n'+LONG);await iosKeyboard(460,844-460);
+    await clearNote();await typeAtEnd('\n'+LONG);await iosKeyboard(460,844-460);
     let fine=true;
     for(const dy of [-150,-150,-150,-150,300,300,300]){await iosScroll(dy);const s=await sheet();fine=fine&&s.inside&&s.buttons&&s.below<=24&&s.above<=24&&s.end;}
     ok(`near the ${where} of the text: scrolling up and down with the keyboard up, the sheet comes back above it, the caret's line in view`,fine);
@@ -191,7 +191,7 @@ await t.run(async()=>{
     ok(`near the ${where} of the text: a long note scrolled to its start stays there as the visible area moves`,s.start&&s.inside&&s.buttons);
     await iosKeyboard(460);s=await sheet();
     ok(`near the ${where} of the text: and as the keyboard's height changes`,s.start&&s.inside&&s.buttons);
-    await iosKeyboard(null);await tap('#noteCancel');await hidden('#noteBox');await quiet();
+    await iosKeyboard(null);await tap('#noteSave');await hidden('#noteBox');await quiet();
   }
   // keyboard down, in Safari: scrolling up brings its toolbar back, and the page's height shrinks under the sheet
   {
@@ -200,56 +200,70 @@ await t.run(async()=>{
     ok('keyboard down, Safari’s toolbar back: the sheet of a long note still fits the screen, the caret’s line in view',s.inside&&s.buttons&&s.below<=24&&s.end&&(s.whole||s.above<=24));
     await page.setViewport({width:390,height:844,deviceScaleFactor:2,hasTouch:true,isMobile:true});await frames();s=await sheet();
     ok('and with the toolbar gone again, it still fits the taller screen',s.inside&&s.buttons&&s.below<=24&&s.end&&(s.whole||s.above<=24));
-    await tap('#noteCancel');await hidden('#noteBox');
-    ok('Cancel dropped every long note',await noteIs('ledger',SHORT+' More.'));
+    await tap('#noteSave');await hidden('#noteBox');
   }
   // a note longer than the screen, saved, then opened on a fresh page: its end shows, where the caret is, and still
   // does once the keyboard is up and iOS has panned to it
   {
-    await openNote('mark','ledger');await typeAtEnd('\n'+LONG+'\n'+LONG);await tap('#noteSave');await hidden('#noteBox');
-    {const got=await noteIs('ledger',`${SHORT} More.\n${LONG}\n${LONG}`);if(!got) console.log('GOT',JSON.stringify((await idb('state:'+book)).hl.map(h=>h.note)).slice(0,300));must('the long note is saved',got);}await quiet();
+    await openNote('mark','ledger');await clearNote();await typeAtEnd(LONG+'\n'+LONG);await tap('#noteSave');await hidden('#noteBox');
+    {const got=await noteIs('ledger',`${LONG}\n${LONG}`);if(!got) console.log('GOT',JSON.stringify((await idb('state:'+book)).hl.map(h=>h.note)).slice(0,300));must('the long note is saved',got);}await quiet();
     await phone(390,844);await openNote('mark','ledger');let s=await sheet();
     ok('a note longer than the screen, opened on a fresh page, shows its end, where the caret is',s.end&&!s.whole&&s.inside&&s.buttons);
     await iosKeyboard(460,844-460);s=await sheet();
     ok('and still does once the keyboard is up and iOS has panned to it',s.end&&s.inside&&s.buttons&&s.above<=24);
-    await iosKeyboard(null);await tap('#noteCancel');await hidden('#noteBox');
+    await iosKeyboard(null);await tap('#noteSave');await hidden('#noteBox');
   }
 
-  // full screen: the passage quoted at the top, the editor under it, the bar (B I U, Done) at the bottom
+  // the sheet: the passage quoted at the top, the editor under it, the bar (B I U, Done) at the bottom, the page showing above
   await openNote('mark','ledger');
   {const g=await page.evaluate(()=>{const r=s=>document.querySelector(s).getBoundingClientRect(),q=r('#noteQuote'),e=r('#noteTa'),f=r('#noteBox .row'),b=r('#noteBox');
-    return {q:document.querySelector('#noteQuote').textContent,full:b.width>=innerWidth-1&&b.height>=innerHeight-1,order:q.bottom<=e.top+1&&e.bottom<=f.top+1,bar:['#noteB','#noteI','#noteU','#noteSave'].every(s=>r(s).bottom<=b.bottom)};});
-   ok('at 390×844 with touch the note opens full screen, the passage quoted above the editor, the bar below it',g.full&&g.order&&g.bar&&g.q.includes('ledger'));}
-  await tap('#noteCancel');await hidden('#noteBox');await quiet();
+    return {q:document.querySelector('#noteQuote').textContent,full:b.width>=innerWidth-1&&b.bottom>=innerHeight-1&&Math.abs(b.top-innerHeight*.12)<=2,order:q.bottom<=e.top+1&&e.bottom<=f.top+1,bar:['#noteB','#noteI','#noteU','#noteSave'].every(s=>r(s).bottom<=b.bottom)};});
+   ok('at 390×844 with touch the note opens as a sheet under a 12% strip of page, the passage quoted above the editor, the bar below it',g.full&&g.order&&g.bar&&g.q.includes('ledger'));}
+  await tap('#noteSave');await hidden('#noteBox');await quiet();
 
-  /* ---------- 2. a tap outside the note box saves it ---------- */
+  /* ---------- 2. autosave, Undo, and tapping anywhere outside ---------- */
   await select(P2,'gulls');await tap('#tool [data-c="sky"]');await until(()=>document.querySelector('#hlCount').textContent==='2');
   await openNote('mark','ledger');await clearNote();await typeAtEnd('Saved by a tap.');
   await tap('#noteSave');
-  ok('(full screen: nothing is outside it) Done saves the note and closes the box',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap.')&&await toastIs('Note saved'));
+  ok('Done saves the note, closes the box and offers Undo',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap.')&&await toastIs('Note saved · Undo'));
   await quiet();
-  await openNote('mark','ledger');await typeAtEnd(' And the bar.');
-  await tap('#noteSave');
-  ok('Done saves again',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap. And the bar.'));
+  ok('there is no Cancel button',await page.evaluate(()=>!document.querySelector('#noteCancel')&&![...document.querySelectorAll('#noteBox button')].some(b=>/cancel/i.test(b.textContent))));
+  // autosave: about 1 s after typing stops, the note is stored with the box still open and the caret in the editor
+  await openNote('mark','ledger');await typeAtEnd(' Auto.');
+  ok('autosave: before a second is up nothing is stored yet',(await idb('state:'+book)).hl.every(h=>!(h.note||'').endsWith('Auto.')));
+  ok('autosave: the note is stored about a second after typing stops, the box still open',await noteIs('ledger','Saved by a tap. Auto.')&&await vis('#noteBox')&&await page.evaluate(()=>document.activeElement===document.querySelector('#noteTa')));
+  await typeAtEnd(' More.');
+  ok('autosave: and a note typed on goes on saving',await noteIs('ledger','Saved by a tap. Auto. More.')&&await vis('#noteBox'));
+  await tap('#noteSave');await hidden('#noteBox');
+  ok('closing a note changed since it opened says "Note saved · Undo"',await toastIs('Note saved · Undo'));
+  await tap('#toast button');
+  ok('Undo puts back the note as it was when opened (autosaves included)',await noteIs('ledger','Saved by a tap.')&&await toastIs('Undone'));
   await quiet();
-  await openNote('mark','ledger');await typeAtEnd(' Dropped.');await tap('#noteCancel');
-  ok('Cancel drops what was typed',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap. And the bar.'));
+  // a tap on the dimmed strip of page above the sheet closes it
+  await openNote('mark','ledger');await typeAtEnd(' Strip.');
+  {const sp=await page.evaluate(()=>{const b=document.querySelector('#noteBox').getBoundingClientRect();return {x:innerWidth/2,y:b.top/2};});
+   ok('the strip above the sheet is page, not the box',await page.evaluate(p=>!document.elementFromPoint(p.x,p.y).closest('#noteBox'),sp));
+   await tapAt(sp.x,sp.y);}
+  ok('a tap on the strip at the top closes the sheet and saves the note',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap. Strip.')&&await toastIs('Note saved · Undo'));
+  await quiet();
+  // a tap on the quoted passage closes it too
+  await openNote('mark','ledger');await typeAtEnd(' Quote.');await tap('#noteQuote');
+  ok('a tap on the quoted passage closes the sheet and saves the note',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap. Strip. Quote.'));
+  await quiet();
   await openNote('mark','ledger');await typeAtEnd(' Escaped.');await page.keyboard.press('Escape');
-  ok('Escape saves',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap. And the bar. Escaped.'));
+  ok('Escape saves',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap. Strip. Quote. Escaped.'));
   await quiet();
   await openNote('mark','ledger');await tap('#noteSave');
   ok('Done with nothing changed closes the box without a toast',await hidden('#noteBox')&&!(await toastOn()));
-  // (a finger on the text or a long press there can't reach it: the sheet covers the screen; section 4 keeps those for a mouse)
-  await openNote('mark','ledger');await typeAtEnd(' Kept.');await page.keyboard.press('Escape');await hidden('#noteBox');await quiet();
   // over the drawer: another highlight's Edit note saves the open note first
-  await openNote('drawer','ledger');await typeAtEnd(' Over the drawer.');
+  await openNote('drawer','ledger');await typeAtEnd(' Over the drawer.');await tap('#noteQuote');await hidden('#noteBox');
   await openNote('drawer','gulls');
-  ok('opening another highlight’s note saves the open one first',await noteIs('ledger','Saved by a tap. And the bar. Escaped. Kept. Over the drawer.')&&(await noteText())==='');
+  ok('on a phone another highlight’s note opens once the open one is closed by the quote',await noteIs('ledger','Saved by a tap. Strip. Quote. Escaped. Over the drawer.')&&(await noteText())==='');
   await typeAtEnd('Gulls.');await page.keyboard.press('Escape');
   ok('Escape over the drawer saves that one',await hidden('#noteBox')&&await noteIs('gulls','Gulls.'));
   await quiet();
   await openNote('mark','gulls');await clearNote();await tap('#noteSave');
-  ok('a note cleared and tapped away goes to the Trash with Undo',await hidden('#noteBox')&&await toastIs('Moved to Trash · Undo')&&await noteIs('gulls',''));
+  ok('a note cleared and closed goes to the Trash with Undo',await hidden('#noteBox')&&await toastIs('Moved to Trash · Undo')&&await noteIs('gulls',''));
   await quiet();
 
   /* ---------- 3. the word card ---------- */
@@ -270,7 +284,7 @@ await t.run(async()=>{
   ok('Escape saves the word card',await hidden('#wordBox')&&await defIs('obdurate','Stubborn. Unyielding.'));
   await quiet();
   await openNote('mark','ledger');await typeAtEnd(' Then a word.');await page.keyboard.press('Escape');await hidden('#noteBox');await openCard();
-  ok('Escape saved the note, then the word card opens',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap. And the bar. Escaped. Kept. Over the drawer. Then a word.'));
+  ok('Escape saved the note, then the word card opens',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap. Strip. Quote. Escaped. Over the drawer. Then a word.'));
   await tap('#wbClose');await hidden('#wordBox');await quiet();
 
   /* ---------- 4. with a mouse: the note box floats, a click outside or on the scrim saves, a drag-select doesn't ---------- */
@@ -285,7 +299,7 @@ await t.run(async()=>{
   ok('selecting text with the mouse leaves the note box open',await vis('#noteBox'));
   await page.evaluate(()=>getSelection().removeAllRanges());
   await tapText();
-  ok('a click outside saves the note',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap. And the bar. Escaped. Kept. Over the drawer. Then a word. Desktop.'));
+  ok('a click outside saves the note',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap. Strip. Quote. Escaped. Over the drawer. Then a word. Desktop.'));
   await quiet();
   await openNote('drawer','gulls');await typeAtEnd('By the scrim.');
   await page.mouse.click(200,450);
@@ -294,7 +308,7 @@ await t.run(async()=>{
   await openNote('drawer','gulls');await typeAtEnd(' Keys.');
   await page.focus(`#drList .hcard[data-id="${await hlOf('ledger')}"] [data-a="note"]`);await page.keyboard.press('Enter');
   ok('Enter on another highlight’s Edit note saves the open one first',await noteIs('gulls','By the scrim. Keys.')&&(await noteText()).endsWith('Desktop.'));
-  await page.click('#noteCancel');await hidden('#noteBox');
+  await page.click('#noteSave');await hidden('#noteBox');await quiet();
 
   /* ---------- 5. B, I and U in the editor (a mouse) ---------- */
   await openNote('mark','ledger');await clearNote();

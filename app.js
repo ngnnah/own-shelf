@@ -1067,13 +1067,14 @@ NED.addEventListener('keydown',e=>{
   if(c){e.preventDefault();document.execCommand(c);fmtState();}
 });
 document.addEventListener('selectionchange',()=>{if(noteTarget) fmtState();});
-// The box: a full-screen sheet on a phone (asSheet's rule), sized to the visible area so the bar sits above the keyboard;
+// The box: a sheet on a phone (all but the top 12% of the visible area, which shows the dimmed page to tap) (asSheet's rule), sized to the visible area so the bar sits above the keyboard;
 // a tall panel at the right on a wide screen with a mouse. Inline styles are for the sheet only.
 function placeNote(){
   const nb=$('#noteBox'),s=nb.style,sheet=nb.classList.contains('sheet');
   const vv=window.visualViewport,vt=vv?vv.offsetTop:0,vl=vv?vv.offsetLeft:0,vh=vv?vv.height:innerHeight,vw=vv?vv.width:innerWidth;
   if(!sheet){s.cssText='';Object.assign(s,{top:vt+16+'px',bottom:'auto',height:Math.max(200,vh-32)+'px'});return;}
-  Object.assign(s,{left:vl+'px',top:vt+'px',width:vw+'px',height:vh+'px',transform:'none',bottom:'auto',maxHeight:'none'});
+  const gap=Math.round(vh*.12); // the dimmed page left to tap
+  Object.assign(s,{left:vl+'px',top:vt+gap+'px',width:vw+'px',height:vh-gap+'px',transform:'none',bottom:'auto',maxHeight:'none'});
 }
 const caretIntoView=()=>{const sel=getSelection();if(!sel.rangeCount||!NED.contains(sel.anchorNode)) return;
   const r=sel.getRangeAt(0).cloneRange();r.collapse(false);const c=r.getClientRects()[0],b=NED.getBoundingClientRect();
@@ -1083,23 +1084,35 @@ function openNote(h){
   noteTarget=h;const nb=$('#noteBox');
   const sheet=coarse||innerWidth<600;nb.classList.toggle('sheet',sheet);nb.classList.toggle('panel',!sheet);
   $('#noteQuote').textContent=segText(h).replace(/\n\n/g,' … ').replace(/\s+/g,' ').trim();
-  nb.classList.remove('hidden');NED.value=h.note||'';NED.scrollTop=0;placeNote();
+  nb.classList.remove('hidden');noteOrig=h.note||'';NED.value=noteOrig;NED.scrollTop=0;placeNote();
   setTimeout(()=>{NED.focus();const r=document.createRange();r.selectNodeContents(NED);r.collapse(false);const sel=getSelection();sel.removeAllRanges();sel.addRange(r);NED.scrollTop=NED.scrollHeight;fmtState();},30);
 }
 function growNote(){} // the editor fills the box and scrolls itself
-NED.addEventListener('input',()=>{if(!NED.textContent&&NED.innerHTML) NED.innerHTML='';caretIntoView();fmtState();});
-function closeNote(){$('#noteBox').classList.add('hidden');noteTarget=null;}
-$('#noteCancel').onclick=closeNote;
-// Save, a tap outside and Escape save the note; a cleared one goes to the Trash. Nothing changed: it just closes.
+// Autosave: about 1 s after typing stops the note is stored as it is (the box stays open, the editor untouched; only the
+// highlight's blocks are redrawn). An emptied note isn't stored until the box closes, where it goes to the Trash.
+let noteOrig='',noteTimer=0; // noteOrig: the note as it was on opening, which Undo puts back
+function autosaveNote(){
+  clearTimeout(noteTimer);noteTimer=0;
+  const h=noteTarget;if(!h) return;
+  const v=NED.value.trim();if(!v||v===(h.note||'')) return;
+  h.note=v;commit();rerender(h.segs.map(s=>s.pid));
+}
+NED.addEventListener('input',()=>{if(!NED.textContent&&NED.innerHTML) NED.innerHTML='';caretIntoView();fmtState();clearTimeout(noteTimer);noteTimer=setTimeout(autosaveNote,1000);});
+function closeNote(){clearTimeout(noteTimer);noteTimer=0;$('#noteBox').classList.add('hidden');noteTarget=null;}
+// Done, a tap outside, the quote and Escape close the box and keep the note. Changed since opening: "Note saved · Undo"
+// (Undo puts the old note back); a cleared one goes to the Trash. Nothing changed: it just closes.
 function saveNote(){
   const h=noteTarget;if(!h) return;
-  const old=h.note||'',v=$('#noteTa').value.trim();closeNote();
-  if(v===old) return;
+  const old=noteOrig,v=NED.value.trim(),pids=h.segs.map(s=>s.pid);closeNote();
+  if(v===old){if((h.note||'')!==old){h.note=old;commit();rerender(pids);}return;}
   h.note=v;
   const tr=old&&!v&&DOC?toTrash('note',{bookId:DOC.id,title:DOC.title,hlId:h.id,text:old,quote:quoteOf(h),color:h.color}):null;
-  commit();rerender(h.segs.map(s=>s.pid));if(tr)movedToTrash(tr);else toast(v?'Note saved':'Note cleared');
+  commit();rerender(pids);
+  if(tr) movedToTrash(tr);
+  else toast(v?'Note saved':'Note cleared',{label:'Undo',run:()=>{if(!HL.includes(h)) return;h.note=old;commit();rerender(pids);toast('Undone');}});
 }
 $('#noteSave').onclick=saveNote;
+$('#noteQuote').onclick=saveNote; // the quoted passage at the top of the sheet is a place to tap to close
 
 /* highlights drawer & export */
 let filter='all';
