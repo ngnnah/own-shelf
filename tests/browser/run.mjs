@@ -100,9 +100,14 @@
 // tests/fixtures/article-header-summary.html, tests/fixtures/chunked-article-intro.html,
 // tests/fixtures/chunked-newsletter-links.html and Markdown written to a temp dir at run time.
 // Screenshots go to tests/browser/out/ (gitignored).
-import {spawn} from 'node:child_process';
+// Options: --shard=i/n runs the i-th of n shares of the files (1-based; balanced by the last run's times, round-robin
+// by order without them) and prints which; --changed[=<ref>] runs only the files that cover what differs from the
+// ref (default origin/main, else HEAD; uncommitted and untracked files count) by the map `covers` below, and says
+// why; --dry-run prints the plan and exits. A plain argument is still the repo directory. They combine with
+// TEST_JOBS and TEST_PORT_OFFSET, and with each other (--changed first, then the shard).
+import {spawn,execFileSync} from 'node:child_process';
 import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
-import {dirname,join} from 'node:path';
+import {dirname,join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {launch,quit} from './lib.mjs';
 
@@ -111,13 +116,89 @@ const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs'
 const jobs=Math.max(1,Math.floor(Number(process.env.TEST_JOBS))||4),live=jobs===1;
 const timesFile=join(here,'out','times.json');
 let last={};try{last=JSON.parse(readFileSync(timesFile,'utf8'));}catch{}
-const queue=live?[...files]:[...files].sort((a,b)=>(last[b]??1e9)-(last[a]??1e9)); // a new file counts as long
+
+// Options. Anything not starting with -- is the repo directory, which goes on to each file.
+const opts=process.argv.slice(2).filter(a=>a.startsWith('--')),args=process.argv.slice(2).filter(a=>!a.startsWith('--'));
+const known=/^--(shard=\d+\/\d+|changed(=.+)?|dry-run)$/;
+for(const o of opts) if(!known.test(o)){console.error(`unknown option ${o} (use --shard=i/n, --changed[=ref], --dry-run)`);process.exit(2);}
+const dry=opts.includes('--dry-run');
+const shardOpt=opts.find(o=>o.startsWith('--shard=')),changedOpt=opts.find(o=>o.startsWith('--changed'));
+const repo=resolve(args[0]||join(here,'..','..'));
+
+// What each source path covers: test files (or '*' for all) per path or prefix. Built from the header comment
+// and from what each file imports. app.js and index.html are the app itself, so they map to everything.
+const sel=(...f)=>f.map(x=>x+'.mjs');
+const covers=[
+  ['app.js','*'],['index.html','*'],['tests/browser/lib.mjs','*'],['tests/browser/run.mjs','*'],
+  ['parse.js',sel('linkimport','kindle','paste','smoke','commonplace')],
+  ['store.js',sel('smoke','trash','shelves','commonplace','migrate')],
+  ['vocab.js',sel('words','wordcard','wordsheet','study','progress','sort','notesheet','join','undo')],
+  ['sw.js',sel('smoke')],['manifest.webmanifest',sel('smoke')],
+  ['config.js',sel('setup','signin','paste')],
+  ['textures/',sel('looks')],
+  ['styles.css',sel('overflow','looks','wordbox','notesheet','wordsheet','fastscroll','grid','shelves','colours','length','progress')],
+  ['legacy/app-artifact.html',sel('migrate')],
+  ['legacy/test-fixture-rich-paste.html',sel('smoke','notebook','join','undo','words','wordcard','wordbox','notesheet','wordsheet','sort','paste','signin','setup','study')],
+  ['tests/fixtures/kindle-notebook.html',sel('kindle','grid','colours','overflow','shelves','shelf')],
+  ['tests/fixtures/article-header-summary.html',sel('linkimport')],
+  ['tests/fixtures/chunked-article-intro.html',sel('linkimport')],
+  ['tests/fixtures/chunked-newsletter-links.html',sel('linkimport')],
+];
+const isTest=p=>/^tests\/browser\/[^/]+\.mjs$/.test(p);
+function changedPlan(){
+  const git=(...a)=>execFileSync('git',a,{cwd:repo,encoding:'utf8',stdio:['ignore','pipe','ignore']}).split('\n').filter(Boolean);
+  let ref=changedOpt.includes('=')?changedOpt.slice(changedOpt.indexOf('=')+1):null;
+  if(!ref){ref='origin/main';try{git('rev-parse','--verify','-q',ref);}catch{ref='HEAD';}}
+  const paths=[...new Set([...git('diff','--name-only',ref),...git('ls-files','--others','--exclude-standard')])];
+  const why=new Map();
+  for(const p of paths){
+    const hit=new Set();
+    for(const [src,t] of covers) if(p===src||(src.endsWith('/')&&p.startsWith(src))) for(const f of t==='*'?files:t) hit.add(f);
+    if(isTest(p)){const f=p.slice('tests/browser/'.length);if(files.includes(f))hit.add(f);}
+    for(const f of hit) why.set(f,[...(why.get(f)||[]),p]);
+  }
+  return {ref,paths,why};
+}
+
+let chosen=[...files];
+if(changedOpt){
+  const {ref,paths,why}=changedPlan();
+  chosen=files.filter(f=>why.has(f));
+  console.log(`--changed vs ${ref}: ${paths.length} changed path(s), ${chosen.length} of ${files.length} files`);
+  for(const f of chosen){const w=why.get(f);console.log(`  ${f}  <- ${w.length>3?w.slice(0,3).join(', ')+`, +${w.length-3} more`:w.join(', ')}`);}
+  if(!chosen.length) console.log('  no changed path maps to a test file; nothing to run');
+}
+// Greedy by the last run's times: longest first onto the lightest shard (ties: the lower shard). With no times at all,
+// round-robin by the files' order. A file without a time counts as the longest known, as in the queue below.
+function shardOf(list,i,n){
+  const timed=list.some(f=>last[f]!=null),bins=Array.from({length:n},()=>({t:0,f:[]}));
+  if(!timed) list.forEach((f,k)=>bins[k%n].f.push(f));
+  else{
+    const top=Math.max(...list.map(g=>last[g]??0)),w=f=>last[f]??top;
+    for(const f of [...list].sort((a,b)=>w(b)-w(a)||list.indexOf(a)-list.indexOf(b))){
+      const b=bins.reduce((m,x)=>x.t<m.t?x:m);b.f.push(f);b.t+=w(f);
+    }
+  }
+  return {mine:bins[i-1].f,est:bins[i-1].t};
+}
+let shardLabel='';
+if(shardOpt){
+  const [i,n]=shardOpt.slice(8).split('/').map(Number);
+  if(!(n>=1&&i>=1&&i<=n)){console.error(`bad ${shardOpt}: i is 1-based and at most n`);process.exit(2);}
+  const {mine,est}=shardOf(chosen,i,n);
+  shardLabel=`shard ${i}/${n}`;
+  console.log(`${shardLabel}: ${mine.length} of ${chosen.length} files${est?` (about ${est.toFixed(0)} s by the last times)`:''}: ${mine.join(' ')}`);
+  chosen=mine;
+}
+if(dry){console.log(`dry run: ${chosen.length} file(s): ${chosen.join(' ')}`);process.exit(0);}
+if(!chosen.length){console.log(`${shardLabel||'--changed'}: no files to run`);process.exit(0);}
+const queue=live?[...chosen]:[...chosen].sort((a,b)=>(last[b]??1e9)-(last[a]??1e9)); // a new file counts as long
 
 // Run one file in the given Chrome (none: the file launches its own) and count its PASS/FAIL lines. Live, its
 // output goes straight through; otherwise it is kept for printing in one piece.
 const runOne=(f,chrome)=>new Promise(res=>{
   const env=chrome?{...process.env,TEST_CHROME:chrome}:process.env;
-  const c=spawn(process.execPath,[join(here,f),...process.argv.slice(2)],{stdio:['ignore','pipe',live?'inherit':'pipe'],env});
+  const c=spawn(process.execPath,[join(here,f),...args],{stdio:['ignore','pipe',live?'inherit':'pipe'],env});
   const r={f,pass:0,fail:0,code:null,out:[]},t0=performance.now();let rest='';
   c.stdout.on('data',d=>{if(live)process.stdout.write(d);else r.out.push(d);
     const lines=(rest+d).split('\n');rest=lines.pop();
@@ -139,13 +220,13 @@ async function worker(){
   }
   if(chrome) await quit(chrome).catch(()=>{});
 }
-await Promise.all(Array.from({length:Math.min(jobs,files.length)},worker));
+await Promise.all(Array.from({length:Math.min(jobs,chosen.length)},worker));
 
-const all=files.map(f=>results.get(f)),wall=(performance.now()-t0)/1000,sum=all.reduce((a,r)=>a+r.s,0);
-console.log('\n# summary');
+const all=chosen.map(f=>results.get(f)),wall=(performance.now()-t0)/1000,sum=all.reduce((a,r)=>a+r.s,0);
+console.log(`\n# summary${shardLabel?` (${shardLabel})`:''}`);
 for(const r of all) console.log(`${r.code||r.fail?'FAIL':'PASS'} ${r.f}: ${r.pass} passed, ${r.fail} failed (${r.s.toFixed(1)} s)`);
 console.log(`${all.length} files in ${wall.toFixed(0)} s with TEST_JOBS=${jobs} (the files took ${sum.toFixed(0)} s together)`);
 const pass=all.reduce((a,r)=>a+r.pass,0),fail=all.reduce((a,r)=>a+r.fail,0),bad=all.some(r=>r.code||r.fail);
 console.log(`${pass+fail} checks: ${pass} passed, ${fail} failed`);
-mkdirSync(dirname(timesFile),{recursive:true});writeFileSync(timesFile,JSON.stringify(Object.fromEntries(all.map(r=>[r.f,+r.s.toFixed(1)])),null,1)+'\n');
+mkdirSync(dirname(timesFile),{recursive:true});writeFileSync(timesFile,JSON.stringify({...last,...Object.fromEntries(all.map(r=>[r.f,+r.s.toFixed(1)]))},null,1)+'\n');
 process.exitCode=bad?1:0;
