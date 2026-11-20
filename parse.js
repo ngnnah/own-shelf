@@ -241,13 +241,20 @@ function autoLinks(text){
 }
 
 /* ---------- Markdown / plain text ---------- */
-function inlineMD(str){
+function inlineMD(str,note){
+  // note: the highlight-note dialect: only <u>, **, *, ***; marks keep their raw `inner` so they can nest
   let text='';const marks=[];
-  const re=/(`([^`]+)`)|(\*\*([^*]+)\*\*)|(__([^_]+)__)|(\*([^*\s][^*]*?)\*)|(\[([^\]]+)\]\(((?:https?:|mailto:)[^)\s]+)\))|(https?:\/\/[^\s<>()"]+[^\s<>().,;:!?'"])/g;
+  const re=note
+    ?/(<u>(.+?)<\/u>)|(\*\*\*([^*]+)\*\*\*)|(\*\*((?:[^*]|\*[^*\n]+\*)+)\*\*)|(\*([^*\s](?:[^*]|\*\*[^*]+\*\*)*?)\*(?!\*))/g
+    :/(`([^`]+)`)|(\*\*([^*]+)\*\*)|(__([^_]+)__)|(\*([^*\s][^*]*?)\*)|(\[([^\]]+)\]\(((?:https?:|mailto:)[^)\s]+)\))|(https?:\/\/[^\s<>()"]+[^\s<>().,;:!?'"])/g;
   let last=0,m;
   while((m=re.exec(str))){
     text+=str.slice(last,m.index); const s=text.length;
-    if(m[1]){text+=m[2];marks.push({k:'code',s,e:text.length});}
+    if(note){
+      const k=m[1]?'u':m[3]?'bi':m[5]?'b':'i',inner=m[2]||m[4]||m[6]||m[8];
+      text+=inner;marks.push({k,s,e:text.length,inner});
+    }
+    else if(m[1]){text+=m[2];marks.push({k:'code',s,e:text.length});}
     else if(m[3]||m[5]){text+=(m[4]||m[6]);marks.push({k:'b',s,e:text.length});}
     else if(m[7]){text+=m[8];marks.push({k:'i',s,e:text.length});}
     else if(m[9]){text+=m[10];marks.push({k:'a',s,e:text.length,href:m[11]});}
@@ -256,6 +263,68 @@ function inlineMD(str){
   }
   text+=str.slice(last);
   return {text,marks};
+}
+/* ---------- Highlight notes: Markdown subset (**bold**, *italic*, <u>underline</u>, \n) ---------- */
+function noteFmt(md,html){
+  const X=t=>html?String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):t;
+  const TAG={u:['<u>','</u>'],b:['<b>','</b>'],i:['<i>','</i>'],bi:['<b><i>','</i></b>']};
+  const line=str=>{
+    const r=inlineMD(str,true);let o='',p=0;
+    r.marks.forEach(m=>{o+=X(r.text.slice(p,m.s));const t=TAG[m.k],inner=line(m.inner);o+=html?t[0]+inner+t[1]:inner;p=m.e;});
+    return o+X(r.text.slice(p));
+  };
+  return String(md==null?'':md).replace(/\r/g,'').split('\n').map(line).join(html?'<br>':'\n');
+}
+function noteHTML(md){return noteFmt(md,true);}
+function noteText(md){return noteFmt(md,false);}
+function editorToNote(html){
+  const ent={amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' '};
+  const dec=t=>t.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi,(a,n)=>{
+    if(n[0]==='#'){const c=n[1].toLowerCase()==='x'?parseInt(n.slice(2),16):parseInt(n.slice(1),10);return c===160?' ':String.fromCodePoint(c);}
+    const v=ent[n.toLowerCase()];return v===undefined?a:v;}).replace(/\u00a0/g,' ');
+  const BLOCK=/^(div|p|li|ul|ol|h[1-6]|blockquote|pre|tr)$/;
+  const segs=[];let atStart=true,need=false;
+  const nl=()=>{segs.push({nl:1});atStart=true;need=false;};
+  const text=(t,f)=>{if(need&&!atStart)nl();need=false;t.split('\n').forEach((x,i)=>{if(i)nl();if(x){segs.push({t:x,u:f.u,b:f.b,i:f.i});atStart=false;}});};
+  const st=[{f:{u:0,b:0,i:0},tag:''}];let skip=0;
+  const re=/<!--[\s\S]*?-->|<(\/?)([a-zA-Z][\w:-]*)([^>]*)>|([^<]+)|</g;let m;
+  const flags=(tag,attr,f)=>{
+    const g={u:f.u,b:f.b,i:f.i};const style=((attr.match(/style\s*=\s*(?:"([^"]*)"|'([^']*)')/i)||[])[1]||(attr.match(/style\s*=\s*'([^']*)'/i)||[])[1]||'').toLowerCase().replace(/\s+/g,'');
+    if(tag==='b'||tag==='strong')g.b=1;if(tag==='i'||tag==='em')g.i=1;if(tag==='u')g.u=1;
+    if(/font-weight:(bold|bolder|[6-9]00)/.test(style))g.b=1;else if(/font-weight:(normal|[1-5]00)/.test(style))g.b=0;
+    if(/font-style:(italic|oblique)/.test(style))g.i=1;else if(/font-style:normal/.test(style))g.i=0;
+    if(/text-decoration(-line)?:[^;]*underline/.test(style))g.u=1;
+    return g;};
+  while((m=re.exec(html==null?'':String(html)))){
+    if(m[2]){
+      const tag=m[2].toLowerCase(),top=st[st.length-1];
+      if(m[1]){ // close: pop to the matching open tag, if any
+        for(let k=st.length-1;k>0;k--)if(st[k].tag===tag){while(st.length>k){const x=st.pop();if(x.skip)skip--;if(BLOCK.test(x.tag))need=true;}break;}
+      }else if(tag==='br'){if(!skip){if(need&&!atStart)nl();need=false;nl();}}
+      else if(/\/\s*$/.test(m[3])||/^(img|hr|input|meta|link|wbr)$/.test(tag)){if(tag==='hr')need=true;}
+      else{
+        if(BLOCK.test(tag)&&!atStart)need=true;
+        const sk=/^(script|style|head|title)$/.test(tag)?1:0;if(sk)skip++;
+        st.push({f:flags(tag,m[3],top.f),tag,skip:sk});
+      }
+    }else if(m[4]&&!skip)text(dec(m[4]),st[st.length-1].f);
+  }
+  while(segs.length&&segs[segs.length-1].nl)segs.pop();
+  const emit=(list,lv)=>{ // nest u, then b, then i; whitespace stays outside a mark, empty marks vanish
+    if(lv===3)return list.map(x=>x.nl?'\n':x.t).join('');
+    const key='ubi'[lv];let o='',k=0;
+    while(k<list.length){
+      const on=!list[k].nl&&list[k][key];let j=k;
+      while(j<list.length&&(list[j].nl?!on&&true:!!list[j][key]===!!on))j++;
+      const inner=emit(list.slice(k,j),lv+1);
+      if(!on)o+=inner;
+      else{const lead=inner.match(/^\s*/)[0],core=inner.trim(),tail=inner.slice(lead.length+core.length);
+        const w=key==='u'?['<u>','</u>']:key==='b'?['**','**']:['*','*'];
+        o+=core?lead+w[0]+core+w[1]+tail:inner;}
+      k=j;
+    }
+    return o;};
+  return emit(segs,0);
 }
 function mdToBlocks(raw){
   const lines=raw.replace(/\r/g,'').replace(/\u00a0/g,' ').split('\n');
@@ -741,4 +810,4 @@ function decodeBody(buf,type){
   try{return new TextDecoder(cs||'utf-8').decode(buf);}catch(e){return new TextDecoder('utf-8').decode(buf);}
 }
 // ===== PARSE END =====
-if(typeof module!=='undefined') module.exports={nbFold,tagSpans,tagsOf,pastedDate,linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,firstUri,sharedLink,decodeBody,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,speechChunks,speechWord,withDek};
+if(typeof module!=='undefined') module.exports={nbFold,tagSpans,tagsOf,pastedDate,linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,noteHTML,noteText,editorToNote,firstUri,sharedLink,decodeBody,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,speechChunks,speechWord,withDek};
