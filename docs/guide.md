@@ -47,6 +47,16 @@ On the shelf, **Shelves** sort books into categories such as Travel or History. 
 - **Trash.** Settings, then Trash, keeps removed items for 30 days. Restore them there. "Delete forever" and "Empty Trash" cannot be undone, and ask you to type "yes".
 - **Backups.** Settings has backup and restore. Save a backup file now and then, especially if you use "this device only".
 
+## Your shelf stays yours
+
+![Three people each have their own locked shelf in the owner's cloud project; a phone set to "this device only" keeps its shelf in that browser.](img/guide-privacy.svg)
+
+- **Who can see it.** Each person signs in with their own Google account and gets their own shelf. The rules on the database let you read and change only your own books and notes, never anyone else's. The site's owner runs the Firebase project that stores the shelves, so your shelf sits there under your Google account.
+- **This device only.** If you pick "Use on this device only", nothing is sent anywhere. Your books stay in that browser. The iPhone home-screen app keeps its own storage, apart from Safari, so a shelf in one is not in the other.
+- **Importing a link.** The import helper fetches the page for you. It answers only this site, only signed-in people the owner has allowed, and it is not an open proxy. Its code stores nothing: the page goes to your app, and only what you add lands on your shelf.
+- **The public code.** The app's code is public. Your books and notes are not in it.
+- **Keep a copy.** Save a backup file from Settings now and then. It is a file you keep.
+
 ## Best way to use it
 
 1. **Paste paywalled articles.** Copy the text, tap Paste, and it is yours to keep and highlight.

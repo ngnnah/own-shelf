@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 440" width="100%" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<rect width="880" height="440" fill="#F3EAD7"/>
+<g transform="translate(40 0)">
+<text x="400" y="62" text-anchor="middle" font-size="40" font-weight="800" fill="#2E2119">Your shelf stays yours</text>
+<g stroke="#2E2119" stroke-width="6">
+<circle cx="75" cy="122" r="20" fill="#F4C21B"/>
+<circle cx="260" cy="122" r="20" fill="#F2668A"/>
+<circle cx="445" cy="122" r="20" fill="#4E8FF0"/>
+<rect x="0" y="160" width="150" height="110" rx="22" fill="#2F5A43"/>
+<rect x="185" y="160" width="150" height="110" rx="22" fill="#2F5A43"/>
+<rect x="370" y="160" width="150" height="110" rx="22" fill="#2F5A43"/>
+<rect x="610" y="130" width="130" height="160" rx="26" fill="#F3EAD7"/>
+</g>
+<g font-size="26" font-weight="800" fill="#fff" text-anchor="middle">
+<text x="75" y="206">Your</text><text x="75" y="238">shelf</text>
+<text x="260" y="206">Mum's</text><text x="260" y="238">shelf</text>
+<text x="445" y="206">Dad's</text><text x="445" y="238">shelf</text></g>
+<g stroke="#2E2119" stroke-width="5" fill="#8E2F2A">
+<rect x="57" y="262" width="36" height="28" rx="6"/><rect x="242" y="262" width="36" height="28" rx="6"/><rect x="427" y="262" width="36" height="28" rx="6"/></g>
+<g stroke="#2E2119" stroke-width="5" fill="none" stroke-linecap="round">
+<path d="M64 262 v-8 a11 11 0 0 1 22 0 v8" transform="translate(0 0)"/>
+<path d="M249 262 v-8 a11 11 0 0 1 22 0 v8"/><path d="M434 262 v-8 a11 11 0 0 1 22 0 v8"/></g>
+<text x="260" y="336" text-anchor="middle" font-size="26" font-weight="800" fill="#2E2119">One lock per person</text>
+<text x="260" y="370" text-anchor="middle" font-size="20" fill="#6B5A48">in the owner's Firebase project</text>
+<text x="675" y="218" text-anchor="middle" font-size="26" font-weight="800" fill="#2E2119">Phone</text>
+<text x="675" y="336" text-anchor="middle" font-size="26" font-weight="800" fill="#2E2119">This device only</text>
+<text x="675" y="370" text-anchor="middle" font-size="20" fill="#6B5A48">never leaves the browser</text>
+</g>
+</svg>
