@@ -831,9 +831,16 @@ body.focus .hp.ls-block{opacity:1}
 /* ===== end of the Commonplace list ===== */
 
 /* ===== Commonplace: the entry sheet ===== */
-#entryBox{position:fixed;z-index:61;display:flex;flex-direction:column;overflow:auto;width:min(480px,calc(100vw - 24px));background:var(--sheet);border-radius:18px;padding:.85rem .9rem .9rem;box-shadow:0 14px 40px rgba(40,24,12,.3);border:1px solid var(--rule)}
-#entryBox textarea{min-height:140px}
-#entryBox.sheet textarea{min-height:90px}
+#entryBox{position:fixed;z-index:61;display:flex;flex-direction:column;background:var(--sheet);padding:.85rem .9rem .9rem;box-shadow:0 14px 40px rgba(40,24,12,.3);border:1px solid var(--rule)}
+#entryBox>*{flex:none}
+#entryBox textarea{flex:1 1 auto;min-height:90px;resize:none;font:1rem/1.45 var(--body)}
+#entryBox .row{display:flex;align-items:center;gap:.5rem;margin-top:.6rem}
+#entryBox .btn{padding:.5rem 1rem;font-size:.9rem;margin-left:auto}
+#entryBox .fmt{display:flex;gap:.3rem}
+#entryBox .fmt button{width:44px;height:44px;border-radius:12px;border:1.5px solid var(--rule);background:var(--paper);color:var(--ink);font:1.05rem var(--body);cursor:pointer}
+/* a mouse: a tall panel at the right; a phone: the screen but its top strip, where the dimmed page shows (app.js sizes it) */
+#entryBox.panel{top:16px;right:16px;bottom:16px;width:min(440px,calc(100vw - 24px));border-radius:18px}
+#entryBox.sheet{width:auto;border-radius:18px 18px 0 0;border-bottom:0;box-shadow:0 0 0 100vmax rgba(20,12,6,.42);padding:.85rem calc(env(safe-area-inset-right,0px) + .9rem) calc(env(safe-area-inset-bottom,0px) + .6rem) calc(env(safe-area-inset-left,0px) + .9rem)}
 .en-head{display:flex;align-items:baseline;gap:.2rem .6rem;margin-bottom:.55rem}
 .en-head h2{font:600 1.5rem/1.15 var(--display);margin:0}
 .en-date{margin-top:.6rem}

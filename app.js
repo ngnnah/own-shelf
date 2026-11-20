@@ -716,6 +716,7 @@ function inlineHTML(b,plain){
     if(act.some(m=>m.k==='code')) s=`<code>${s}</code>`;
     if(act.some(m=>m.k==='i')) s=`<em>${s}</em>`;
     if(act.some(m=>m.k==='b')) s=`<strong>${s}</strong>`;
+    if(act.some(m=>m.k==='u')) s=`<u>${s}</u>`;
     const wd=wds.find(w=>w.s<=a&&w.e>=z);if(wd) s=`<span class="wd" data-w="${esc(wd.id)}" data-ws="${wd.s}">${s}</span>`;
     let cov=null;hs.forEach(x=>{if(x.s<=a&&x.e>=z)cov=x.h;});
     if(cov) s=`<mark class="hl c-${cov.color}${cov.note?' noted':''}" data-h="${cov.id}">${s}</mark>`;
@@ -1754,40 +1755,96 @@ function cpPick(key){CP.topic=CP.topic===key?'':key;CP.shown=100;renderEntries()
 /* ---------- end of topics and search ---------- */
 
 /* ---------- commonplace: the entry sheet ---------- */
-let EN=null; // the open entry sheet: {e: the entry, or null for a new one}
+let EN=null; // the open entry sheet: {e: the entry (null until a new one is first saved), orig: {text,date} as opened (null: new), last: as last saved, t: autosave timer}
 const ENTRY_MAX=800*1024; // bytes of text one entry may hold (a Firestore document is 1 MiB)
-const growEntry=end=>{if($('#entryBox').classList.contains('sheet')) growTa($('#enTa'),Infinity,end);};
+// The note editor's room: on a phone (asSheet's rule) the screen but its top 12%, where the dimmed page shows and a tap
+// closes the sheet; with a mouse a tall panel. Follows the visible area (keyboard, pan, resize). Inline styles: sheet only.
+function placeEntry(){
+  const box=$('#entryBox'),s=box.style,sheet=coarse||innerWidth<600;
+  box.classList.toggle('sheet',sheet);box.classList.toggle('panel',!sheet);
+  const vv=window.visualViewport,vt=vv?vv.offsetTop:0,vl=vv?vv.offsetLeft:0,vh=vv?vv.height:innerHeight,vw=vv?vv.width:innerWidth;
+  if(!sheet){s.cssText='';return;}
+  const strip=Math.round(vh*.12);
+  Object.assign(s,{left:vl+'px',top:vt+strip+'px',width:vw+'px',height:vh-strip+'px',transform:'none',bottom:'auto',maxHeight:'none'});
+}
 // Opens an entry, or a new one (e null) holding text and date (YYYY-MM-DD; today when none), as the note box opens.
 function openEntry(e,{text='',date=''}={}){
   saveCards(); // another sheet open: saved first
   if(EN&&!$('#entryBox').classList.contains('hidden')) return; // an entry sheet that can't be saved (a bad date) stays open, with its toast
-  EN={e:e||null};const box=$('#entryBox'),ta=$('#enTa'),sheet=asSheet(box,ta);
-  ta.value=e?e.text:text;$('#enDate').value=ymdHuman(e?e.date:date||ymd());
-  $('#enDel').classList.toggle('hidden',!e);box.classList.remove('hidden');growEntry();
-  EN.at=placeCard(box,null);
-  setTimeout(()=>ta.focus(),30);
+  const box=$('#entryBox'),ta=$('#enTa'),d=e?e.date:date||ymd();
+  EN={e:e||null,orig:e?{text:e.text,date:e.date}:null,last:e?{text:e.text.replace(/\s+$/,''),date:e.date}:null,t:0};
+  ta.value=e?e.text:text;$('#enDate').value=ymdHuman(d);
+  $('#enDel').classList.toggle('hidden',!e);box.classList.remove('hidden');placeEntry();ta.scrollTop=0;
+  setTimeout(()=>{ta.focus();if(!ta.selectionStart&&!ta.selectionEnd) ta.setSelectionRange(ta.value.length,ta.value.length);},30); // the caret goes to the end unless it already moved
 }
-function closeEntry(){$('#entryBox').classList.add('hidden');EN=null;}
-// Save, a tap outside and Escape: the entry is written (an unchanged one just closes, a new empty one is dropped). A date
-// parseDate can't read, or text over the limit, keeps the sheet open with a toast and writes nothing.
+function closeEntry(){clearTimeout(EN&&EN.t);$('#entryBox').classList.add('hidden');EN=null;}
+// Writes what the sheet holds when it differs from the last save: a new entry is created once it has text. A date
+// parseDate can't read, or text over the limit, writes nothing; loud: it says so (a close), else it waits quietly.
+// → false when it couldn't (the sheet stays open on a close).
+function autosaveEntry(loud){
+  if(!EN) return true;
+  clearTimeout(EN.t);
+  const v=$('#enTa').value.replace(/\s+$/,''),shown=$('#enDate').value.trim();
+  const date=shown?parseDate(shown):(EN.e?EN.e.date:ymd());
+  if(!EN.e&&!v.trim()) return true;
+  if(!date){if(loud) toast('Write the date like November 5, 2026');return false;}
+  if(new TextEncoder().encode(v).length>ENTRY_MAX){if(loud) toast('Too long for one entry. Add it to the shelf as a book instead.');return false;}
+  if(EN.last&&v===EN.last.text&&date===EN.last.date) return true;
+  const n=EN.e||{id:newEntryId(),added:Date.now()};
+  Object.assign(n,{text:v,date});EN.e=n;EN.last={text:v,date};putEntry(n);renderEntries();
+  $('#enDel').classList.remove('hidden');
+  return true;
+}
+// Done, Escape, a tap outside and the top strip: saved, then closed. Changed since it opened: "Entry saved · Undo" puts
+// back what it was (a new entry: removes it).
 function saveEntry(){
   if(!EN) return;
-  const e=EN.e,v=$('#enTa').value.replace(/\s+$/,''),shown=$('#enDate').value.trim();
-  const date=shown?parseDate(shown):(e?e.date:ymd());
-  if(!date){toast('Write the date like November 5, 2026');return;}
-  if(new TextEncoder().encode(v).length>ENTRY_MAX){toast('Too long for one entry. Add it to the shelf as a book instead.');return;}
-  closeEntry();
-  if(!e&&!v.trim()) return;
-  if(e&&v===e.text.replace(/\s+$/,'')&&date===e.date) return;
-  const n=e||{id:newEntryId(),added:Date.now()};
-  Object.assign(n,{text:v,date});putEntry(n);renderEntries();toast('Entry saved');
+  if(!autosaveEntry(true)) return;
+  const {e,orig}=EN;closeEntry();
+  if(!e||(orig&&e.text.replace(/\s+$/,'')===orig.text.replace(/\s+$/,'')&&e.date===orig.date)) return;
+  toast('Entry saved',{label:'Undo',run:()=>{
+    if(!orig){if(ENTRIES) ENTRIES.delete(e.id);entryTouched(e.id,null);DB.del('entry:'+e.id);}
+    else{Object.assign(e,{text:orig.text,date:orig.date});putEntry(e);}
+    renderEntries();}});
 }
+// A change in the text or the date: saved 1 s after typing stops.
+function entryEdited(){if(!EN) return;clearTimeout(EN.t);EN.t=setTimeout(()=>autosaveEntry(false),1000);}
 $('#cpNew').onclick=()=>openEntry(null);
-$('#enSave').onclick=saveEntry;$('#enCancel').onclick=closeEntry;
+$('#enSave').onclick=saveEntry;
 $('#enDel').onclick=()=>{const e=EN&&EN.e;closeEntry();if(e) deleteEntry(e);};
-$('#enTa').addEventListener('input',()=>growEntry());
-// follows the visible area, as the note box does (keyboard, pan, resize)
-function keepEntryInView(){const box=$('#entryBox');if(!EN||box.classList.contains('hidden')) return;const end=showsEnd($('#enTa'));EN.at=placeCard(box,EN.at);growEntry(end);}
+$('#enTa').addEventListener('input',entryEdited);$('#enDate').addEventListener('input',entryEdited);
+// B, I and U wrap the selection (or the word at the caret) in **…**, *…*, <u>…</u>, or unwrap it when it already is.
+function wrapEntry(kind){
+  const ta=$('#enTa'),v=ta.value,u=kind==='u',o=u?'<u>':kind,c=u?'</u>':kind;
+  let s=ta.selectionStart,e=ta.selectionEnd;
+  if(s===e){const w=/[\p{L}\p{N}_]/u;while(s>0&&w.test(v[s-1]))s--;while(e<v.length&&w.test(v[e]))e++;}
+  while(s<e&&/\s/.test(v[s]))s++;while(e>s&&/\s/.test(v[e-1]))e--;
+  const sel=v.slice(s,e);
+  // already wrapped? by markers just outside the selection (1), or inside it (2). For * and **, runs of stars count: an
+  // odd run holds an italic, a run of two or more a bold (***x*** holds both).
+  const run=(str,i,d)=>{let n=0;while(str[i+d*n]==='*')n++;return n;},has=m=>kind==='**'?m>=2:m%2===1;
+  const near=Math.min(run(v,s-1,-1),run(v,e,1)),far=Math.min(run(sel,0,1),run(sel,sel.length-1,-1));
+  const un=u?(v.slice(s-3,s)==='<u>'&&v.slice(e,e+4)==='</u>'?1:sel.length>7&&sel.startsWith('<u>')&&sel.endsWith('</u>')?2:0)
+    :s<e&&has(near)?1:sel.length>2*far&&has(far)?2:0;
+  let a=s,b=e,rep=o+sel+c,from=s+o.length,to=from+sel.length;
+  if(un===1){a=s-o.length;b=e+c.length;rep=sel;from=a;to=a+sel.length;}
+  else if(un===2){rep=sel.slice(o.length,sel.length-c.length);from=s;to=s+rep.length;}
+  ta.focus();ta.setSelectionRange(a,b);
+  if(!document.execCommand('insertText',false,rep)){ta.setRangeText(rep,a,b,'end');ta.dispatchEvent(new Event('input',{bubbles:true}));}
+  ta.setSelectionRange(from,to);
+}
+$('#entryBox').addEventListener('click',e=>{if(e.target.closest('.dq')) setTimeout(entryEdited);}); // a date quick pick or the calendar
+$('#entryBox').addEventListener('change',e=>{if(e.target.closest('.dq')) setTimeout(entryEdited);});
+document.querySelectorAll('#entryBox .fmt button').forEach(b=>{
+  b.addEventListener('pointerdown',e=>e.preventDefault()); // the field keeps its selection and the keyboard
+  b.addEventListener('mousedown',e=>e.preventDefault());
+  b.addEventListener('click',()=>wrapEntry(b.dataset.w));
+});
+$('#enTa').addEventListener('keydown',e=>{
+  const k=(e.metaKey||e.ctrlKey)&&!e.altKey&&{b:'**',i:'*',u:'u'}[e.key.toLowerCase()];
+  if(k){e.preventDefault();wrapEntry(k);}
+});
+function keepEntryInView(){if(!EN||$('#entryBox').classList.contains('hidden')) return;placeEntry();}
 window.visualViewport?.addEventListener('resize',keepEntryInView);window.visualViewport?.addEventListener('scroll',keepEntryInView);
 /* ---------- end of the entry sheet ---------- */
 
@@ -1806,7 +1863,7 @@ $('#enTa').addEventListener('paste',e=>{
   if(!EN||EN.e||ta.value||!cd) return;
   const t=cd.getData('text/plain');if(!t.trim()) return;
   e.preventDefault();
-  const {date,text}=pastedDate(t);ta.value=text;if(date) $('#enDate').value=ymdHuman(date);growEntry();
+  const {date,text}=pastedDate(t);ta.value=text;if(date) $('#enDate').value=ymdHuman(date);entryEdited();
 });
 // ⌘V / Ctrl+V on the tab outside any field, with no sheet or dialog open.
 document.addEventListener('paste',e=>{
