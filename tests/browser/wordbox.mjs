@@ -214,11 +214,11 @@ await t.run(async()=>{
     await page.setViewport({width:vw,height:vh,deviceScaleFactor:size==='phone'?2:1});await sleep(150);
     await select(P2,size==='phone'?'gulls':'rocks',size==='desktop'?600:null);
     await page.click('#tool [data-a="note"]');await page.waitForSelector('#noteBox:not(.hidden)');
-    await page.focus('#noteTa');await page.keyboard.sendCharacter(PASTED+LONG);
+    await page.focus('#noteTa');await page.keyboard.sendCharacter(PASTED+LONG.repeat(12));
     f=await noteFit();
     ok(`${size}: a long note keeps the note box’s buttons in view, and scrolls`,inView(f)&&await scrolls('#noteTa'));
-    await dragGrip('#noteTa',1200);f=await noteFit();
-    ok(`${size}: the note field dragged taller, the box stays inside the window`,inView(f));
+    f=await noteFit();
+    ok(`${size}: the note editor fills the box, which stays inside the window`,inView(f));
     await shot(`${size}-note-grip`);
     await iosKeyboard(400);await sleep(50);f=await noteFit();
     ok(`${size}: above an iPhone keyboard, the note box’s buttons are in view`,inView(f)&&f.bottom<=400);
@@ -226,6 +226,5 @@ await t.run(async()=>{
     await iosKeyboard(null);
     await page.click('#noteSave');await hidden('#noteBox');
     ok(`${size}: Save note works`,(await text('#toast'))==='Note saved');
-    await resetField('#noteTa');
   }
 });

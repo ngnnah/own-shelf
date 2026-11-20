@@ -136,8 +136,10 @@
 <main id="reader" class="hidden"><div class="col" id="col"></div></main>
 
 <div id="tool" class="hidden" role="toolbar" aria-label="Highlight"></div>
-<div id="noteBox" class="hidden"><textarea class="f" id="noteTa" placeholder="Why does this matter to you?"></textarea>
-  <div class="row"><button class="btn ghost" id="noteCancel">Cancel</button><button class="btn" id="noteSave">Save note</button></div></div>
+<div id="noteBox" class="hidden"><div id="noteQuote"></div>
+  <div class="f" id="noteTa" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Note" data-ph="Why does this matter to you?"></div>
+  <div class="row"><div class="fmt" role="toolbar" aria-label="Format"><button type="button" id="noteB" data-cmd="bold" aria-label="Bold" aria-pressed="false"><b>B</b></button><button type="button" id="noteI" data-cmd="italic" aria-label="Italic" aria-pressed="false"><i>I</i></button><button type="button" id="noteU" data-cmd="underline" aria-label="Underline" aria-pressed="false"><u>U</u></button></div>
+  <button class="btn ghost" id="noteCancel">Cancel</button><button class="btn" id="noteSave">Done</button></div></div>
 <div id="entryBox" class="hidden" role="dialog" aria-label="Entry">
   <div class="en-head"><h2>Entry</h2><button class="w-del" id="enDel">Delete</button></div>
   <textarea class="f" id="enTa" aria-label="Entry text" placeholder="Write or paste a note, lesson or journal entry. #tags make topics."></textarea>

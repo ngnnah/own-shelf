@@ -1048,16 +1048,46 @@ function growTa(ta,max=Infinity,end=ta.selectionEnd===ta.value.length){
   ta.style.height='auto';ta.style.height=Math.min(max,ta.scrollHeight+ta.offsetHeight-ta.clientHeight)+'px';
   ta.scrollTop=end?ta.scrollHeight:st;
 }
-let noteTarget=null,noteAt=null; // the highlight whose note is open
-function openNote(h,rect){
-  saveCards(); // another note or the word card open: saved first
-  noteTarget=h;const nb=$('#noteBox'),sheet=asSheet(nb,$('#noteTa'));
-  nb.classList.remove('hidden');$('#noteTa').value=h.note||'';growNote();
-  noteAt=placeCard(nb,sheet||!rect?null:{x:rect.left,y:Math.min(innerHeight-220,Math.max(70,rect.top))});
-  setTimeout(()=>$('#noteTa').focus(),30);
+let noteTarget=null,noteAt=null; // the highlight whose note is open (noteAt: unused now; the box is placed by placeNote)
+// The editor (#noteTa) is a contenteditable; the note is Markdown. noteHTML / editorToNote come from parse.js (looked up at
+// call time); the fallbacks keep plain text. `value` reads and writes it as Markdown, as the old textarea's did.
+const toHTML=s=>(globalThis.noteHTML||(x=>esc(x).replace(/\n/g,'<br>')))(s);
+const toNote=h=>(globalThis.editorToNote||(x=>{const t=document.createElement('textarea');t.innerHTML=x.replace(/<div[^>]*><br\s*\/?><\/div>/gi,'<div></div>').replace(/<br\s*\/?>/gi,'\n').replace(/<(div|p)[^>]*>/gi,'\n').replace(/<[^>]+>/g,'');return t.value.replace(/^\n/,'');}))(h);
+const NED=$('#noteTa');
+Object.defineProperty(NED,'value',{get:()=>toNote(NED.innerHTML),set:v=>{NED.innerHTML=toHTML(v);}});
+NED.addEventListener('paste',e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData('text/plain');document.execCommand('insertText',false,t);});
+const fmtState=()=>document.querySelectorAll('#noteBox .fmt button').forEach(b=>{let on=false;try{on=document.queryCommandState(b.dataset.cmd);}catch(_){}b.setAttribute('aria-pressed',on&&document.activeElement===NED?'true':'false');});
+document.querySelectorAll('#noteBox .fmt button').forEach(b=>{
+  b.addEventListener('pointerdown',e=>e.preventDefault()); // the editor keeps its selection and the keyboard
+  b.addEventListener('mousedown',e=>e.preventDefault());
+  b.addEventListener('click',()=>{NED.focus();document.execCommand(b.dataset.cmd);fmtState();});
+});
+NED.addEventListener('keydown',e=>{
+  const c=(e.metaKey||e.ctrlKey)&&!e.altKey&&{b:'bold',i:'italic',u:'underline'}[e.key.toLowerCase()];
+  if(c){e.preventDefault();document.execCommand(c);fmtState();}
+});
+document.addEventListener('selectionchange',()=>{if(noteTarget) fmtState();});
+// The box: a full-screen sheet on a phone (asSheet's rule), sized to the visible area so the bar sits above the keyboard;
+// a tall panel at the right on a wide screen with a mouse. Inline styles are for the sheet only.
+function placeNote(){
+  const nb=$('#noteBox'),s=nb.style,sheet=nb.classList.contains('sheet');
+  const vv=window.visualViewport,vt=vv?vv.offsetTop:0,vl=vv?vv.offsetLeft:0,vh=vv?vv.height:innerHeight,vw=vv?vv.width:innerWidth;
+  if(!sheet){s.cssText='';Object.assign(s,{top:vt+16+'px',bottom:'auto',height:Math.max(200,vh-32)+'px'});return;}
+  Object.assign(s,{left:vl+'px',top:vt+'px',width:vw+'px',height:vh+'px',transform:'none',bottom:'auto',maxHeight:'none'});
 }
-function growNote(end){if($('#noteBox').classList.contains('sheet')) growTa($('#noteTa'),Infinity,end);}
-$('#noteTa').addEventListener('input',()=>growNote());
+const caretIntoView=()=>{const sel=getSelection();if(!sel.rangeCount||!NED.contains(sel.anchorNode)) return;
+  const r=sel.getRangeAt(0).cloneRange();r.collapse(false);const c=r.getClientRects()[0],b=NED.getBoundingClientRect();
+  if(c&&c.bottom>b.bottom-4) NED.scrollTop+=c.bottom-b.bottom+8;else if(c&&c.top<b.top) NED.scrollTop-=b.top-c.top+8;};
+function openNote(h){
+  saveCards(); // another note or the word card open: saved first
+  noteTarget=h;const nb=$('#noteBox');
+  const sheet=coarse||innerWidth<600;nb.classList.toggle('sheet',sheet);nb.classList.toggle('panel',!sheet);
+  $('#noteQuote').textContent=segText(h).replace(/\n\n/g,' … ').replace(/\s+/g,' ').trim();
+  nb.classList.remove('hidden');NED.value=h.note||'';NED.scrollTop=0;placeNote();
+  setTimeout(()=>{NED.focus();const r=document.createRange();r.selectNodeContents(NED);r.collapse(false);const sel=getSelection();sel.removeAllRanges();sel.addRange(r);NED.scrollTop=NED.scrollHeight;fmtState();},30);
+}
+function growNote(){} // the editor fills the box and scrolls itself
+NED.addEventListener('input',()=>{if(!NED.textContent&&NED.innerHTML) NED.innerHTML='';caretIntoView();fmtState();});
 function closeNote(){$('#noteBox').classList.add('hidden');noteTarget=null;}
 $('#noteCancel').onclick=closeNote;
 // Save, a tap outside and Escape save the note; a cleared one goes to the Trash. Nothing changed: it just closes.
@@ -2055,7 +2085,7 @@ wbHead.addEventListener('pointerup',endWbDrag);wbHead.addEventListener('pointerc
 const showsEnd=ta=>ta.selectionEnd===ta.value.length&&ta.scrollTop+ta.clientHeight>=ta.scrollHeight-2;
 function keepCardsInView(){
   const nb=$('#noteBox');
-  if(!nb.classList.contains('hidden')){const end=showsEnd($('#noteTa'));noteAt=placeCard(nb,noteAt);growNote(end);}
+  if(!nb.classList.contains('hidden')){const end=NED.scrollTop+NED.clientHeight>=NED.scrollHeight-2;placeNote();if(end) NED.scrollTop=NED.scrollHeight;}
   if(CARD){const end=showsEnd($('#wbDef'));CARD.at=placeCard($('#wordBox'),CARD.at);growCard(end);}
 }
 window.visualViewport?.addEventListener('resize',keepCardsInView);window.visualViewport?.addEventListener('scroll',keepCardsInView);
