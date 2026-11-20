@@ -75,13 +75,21 @@ if(!prefs.byShelf){prefs.byShelf=1;prefs.group='shelf';if(prefs.view==='list'){p
 const LOOKS={classic:{name:'Classic'},leather:{name:'Leather & vellum',font:'IM+Fell+English:ital@0;1'},ukiyoe:{name:'Ukiyo-e',font:'Zen+Old+Mincho:wght@400;500;600;700;900'},scroll:{name:'Scroll',font:'IM+Fell+English:ital@0;1'}};
 const LOOK_DEFAULT='leather';
 const lookOf=()=>LOOKS[prefs.look]?prefs.look:LOOK_DEFAULT;
+const LOOK_BLURB={classic:'Library green',leather:'Navy leather, gilt',ukiyoe:'Washi and indigo',scroll:'Parchment, curled edges'};
+// Settings → Look cards: one radio per Look; the grid's .n is night, so each card draws its Look in the mode on screen
+function markLookCards(look){
+  const g=document.getElementById('sLook');if(!g) return;
+  const dt=document.documentElement.dataset.theme;
+  g.classList.toggle('n',dt==='dark'||(dt!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches));
+  g.querySelectorAll('.lk').forEach(b=>{const on=b.dataset.look===look;b.setAttribute('aria-checked',on);b.tabIndex=on?0:-1;});
+}
 function applyLook(){
   const look=lookOf(),root=document.documentElement,f=LOOKS[look].font;
   if(look==='classic') root.removeAttribute('data-look'); else root.setAttribute('data-look',look);
   if(f&&!document.querySelector(`link[data-look-font="${f}"]`)){
     const l=document.createElement('link');l.rel='stylesheet';l.dataset.lookFont=f;l.href=`https://fonts.googleapis.com/css2?family=${f}&display=swap`;document.head.append(l);
   }
-  const sel=document.getElementById('sLook');if(sel) sel.value=look;
+  markLookCards(look);
   // the browser's bar takes the Look's chrome (the bands at the top), in the mode on screen; Classic keeps index.html's
   const chrome=look==='classic'?'':getComputedStyle(root).getPropertyValue('--chrome').trim();
   for(const [m,c] of THEME_COLORS) m.content=chrome||c;
@@ -906,9 +914,14 @@ thumb.addEventListener('pointerup',endScrub);thumb.addEventListener('pointercanc
 /* bar actions */
 $('#bFocus').onclick=e=>{const on=document.body.classList.toggle('focus');e.currentTarget.setAttribute('aria-pressed',on);onScroll();};
 $('#bSize').onclick=()=>{prefs.size=(prefs.size+1)%SIZES.length;savePrefs();applyPrefs();lastH=0;onScroll();toast(['Smaller','Regular','Larger'][prefs.size]+' text');};
-$('#sLook').innerHTML=Object.entries(LOOKS).map(([k,l])=>`<option value="${k}">${l.name}</option>`).join('');
-$('#sLook').value=lookOf();
-$('#sLook').onchange=e=>{prefs.look=e.target.value;savePrefs();applyLook();};
+$('#sLook').innerHTML=Object.entries(LOOKS).map(([k,l])=>`<button type="button" class="lk" role="radio" data-look="${k}" aria-checked="false"><span class="lk-pic" aria-hidden="true"><span class="lk-band"></span><span class="lk-t">Aa</span><span class="lk-books"><i></i><i></i><i></i></span><span class="lk-plank"></span></span><span class="lk-name">${l.name}</span><span class="lk-d">${LOOK_BLURB[k]}</span><span class="lk-tick" aria-hidden="true">✓</span></button>`).join('');
+markLookCards(lookOf());
+$('#sLook').onclick=e=>{const b=e.target.closest('.lk');if(!b) return;prefs.look=b.dataset.look;savePrefs();applyLook();};
+$('#sLook').onkeydown=e=>{
+  const d={ArrowRight:1,ArrowDown:1,ArrowLeft:-1,ArrowUp:-1}[e.key];if(!d) return;
+  const bs=[...e.currentTarget.querySelectorAll('.lk')],i=bs.indexOf(document.activeElement);if(i<0) return;
+  e.preventDefault();const n=bs[(i+d+bs.length)%bs.length];bs.forEach(b=>b.tabIndex=b===n?0:-1);n.focus();
+};
 $('#bTheme').onclick=()=>{const dark=matchMedia('(prefers-color-scheme: dark)').matches;const cur=prefs.theme==='auto'?(dark?'dark':'light'):prefs.theme;prefs.theme=cur==='dark'?'light':'dark';savePrefs();applyPrefs();};
 $('#bToc').onclick=()=>{renderToc();openDrawer('#toc');};
 $('#bHl').onclick=()=>openDrawer('#drawer');

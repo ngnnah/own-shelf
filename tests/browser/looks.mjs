@@ -31,7 +31,7 @@ const reload=async()=>{await page.reload({waitUntil:'networkidle0'});await page.
 const scheme=s=>page.emulateMediaFeatures([{name:'prefers-color-scheme',value:s}]);
 async function pick(v){
   await page.click('#setBtn');await page.waitForSelector('#setM:not(.hidden)');
-  await page.select('#sLook',v);
+  await page.click(`#sLook .lk[data-look="${v}"]`);
   await page.click('#sSave');await page.waitForSelector('#setM',{hidden:true}).catch(()=>{});
   await settle();
 }
@@ -63,9 +63,9 @@ await t.run(async()=>{
   /* the default Look and the picker */
   ok('first visit: Leather & vellum (LOOK_DEFAULT), before any choice',await look()==='leather'&&!(await prefs()).look);
   await page.click('#setBtn');await page.waitForSelector('#setM:not(.hidden)');
-  const opts=await page.$$eval('#sLook option',os=>os.map(o=>o.value+':'+o.textContent));
+  const opts=await page.$$eval('#sLook .lk',os=>os.map(o=>o.dataset.look+':'+o.querySelector('.lk-name').textContent));
   ok('Settings → Look lists Classic and the three Looks',opts.join('|')==='classic:Classic|leather:Leather & vellum|ukiyoe:Ukiyo-e|scroll:Scroll');
-  ok('the picker shows the Look on screen',await page.$eval('#sLook',s=>s.value)==='leather');
+  ok('the picker shows the Look on screen',await page.$eval('#sLook .lk[aria-checked=true]',b=>b.dataset.look)==='leather');
   await page.keyboard.press('Escape');await page.waitForSelector('#setM',{hidden:true}).catch(()=>{});
   ok('the Look loads only its own heading font',/IM\+Fell\+English/.test(await fontLinks())&&!/Zen\+Old\+Mincho/.test(await fontLinks()));
   ok('Leather & vellum day loads its own textures only',(await textures()).join()==='leather.jpg,vellum-day.jpg,wood.webp');
@@ -79,10 +79,43 @@ await t.run(async()=>{
   ok('…and not in the synced settings',!JSON.stringify(await readSettings(page)||{}).includes('ukiyoe'));
   ok('Ukiyo-e adds its font',/Zen\+Old\+Mincho/.test(await fontLinks()));
   await reload();
-  ok('after a reload the Look is still Ukiyo-e',await look()==='ukiyoe'&&await page.$eval('#sLook',s=>s.value)==='ukiyoe');
+  ok('after a reload the Look is still Ukiyo-e',await look()==='ukiyoe'&&await page.$eval('#sLook .lk[aria-checked=true]',b=>b.dataset.look)==='ukiyoe');
   ok('after a reload only Ukiyo-e\'s font is asked for',/Zen\+Old\+Mincho/.test(await fontLinks())&&!/IM\+Fell/.test(await fontLinks()));
   const ut=(await textures()).join();
   ok(`…and only its day textures (${ut})`,ut==='washi-day.jpg,wave-img-day.svg,wood.webp,woodblock.webp');
+
+  /* the Look cards */
+  await page.click('#setBtn');await page.waitForSelector('#setM:not(.hidden)');
+  const cards=()=>page.$$eval('#sLook .lk',bs=>bs.map(b=>[b.dataset.look,b.getAttribute('aria-checked'),b.tabIndex]));
+  const cs=await cards();
+  ok('Settings → Look is a radiogroup of four cards',cs.length===4&&await page.$eval('#sLook',g=>g.getAttribute('role')==='radiogroup'&&!!g.getAttribute('aria-labelledby')));
+  ok('only the chosen card (Ukiyo-e) is checked, and it is the tab stop',cs.filter(c=>c[1]==='true').map(c=>c[0]).join()==='ukiyoe'&&cs.filter(c=>c[2]===0).map(c=>c[0]).join()==='ukiyoe');
+  ok('the chosen card shows its tick',await page.$eval('#sLook .lk[aria-checked=true] .lk-tick',e=>getComputedStyle(e).display!=='none')&&await page.$eval('#sLook .lk[aria-checked=false] .lk-tick',e=>getComputedStyle(e).display==='none'));
+  const own=await page.$$eval('#sLook .lk',bs=>Object.fromEntries(bs.map(b=>[b.dataset.look,['.lk-pic','.lk-band','.lk-plank','.lk-t'].map(q=>{const e=b.querySelector(q),c=getComputedStyle(e);return q==='.lk-t'?c.color:c.backgroundColor;})])));
+  const rgb=h=>{const n=parseInt(h.slice(1),16);return `rgb(${n>>16}, ${n>>8&255}, ${n&255})`;};
+  ok('Classic\'s card draws paper, wood and ink of its own, with no leather band',own.classic[0]===rgb('#F3EAD7')&&own.classic[1]===rgb('#FBF6EA')&&own.classic[2]!==own.leather[2]&&own.classic[3]===rgb('#2E2119'));
+  ok('every card\'s band is its own Look\'s chrome (leather navy, Ukiyo-e green, Scroll tan)',own.leather[1]===rgb('#1E2A3A')&&own.ukiyoe[1]===rgb('#203A3A')&&own.scroll[1]===rgb('#E2CB9C'));
+  ok('every card\'s paper is its own Look\'s',own.leather[0]===rgb('#F1E3C4')&&own.ukiyoe[0]===rgb('#F2EDE1')&&own.scroll[0]===rgb('#EBDAB3'));
+  await page.focus('#sLook .lk[data-look=ukiyoe]');
+  const foc=()=>page.evaluate(()=>document.activeElement.dataset.look||'');
+  await page.keyboard.press('ArrowRight');const f1=await foc();
+  await page.keyboard.press('ArrowRight');const f2=await foc();
+  await page.keyboard.press('ArrowLeft');const f3=await foc();
+  ok('arrow keys move focus between the cards (and wrap), without choosing',f1==='scroll'&&f2==='classic'&&f3==='scroll'&&await look()==='ukiyoe');
+  await page.click('#sLook .lk[data-look=classic]');await settle();
+  ok('one tap on Classic switches the Look at once, with the card checked',await look()===''&&(await prefs()).look==='classic'&&(await cards()).filter(c=>c[1]==='true').map(c=>c[0]).join()==='classic');
+  await reload();
+  await page.click('#setBtn');await page.waitForSelector('#setM:not(.hidden)');
+  ok('after a reload Classic is still the Look, and its card is checked',await look()===''&&(await cards()).filter(c=>c[1]==='true').map(c=>c[0]).join()==='classic');
+  ok('Classic\'s card still has no leather band while Classic is on screen',(await page.$eval('#sLook .lk[data-look=classic] .lk-band',e=>getComputedStyle(e).backgroundColor))===rgb('#FBF6EA'));
+  await page.keyboard.press('Escape');await page.waitForSelector('#setM',{hidden:true}).catch(()=>{});
+  await pick('ukiyoe');
+  await page.setViewport({width:320,height:640,deviceScaleFactor:2});
+  await page.click('#setBtn');await page.waitForSelector('#setM:not(.hidden)');await settle();
+  ok('at 320 px the cards fit: no sideways scroll, none clipped',await page.evaluate(()=>{const d=document.documentElement,m=document.querySelector('#setM .dlg');return d.scrollWidth<=d.clientWidth&&m.scrollWidth<=m.clientWidth&&[...document.querySelectorAll('#sLook .lk')].every(b=>{const r=b.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;});}));
+  await page.keyboard.press('Escape');await page.waitForSelector('#setM',{hidden:true}).catch(()=>{});
+  await page.setViewport({width:390,height:844,deviceScaleFactor:2});
+  await reload();
 
   /* day and night within the Look */
   await page.click('.cover[aria-label^="The Quiet Engine"]');await t.reader();
@@ -171,7 +204,9 @@ await t.run(async()=>{
     }
   }
   await page.setViewport({width:390,height:844,deviceScaleFactor:2,isMobile:true,hasTouch:true});await settle();
-  ok('the Look picker is 16 px on a touch screen',await page.$eval('#sLook',s=>parseFloat(getComputedStyle(s).fontSize))>=16);
+  await page.click('#setBtn');await page.waitForSelector('#setM:not(.hidden)');
+  ok('the Look cards are at least 44 px tall on a touch screen',await page.$$eval('#sLook .lk',bs=>bs.every(b=>b.getBoundingClientRect().height>=44)));
+  await page.keyboard.press('Escape');await page.waitForSelector('#setM',{hidden:true}).catch(()=>{});
   await page.setViewport({width:390,height:844,deviceScaleFactor:2});
 
   /* screenshots: every Look, day and night, at 390 and 1280; then the lab's mocks of the same pins (a page in front
