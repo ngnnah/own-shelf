@@ -42,6 +42,18 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Fonts (debug, before)
+        run: fc-match system-ui; fc-match sans-serif; fc-match Georgia; fc-match "Segoe UI"
+      - name: Fonts like a phone's
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq fonts-inter
+          mkdir -p ~/.config/fontconfig
+          printf '%s\n' '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig>' \
+            '<alias binding="same"><family>sans-serif</family><prefer><family>Inter</family></prefer></alias>' \
+            '<alias binding="same"><family>system-ui</family><prefer><family>Inter</family></prefer></alias>' \
+            '</fontconfig>' > ~/.config/fontconfig/fonts.conf
+          fc-cache -f
+          fc-match system-ui; fc-match sans-serif
       - uses: browser-actions/setup-chrome@v1
         id: chrome
         with:
