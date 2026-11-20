@@ -12,7 +12,7 @@ own-shelf turns what you bring in into a book on your shelf. This page covers th
 
 **A file.** Drop or choose a PDF, a Markdown file, an HTML file or a Kindle "Notebook Export" (.html). A PDF is read as text. A Kindle export becomes a book of your highlights in their colours, with your notes. A newer export of the same book merges into the old one. Several files at once are added without the review step.
 
-**The share sheet and `?add=`.** Opening `https://<your-site>/?add=<link>` adds that link as if you had pasted it. `?url=` and `?text=` work the same way. On Android the installed app appears in the share sheet. On iPhone, set up a Shortcut that opens that address (README, step 7). It needs the same sign-in and helper as a link.
+**The share sheet and `?add=`.** Opening `https://<your-site>/?add=<link>` adds that link as if you had pasted it. `?url=` and `?text=` work the same way. On Android, the installed app is a share target (declared in the PWA manifest), so it appears in the share sheet. On iPhone there is no share target: set up the "Send to own-shelf" Shortcut, which opens that `?add=` address (README, step 7). It needs the same sign-in and helper as a link.
 
 ## How a link becomes a book
 

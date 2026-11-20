@@ -1,5 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" width="800" height="440" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" role="img" aria-label="Cleanup keeps the title, byline, date, subtitle, text and captioned pictures, and drops menus, ads, comments, related links and placeholder images">
-<rect width="800" height="440" fill="#F3EAD7"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 440" width="100%" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" role="img" aria-label="Cleanup keeps the title, byline, date, subtitle, text and captioned pictures, and drops menus, ads, comments, related links and placeholder images">
+<rect width="880" height="440" fill="#F3EAD7"/>
+<g transform="translate(40 0)">
 <text x="40" y="50" font-size="30" font-weight="800" fill="#2E2119">What cleanup keeps and drops</text>
 <rect x="40" y="80" width="340" height="320" rx="14" fill="#FBF6EA" stroke="#2F5A43" stroke-width="6"/>
 <rect x="40" y="80" width="340" height="56" rx="14" fill="#2F5A43"/>
@@ -22,5 +23,6 @@
 <text x="448" y="297">Related links</text>
 <text x="448" y="336">Blank placeholder pictures</text>
 <text x="448" y="375">Photo credits on pictures</text>
+</g>
 </g>
 </svg>

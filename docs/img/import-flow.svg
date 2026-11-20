@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" width="800" height="460" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" role="img" aria-label="Seven steps from a pasted link to a book on the shelf: the helper fetches the page, the app finds and cleans the article, you review it, then add it">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" width="100%" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" role="img" aria-label="Seven steps from a pasted link to a book on the shelf: the helper fetches the page, the app finds and cleans the article, you review it, then add it">
 <rect width="800" height="460" fill="#F3EAD7"/>
 <text x="40" y="50" font-size="30" font-weight="800" fill="#2E2119">How a link becomes a book</text>
 <g stroke="#2E2119" stroke-width="4">
