@@ -426,14 +426,30 @@ body.focus .fn-card .hp{opacity:1}
 #tool.docked .sw{flex:1 1 0;width:auto;height:44px}
 /* the note box and the word card stay inside the visible area (max-height set in app.js): as a flex column, a long
    or dragged-taller field gives way and scrolls, and the buttons stay in view */
-#noteBox{position:fixed;z-index:61;display:flex;flex-direction:column;overflow:auto;width:min(340px,calc(100vw - 24px));background:var(--sheet);border-radius:18px;padding:.9rem;box-shadow:0 14px 40px rgba(40,24,12,.3);border:1px solid var(--rule)}
-#noteBox>*,#wordBox>*,#wbBody>*,#entryBox>*{flex:none}
-#noteBox textarea,#entryBox textarea{flex:0 1 auto;min-height:90px;font:1rem/1.45 var(--body);resize:vertical}
-#noteBox .row,#entryBox .row{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.6rem}
-#noteBox .btn,#entryBox .btn{padding:.5rem 1rem;font-size:.9rem}
-/* on a phone: a sheet across the screen, docked above the keyboard; its fields grow with their text (app.js) */
-#noteBox.sheet,#wordBox.sheet,#entryBox.sheet{width:min(640px,calc(100vw - 16px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)))}
-#noteBox.sheet textarea,#wordBox.sheet textarea,#entryBox.sheet textarea{resize:none}
+#noteBox{position:fixed;z-index:61;display:flex;flex-direction:column;background:var(--sheet);padding:.9rem;box-shadow:0 14px 40px rgba(40,24,12,.3);border:1px solid var(--rule)}
+#entryBox>*,#wordBox>*,#wbBody>*{flex:none}
+#entryBox textarea{flex:0 1 auto;min-height:90px;font:1rem/1.45 var(--body);resize:vertical}
+#entryBox .row{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.6rem}
+#entryBox .btn{padding:.5rem 1rem;font-size:.9rem}
+/* the note editor: a quoted passage, the editing area filling the rest, a bar with B I U and Done */
+#noteBox>*{flex:none}
+#noteQuote{max-height:5.6em;overflow:auto;font:italic .92rem/1.4 var(--body);color:var(--muted,#7a6a5a);border-left:3px solid var(--rule);padding-left:.7rem;margin-bottom:.7rem;overflow-wrap:anywhere}
+#noteQuote:empty{display:none}
+#noteTa{flex:1 1 auto;min-height:90px;overflow:auto;font:1rem/1.45 var(--body);white-space:pre-wrap;overflow-wrap:anywhere;outline:none;-webkit-user-select:text;user-select:text}
+#noteTa:empty::before{content:attr(data-ph);color:var(--muted,#9a8a7a);pointer-events:none}
+#noteBox .row{display:flex;align-items:center;gap:.5rem;margin-top:.6rem}
+#noteBox .fmt{display:flex;gap:.3rem;margin-right:auto}
+#noteBox .fmt button{width:44px;height:44px;border-radius:12px;border:1.5px solid var(--rule);background:var(--paper);color:var(--ink);font:1.05rem var(--body);cursor:pointer}
+#noteBox .fmt button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+#noteBox .btn{padding:.5rem 1rem;font-size:.9rem}
+/* wide screen with a mouse: a tall panel beside the text */
+#noteBox.panel{top:16px;right:16px;bottom:16px;width:min(440px,calc(100vw - 24px));border-radius:18px}
+#noteBox.panel #noteQuote{max-height:9em}
+/* on a phone: the whole screen (app.js sizes it to the visible area, above the keyboard) */
+#noteBox.sheet{border-radius:0;border:0;padding:calc(env(safe-area-inset-top,0px) + .7rem) calc(env(safe-area-inset-right,0px) + .9rem) calc(env(safe-area-inset-bottom,0px) + .6rem) calc(env(safe-area-inset-left,0px) + .9rem);box-shadow:none}
+/* the word card and the entry sheet: a sheet across the screen, docked above the keyboard; fields grow with their text (app.js) */
+#wordBox.sheet,#entryBox.sheet{width:min(640px,calc(100vw - 16px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)))}
+#wordBox.sheet textarea,#entryBox.sheet textarea{resize:none}
 
 /* drawers */
 .drawer{position:fixed;z-index:50;top:0;bottom:0;width:min(420px,100vw);background:var(--sheet);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 0 40px rgba(40,24,12,.14);visibility:hidden;transition:transform .3s cubic-bezier(.2,.8,.2,1),visibility 0s .3s}

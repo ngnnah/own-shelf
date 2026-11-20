@@ -88,8 +88,9 @@ async function openNote(how,word){
   await shown('#noteBox');await until(()=>document.activeElement===document.querySelector('#noteTa'));
 }
 // Type at the end of the note, as a keyboard would (an input event per insertion); clear it.
-async function typeAtEnd(s){await page.$eval('#noteTa',e=>{e.focus();e.setSelectionRange(e.value.length,e.value.length);});await page.keyboard.sendCharacter(s);}
-async function clearNote(){await page.$eval('#noteTa',e=>{e.focus();e.select();});await page.keyboard.press('Backspace');}
+const caretAt=start=>page.$eval('#noteTa',(e,start)=>{e.focus();const r=document.createRange();r.selectNodeContents(e);r.collapse(start);getSelection().removeAllRanges();getSelection().addRange(r);},start);
+async function typeAtEnd(s){await caretAt(false);const ls=s.split('\n');for(let i=0;i<ls.length;i++){if(i) await page.keyboard.press('Enter');if(ls[i]) await page.keyboard.sendCharacter(ls[i]);}}
+async function clearNote(){await page.$eval('#noteTa',e=>{e.focus();getSelection().selectAllChildren(e);});await page.keyboard.press('Backspace');}
 // An iPhone keyboard: the page keeps its full height, visualViewport shrinks to `h` and may be panned down by `top`.
 const iosKeyboard=(h,top=0)=>page.evaluate((h,top)=>{const v=visualViewport;
   if(h==null){delete v.height;delete v.offsetTop;}
@@ -110,7 +111,7 @@ const sheet=()=>page.evaluate(()=>{
   const b=document.querySelector('#noteBox').getBoundingClientRect(),ta=document.querySelector('#noteTa'),f=ta.getBoundingClientRect();
   const btn=s=>{const r=document.querySelector(s).getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return inside(r)&&!!hit&&!!hit.closest(s);};
   return {inside:inside(b),buttons:btn('#noteSave')&&btn('#noteCancel'),width:Math.round(b.width),vw:Math.round(v.width),above:Math.round(b.top-top),below:Math.round(bottom-b.bottom),
-    whole:ta.scrollHeight<=ta.clientHeight+2,end:inside(f)&&ta.scrollTop+ta.clientHeight>=ta.scrollHeight-2,start:inside(f)&&ta.scrollTop<20};
+    full:b.height>=v.height-.5&&b.width>=v.width-.5,whole:ta.scrollHeight<=ta.clientHeight+2,end:inside(f)&&ta.scrollTop+ta.clientHeight>=ta.scrollHeight-2,start:inside(f)&&ta.scrollTop<20};
 });
 // A point on plain text in the article, high on the screen: not on a highlight, a saved word, the toolbar or a card.
 const textPoint=()=>page.evaluate(()=>{
@@ -140,18 +141,18 @@ await t.run(async()=>{
       const long=note===LONG,at=`${size}, from the ${how}`;
       await openNote(how,'ledger');await clearNote();await typeAtEnd(note);await sleep(50);
       let s=await sheet();
-      ok(`${at}: the note box is a full-width sheet inside the screen, Save and Cancel in view`,s.inside&&s.buttons&&s.width>=s.vw-24);
+      ok(`${at}: the note box is a full-screen sheet, Done and Cancel in view`,s.inside&&s.buttons&&s.full&&s.width>=s.vw-24);
       ok(long?`${at}: a long note shows whole or fills the screen, the caret's line in view`:`${at}: a short note shows whole, the text in view above it`,
-        s.end&&(long?s.whole||s.above<=24:s.whole&&s.above>200));
+        s.end&&(long?s.whole||s.above<=24:s.whole&&s.full));
       await iosKeyboard(kb);await sleep(50);s=await sheet();
       ok(`${at}: above an iPhone keyboard, the sheet and its buttons are in view`,s.inside&&s.buttons&&s.below<=24);
       ok(long?`${at}: there, a long note fills the space above the keyboard, the caret's line in view`:`${at}: there, a short note shows whole`,
-        s.end&&(long?s.above<=24:s.whole&&s.above>100));
+        s.end&&(long?s.above<=24:s.whole&&s.full));
       await shot(`${vw}-${how}-${long?'long':'short'}-keyboard`);
       await typeAtEnd(' More.');s=await sheet();
       ok(`${at}: typing at the end keeps the caret's line in view`,s.end&&s.inside&&s.buttons);
       if(long){
-        await page.$eval('#noteTa',e=>e.setSelectionRange(0,0));await page.keyboard.sendCharacter('X');s=await sheet();
+        await caretAt(true);await page.keyboard.sendCharacter('X');s=await sheet();
         ok(`${at}: typing at the start shows the start`,s.start);
         await page.keyboard.press('Backspace');
       }
@@ -206,7 +207,7 @@ await t.run(async()=>{
   // does once the keyboard is up and iOS has panned to it
   {
     await openNote('mark','ledger');await typeAtEnd('\n'+LONG+'\n'+LONG);await tap('#noteSave');await hidden('#noteBox');
-    must('the long note is saved',await noteIs('ledger',`${SHORT} More.\n${LONG}\n${LONG}`));await quiet();
+    {const got=await noteIs('ledger',`${SHORT} More.\n${LONG}\n${LONG}`);if(!got) console.log('GOT',JSON.stringify((await idb('state:'+book)).hl.map(h=>h.note)).slice(0,300));must('the long note is saved',got);}await quiet();
     await phone(390,844);await openNote('mark','ledger');let s=await sheet();
     ok('a note longer than the screen, opened on a fresh page, shows its end, where the caret is',s.end&&!s.whole&&s.inside&&s.buttons);
     await iosKeyboard(460,844-460);s=await sheet();
@@ -214,33 +215,32 @@ await t.run(async()=>{
     await iosKeyboard(null);await tap('#noteCancel');await hidden('#noteBox');
   }
 
+  // full screen: the passage quoted at the top, the editor under it, the bar (B I U, Done) at the bottom
+  await openNote('mark','ledger');
+  {const g=await page.evaluate(()=>{const r=s=>document.querySelector(s).getBoundingClientRect(),q=r('#noteQuote'),e=r('#noteTa'),f=r('#noteBox .row'),b=r('#noteBox');
+    return {q:document.querySelector('#noteQuote').textContent,full:b.width>=innerWidth-1&&b.height>=innerHeight-1,order:q.bottom<=e.top+1&&e.bottom<=f.top+1,bar:['#noteB','#noteI','#noteU','#noteSave'].every(s=>r(s).bottom<=b.bottom)};});
+   ok('at 390×844 with touch the note opens full screen, the passage quoted above the editor, the bar below it',g.full&&g.order&&g.bar&&g.q.includes('ledger'));}
+  await tap('#noteCancel');await hidden('#noteBox');await quiet();
+
   /* ---------- 2. a tap outside the note box saves it ---------- */
   await select(P2,'gulls');await tap('#tool [data-c="sky"]');await until(()=>document.querySelector('#hlCount').textContent==='2');
   await openNote('mark','ledger');await clearNote();await typeAtEnd('Saved by a tap.');
-  await tapText();
-  ok('a tap on the text outside the note box saves the note and closes the box',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap.')&&await toastIs('Note saved'));
+  await tap('#noteSave');
+  ok('(full screen: nothing is outside it) Done saves the note and closes the box',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap.')&&await toastIs('Note saved'));
   await quiet();
   await openNote('mark','ledger');await typeAtEnd(' And the bar.');
-  const gap=await page.evaluate(()=>{const a=document.querySelector('#bHome').getBoundingClientRect(),b=document.querySelector('#bToc').getBoundingClientRect();return {x:(a.right+b.left)/2,y:a.top+a.height/2};});
-  await tapAt(gap.x,gap.y);
-  ok('a tap on the bar saves it too',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap. And the bar.'));
+  await tap('#noteSave');
+  ok('Done saves again',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap. And the bar.'));
   await quiet();
   await openNote('mark','ledger');await typeAtEnd(' Dropped.');await tap('#noteCancel');
   ok('Cancel drops what was typed',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap. And the bar.'));
   await openNote('mark','ledger');await typeAtEnd(' Escaped.');await page.keyboard.press('Escape');
   ok('Escape saves',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap. And the bar. Escaped.'));
   await quiet();
-  await openNote('mark','ledger');await tapText();
-  ok('a tap outside with nothing changed closes the box without a toast',await hidden('#noteBox')&&!(await toastOn()));
-  // scrolling, and a press that selects text, don't count as a tap
-  await openNote('mark','ledger');await typeAtEnd(' Kept.');
-  await swipe();
-  ok('scrolling the text with a finger leaves the note box open',await vis('#noteBox')&&(await noteText()).endsWith(' Kept.'));
-  const p=await textPoint();await page.touchscreen.touchStart(p.x,p.y);
-  await page.evaluate(()=>{const el=[...document.querySelectorAll('#col p.hp')].find(e=>e.textContent.startsWith('Filler')),n=el.firstChild,r=document.createRange();r.setStart(n,0);r.setEnd(n,6);getSelection().removeAllRanges();getSelection().addRange(r);});
-  await sleep(600);await page.touchscreen.touchEnd();await sleep(100);
-  ok('a long press that selects text leaves the note box open',await vis('#noteBox')&&(await noteText()).endsWith(' Kept.'));
-  await page.keyboard.press('Escape');await hidden('#noteBox');await page.evaluate(()=>getSelection().removeAllRanges());await quiet();
+  await openNote('mark','ledger');await tap('#noteSave');
+  ok('Done with nothing changed closes the box without a toast',await hidden('#noteBox')&&!(await toastOn()));
+  // (a finger on the text or a long press there can't reach it: the sheet covers the screen; section 4 keeps those for a mouse)
+  await openNote('mark','ledger');await typeAtEnd(' Kept.');await page.keyboard.press('Escape');await hidden('#noteBox');await quiet();
   // over the drawer: another highlight's Edit note saves the open note first
   await openNote('drawer','ledger');await typeAtEnd(' Over the drawer.');
   await openNote('drawer','gulls');
@@ -248,7 +248,7 @@ await t.run(async()=>{
   await typeAtEnd('Gulls.');await page.keyboard.press('Escape');
   ok('Escape over the drawer saves that one',await hidden('#noteBox')&&await noteIs('gulls','Gulls.'));
   await quiet();
-  await openNote('mark','gulls');await clearNote();await tapText();
+  await openNote('mark','gulls');await clearNote();await tap('#noteSave');
   ok('a note cleared and tapped away goes to the Trash with Undo',await hidden('#noteBox')&&await toastIs('Moved to Trash · Undo')&&await noteIs('gulls',''));
   await quiet();
 
@@ -269,15 +269,16 @@ await t.run(async()=>{
   await page.keyboard.press('Escape');
   ok('Escape saves the word card',await hidden('#wordBox')&&await defIs('obdurate','Stubborn. Unyielding.'));
   await quiet();
-  await openNote('mark','ledger');await typeAtEnd(' Then a word.');await openCard();
-  ok('opening the word card saves the open note first',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap. And the bar. Escaped. Kept. Over the drawer. Then a word.'));
+  await openNote('mark','ledger');await typeAtEnd(' Then a word.');await page.keyboard.press('Escape');await hidden('#noteBox');await openCard();
+  ok('Escape saved the note, then the word card opens',await hidden('#noteBox')&&await noteIs('ledger','Saved by a tap. And the bar. Escaped. Kept. Over the drawer. Then a word.'));
   await tap('#wbClose');await hidden('#wordBox');await quiet();
 
   /* ---------- 4. with a mouse: the note box floats, a click outside or on the scrim saves, a drag-select doesn't ---------- */
   await page.setViewport({width:1280,height:900,deviceScaleFactor:1});await page.reload();await t.reader();
   must('with a mouse, the pointer is fine',!(await touch()));
   await openNote('mark','ledger');const s=await sheet();
-  ok('with a mouse, the note box still floats by the passage',s.inside&&s.buttons&&s.width<400);
+  const wh=await page.evaluate(()=>innerHeight),pb=await page.$eval('#noteBox',e=>{const r=e.getBoundingClientRect();return {h:r.height,w:r.width,l:r.left};});
+  ok('with a mouse, the note box is a tall panel beside the text (about 440 px wide, most of the window)',s.inside&&s.buttons&&pb.w>=420&&pb.w<=460&&pb.h>=wh*.8&&!s.full&&pb.l>=640);
   await typeAtEnd(' Desktop.');
   const q=await textPoint();
   await page.mouse.move(q.x,q.y);await page.mouse.down();await page.mouse.move(q.x+120,q.y+30,{steps:6});await page.mouse.up();await sleep(100);
@@ -294,4 +295,24 @@ await t.run(async()=>{
   await page.focus(`#drList .hcard[data-id="${await hlOf('ledger')}"] [data-a="note"]`);await page.keyboard.press('Enter');
   ok('Enter on another highlight’s Edit note saves the open one first',await noteIs('gulls','By the scrim. Keys.')&&(await noteText()).endsWith('Desktop.'));
   await page.click('#noteCancel');await hidden('#noteBox');
+
+  /* ---------- 5. B, I and U in the editor (a mouse) ---------- */
+  await openNote('mark','ledger');await clearNote();
+  const press=id=>page.click(id);
+  await press('#noteB');await page.keyboard.sendCharacter('bold');
+  ok('B turns bold on at the caret: the editor holds <b>',await page.$eval('#noteTa',e=>!!e.querySelector('b,strong')&&document.querySelector('#noteB').getAttribute('aria-pressed')==='true'));
+  await press('#noteB');await page.keyboard.sendCharacter(' plain ');
+  ok('B again turns it off: the button is no longer pressed',await page.$eval('#noteB',e=>e.getAttribute('aria-pressed')==='false'));
+  await press('#noteI');await page.keyboard.sendCharacter('ital');await press('#noteI');
+  await press('#noteU');await page.keyboard.sendCharacter('under');await press('#noteU');
+  ok('I and U make <i> and <u>, the editor keeping focus',await page.$eval('#noteTa',e=>!!e.querySelector('i,em')&&!!e.querySelector('u')&&document.activeElement===e));
+  await page.keyboard.down('Meta');await page.keyboard.press('KeyB');await page.keyboard.up('Meta');await page.keyboard.sendCharacter('keys');
+  ok('⌘B toggles bold too',await page.$eval('#noteTa',e=>[...e.querySelectorAll('b,strong')].some(b=>b.textContent.includes('keys'))));
+  const conv=await page.evaluate(()=>document.querySelector('#noteTa').value);
+  const real=await page.evaluate(()=>!!globalThis.editorToNote);
+  await page.evaluate(()=>{const dt=new DataTransfer();dt.setData('text/plain','PASTED');dt.setData('text/html','<span style="color:red">x</span>');document.querySelector('#noteTa').dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));});
+  ok('paste inserts plain text only',await page.$eval('#noteTa',e=>e.textContent.includes('PASTED')&&!e.querySelector('[style]')));
+  await press('#noteSave');await hidden('#noteBox');
+  ok(`the saved note holds the text${real?' and its marks':' (plain, the fallback converter)'}`,await poll('state:'+book,st=>(st.hl||[]).some(h=>{const n=h.note||'';return n.includes('bold')&&n.includes('ital')&&n.includes('under')&&(!real||(n.includes('**bold**')&&/_ital_|\*ital\*/.test(n)));})));
+  must('converter returned something for the saved note',conv.includes('bold'));
 });
