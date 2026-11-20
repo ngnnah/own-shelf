@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" width="800" height="560" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<rect width="800" height="560" fill="#F3EAD7"/>
+<text x="400" y="62" text-anchor="middle" font-size="40" font-weight="800" fill="#2E2119">The four colours</text>
+<g stroke="#2E2119" stroke-width="6">
+<rect x="50" y="100" width="130" height="80" rx="40" fill="#4E8FF0"/>
+<rect x="50" y="210" width="130" height="80" rx="40" fill="#F2668A"/>
+<rect x="50" y="320" width="130" height="80" rx="40" fill="#F28C28"/>
+<rect x="50" y="430" width="130" height="80" rx="40" fill="#F4C21B"/></g>
+<g font-size="40" font-weight="800" fill="#2E2119"><text x="220" y="154">Sky</text><text x="220" y="264">Coral</text><text x="220" y="374">Amber</text><text x="220" y="484">Sunny</text></g>
+<g font-size="34" fill="#2E2119"><text x="420" y="152">Important</text><text x="420" y="262">Facts and words</text><text x="420" y="372">Quotes</text><text x="420" y="482">Lesser</text></g>
+<g font-size="22" fill="#6B5A48" font-weight="700"><text x="760" y="152" text-anchor="end">key 3</text><text x="760" y="262" text-anchor="end">key 2</text><text x="760" y="372" text-anchor="end">key 4</text><text x="760" y="482" text-anchor="end">key 1</text></g>
+</svg>
