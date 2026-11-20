@@ -73,7 +73,7 @@ async function testList(){
   // a card opens from a tap and Enter
   await page.click('#cpList [data-id="c1"] .cp-text');
   ok('a tap on a card opens it',await vis('#entryBox'));
-  await page.keyboard.press('Escape');await page.click('#enCancel').catch(()=>{});
+  await page.keyboard.press('Escape');await page.click('#enSave').catch(()=>{});
   ok('no card is clipped when short',(await page.$$('#cpList .cp-more')).length===0);
 
   await page.evaluate(()=>{document.documentElement.dataset.theme='light';});
@@ -144,7 +144,8 @@ async function testSheet(){
   const toastIs=m=>until(m=>{const e=document.querySelector('#toast');return e.classList.contains('on')&&e.textContent===m;},m);
   const boxHidden=()=>page.$eval('#entryBox',b=>b.classList.contains('hidden'));
   const openNew=async()=>{await page.click('#cpNew');await page.waitForSelector('#entryBox:not(.hidden)');};
-  const card=async id=>{await hiddenNow();await frame();await page.waitForSelector(`.cp-card[data-id="${id}"]`);await page.click(`.cp-card[data-id="${id}"]`);await until(()=>!document.querySelector('#entryBox').classList.contains('hidden')&&document.querySelector('#enDate').value);};
+  const card=async id=>{await hiddenNow();await frame();await page.waitForSelector(`.cp-card[data-id="${id}"]`);await page.click(`.cp-card[data-id="${id}"]`);await until(()=>!document.querySelector('#entryBox').classList.contains('hidden')&&document.querySelector('#enDate').value&&document.activeElement.id==='enTa');};
+  const undo=async()=>{await toastIs('Entry saved');await sleep(400);await page.click('#toast button');};
   const outside=()=>page.mouse.click(5,5);
   const today=dayKey();
 
@@ -161,10 +162,46 @@ async function testSheet(){
   await openNew();await page.type('#enTa','Saved by Escape');await page.keyboard.press('Escape');
   ok('Escape saves',await settle(async()=>(await stored()).length===2)&&await boxHidden());
 
-  await openNew();await page.type('#enTa','Dropped');await page.click('#enCancel');await hiddenNow();
-  ok('Cancel drops what was typed',(await stored()).length===2&&await boxHidden());
+  await openNew();await page.type('#enTa','Dropped');await page.click('#enSave');await hiddenNow();
+  ok('Done saves the new entry',await settle(async()=>(await stored()).length===3));
+  await undo();
+  ok('Undo of a new entry deletes it',await settle(async()=>(await stored()).length===2&&!(await stored()).some(x=>x.text==='Dropped')));
+  ok('there is no Cancel button',!(await page.$('#enCancel')));
   await openNew();await page.keyboard.press('Escape');await hiddenNow();
   ok('an empty new entry is not saved',(await stored()).length===2&&await boxHidden());
+
+  // autosave without closing: about 1 s after typing stops; a new entry is created on its first autosave
+  await openNew();await page.type('#enTa','Autosaved');
+  ok('a new entry autosaves once it has text, the sheet stays open',await settle(async()=>(await stored()).some(x=>x.text==='Autosaved'))&&!(await boxHidden()));
+  await page.type('#enTa',' again');
+  ok('…and the same entry updates (no duplicate)',await settle(async()=>(await stored()).some(x=>x.text==='Autosaved again'))&&(await stored()).filter(x=>x.text.startsWith('Autosaved')).length===1&&!(await boxHidden()));
+  await page.click('#enSave');await hiddenNow();
+  await undo();
+  ok('Undo of a new entry after autosaves removes it',await settle(async()=>!(await stored()).some(x=>x.text.startsWith('Autosaved')))&&(await stored()).length===2);
+
+  // B, I and U: wrap the selection or the word at the caret, and unwrap
+  await openNew();await page.type('#enTa','alpha beta gamma');
+  const sel=(a,b)=>page.$eval('#enTa',(x,a,b)=>{x.focus();x.setSelectionRange(a,b);},a,b);
+  const val=()=>page.$eval('#enTa',x=>x.value),selNow=()=>page.$eval('#enTa',x=>[x.selectionStart,x.selectionEnd]);
+  const fmt=w=>page.click(`#entryBox .fmt [data-w="${w}"]`);
+  await sel(6,10);await fmt('**');
+  ok('B wraps the selection in ** and keeps it selected',await val()==='alpha **beta** gamma'&&same(await selNow(),[8,12])&&await page.evaluate(()=>document.activeElement.id==='enTa'));
+  await fmt('**');
+  ok('B again unwraps it',await val()==='alpha beta gamma'&&same(await selNow(),[6,10]));
+  await sel(2,2);await fmt('*');
+  ok('I with only a caret wraps the word at the caret in *',await val()==='*alpha* beta gamma');
+  await fmt('*');ok('I again unwraps',await val()==='alpha beta gamma');
+  await sel(11,16);await fmt('u');
+  ok('U wraps in <u>…</u>',await val()==='alpha beta <u>gamma</u>');
+  await fmt('u');ok('U again unwraps',await val()==='alpha beta gamma');
+  await sel(6,10);await fmt('**');await fmt('*');
+  ok('bold and italic stack as ***',await val()==='alpha ***beta*** gamma');
+  await fmt('*');ok('I unwraps only the italic',await val()==='alpha **beta** gamma');
+  await sel(6,14);await fmt('**');
+  ok('B unwraps a selection that includes its markers',await val()==='alpha beta gamma');
+  await page.keyboard.down('Control');await page.keyboard.press('b');await page.keyboard.up('Control');
+  ok('Ctrl+B wraps too',(await val()).includes('**'));
+  await page.keyboard.press('Escape');await hiddenNow();await undo();await settle(async()=>(await stored()).length===2);
 
   await clearEntries();await putEntries([entry('s1','Original text','2026-01-02')]);await openTab();
   await card('s1');await page.waitForSelector('#entryBox:not(.hidden)');
@@ -177,6 +214,11 @@ async function testSheet(){
   await card('s1');await page.waitForSelector('#entryBox:not(.hidden)');
   await page.click('#enTa');await page.keyboard.press('End');await page.type('#enTa',' and more');await outside();
   ok('editing an existing entry saves the new text, same id, same date',await settle(async()=>(await storedEntries()).s1?.text==='Original text and more')&&(await storedEntries()).s1.date==='2026-01-02'&&(await stored()).length===1);
+  await undo();
+  ok('Undo puts back what it was when opened',await settle(async()=>(await storedEntries()).s1?.text==='Original text')&&(await storedEntries()).s1.date==='2026-01-02');
+  await card('s1');await page.click('#enTa');await page.keyboard.press('End');await page.type('#enTa',' and more');await sleep(1500);
+  ok('an existing entry autosaves about 1 s after typing stops, the sheet open',(await storedEntries()).s1.text==='Original text and more'&&!(await boxHidden()));
+  await page.keyboard.press('Escape');await hiddenNow();
 
   await card('s1');await page.waitForSelector('#entryBox:not(.hidden)');
   await page.click('#entryBox .dq [data-ago="1"]');await page.click('#enSave');
@@ -202,14 +244,15 @@ async function testSheet(){
   await openNew();
   await page.$eval('#enTa',x=>{x.value='x'.repeat(800*1024+1);});await page.click('#enSave');await toastIs('Too long for one entry. Add it to the shelf as a book instead.');
   ok('text over 800 KB is refused, the sheet stays open',!(await boxHidden())&&await page.$eval('#toast',e=>e.textContent==='Too long for one entry. Add it to the shelf as a book instead.')&&(await stored()).length===1);
-  await page.click('#enCancel');
+  await page.$eval('#enTa',x=>{x.value='';});await page.keyboard.press('Escape');await hiddenNow();
 
   // screenshots, light and dark
-  await clearEntries();await putEntries([entry('s2','A line to look at.\nAnother line, with #topic.','2026-01-02')]);await openTab();
+  await clearEntries();await putEntries([entry('s2','A line to look at.\nAnother line, with #topic and <u>underlined</u> words.','2026-01-02')]);await openTab();
+  ok('<u>…</u> renders as underline in a card',await page.$eval('.cp-card[data-id="s2"] u',u=>u.textContent==='underlined'&&getComputedStyle(u).textDecorationLine.includes('underline')));
   for(const dark of [false,true]){
     await page.emulateMediaFeatures([{name:'prefers-color-scheme',value:dark?'dark':'light'}]);
     await card('s2');await page.waitForSelector('#entryBox:not(.hidden)');await frame();
-    await page.screenshot({path:join(shots,`sheet-${dark?'dark':'light'}.png`)});await page.click('#enCancel');
+    await page.screenshot({path:join(shots,`sheet-${dark?'dark':'light'}.png`)});await page.click('#enSave');
   }
   await page.emulateMediaFeatures([{name:'prefers-color-scheme',value:'light'}]);
   const cls=()=>page.$eval('#entryBox',b=>({sheet:b.classList.contains('sheet'),r:b.getBoundingClientRect().toJSON(),w:innerWidth}));
@@ -223,12 +266,15 @@ async function testSheet(){
   await page.$eval('#enTa',x=>{const dt=new DataTransfer();dt.setData('text/plain',Array.from({length:30},(_,i)=>'line '+i).join('\n'));x.focus();x.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));});
   await frame();
   ok('a paste with no date line keeps the date typed in the row',await page.$eval('#enDate',i=>i.value)==='March 3, 2024'&&await page.$eval('#enTa',x=>x.value.startsWith('line 0')));
-  ok('…and the sheet grows to the pasted text',await page.$eval('#enTa',(x,h0)=>x.clientHeight>h0*2,h0));
-  await page.click('#enCancel');
+  ok('…and the field fills the sheet down to the date row',await page.$eval('#enTa',x=>{const r=x.getBoundingClientRect(),d=document.querySelector('.en-date').getBoundingClientRect();return r.height>250&&Math.abs(d.top-r.bottom)<30;}));
+  ok('the sheet leaves about 12% at the top, and a mouse-less sheet is dimmed',await page.$eval('#entryBox',b=>{const t=b.getBoundingClientRect().top;return t>80&&t<125;})&&await page.$eval('#entryBox',b=>getComputedStyle(b).boxShadow.includes('rgba(20, 12, 6')));
+  await page.touchscreen.tap(195,40);
+  ok('a tap on the top strip closes it, saving the entry',await settle(boxHidden)&&await settle(async()=>(await stored()).some(x=>x.text.startsWith('line 0'))));
   await page.setViewport({width:1280,height:900,deviceScaleFactor:1});await page.reload();await openTab();
   await openNew();await frame();c=await cls();
   ok('with a mouse at 1280 px it floats, not a sheet',!c.sheet&&c.r.width<700);
-  await page.screenshot({path:join(shots,'float.png')});await page.click('#enCancel');
+  await page.screenshot({path:join(shots,'float.png')});await page.click('#enSave');
+  ok('with a mouse the panel is about 440 px wide and tall',c.r.width>=400&&c.r.width<=460&&c.r.height>=900-40);
 
   // an entry saved or deleted while the Notebook's reread is in flight stays that way when the read lands
   await clearEntries();await putEntries([entry('r1','Kept at first','2026-01-02'),entry('r2','Deleted meanwhile','2026-01-03')]);await openTab();
@@ -265,7 +311,9 @@ async function testPaste(){
   const clip=c=>page.evaluate(c=>{window.__clip=c;const e=document.querySelector('#toast');e.classList.remove('on');e.textContent='';},c);
   const tap=()=>page.$eval('#cpPaste',e=>e.click());
   const toastSays=m=>until(m=>{const e=document.querySelector('#toast');return e.classList.contains('on')&&e.textContent===m;},m);
-  const closeSheet=async()=>{await page.click('#enCancel');await until(()=>document.querySelector('#entryBox').classList.contains('hidden'));};
+  // closes the sheet and drops what it made: Done, then the toast's Undo
+  const closeSheet=async()=>{await page.click('#enSave');await until(()=>document.querySelector('#entryBox').classList.contains('hidden'));
+    if(await page.$eval('#toast',e=>e.classList.contains('on')&&e.textContent.startsWith('Entry saved'))){await sleep(400);await page.click('#toast button');await sleep(150);}};
   const sheet=()=>page.evaluate(()=>({ta:document.querySelector('#enTa').value,date:document.querySelector('#enDate').value,open:!document.querySelector('#entryBox').classList.contains('hidden')}));
   const pasteOn=(sel,txt)=>page.$eval(sel,(e,txt)=>{const dt=new DataTransfer();dt.setData('text/plain',txt);if(e!==document.body)e.focus();
     const ev=new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true});e.dispatchEvent(ev);return ev.defaultPrevented;},txt);

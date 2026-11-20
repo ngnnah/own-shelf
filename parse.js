@@ -246,7 +246,7 @@ function inlineMD(str,note){
   let text='';const marks=[];
   const re=note
     ?/(<u>(.+?)<\/u>)|(\*\*\*([^*]+)\*\*\*)|(\*\*((?:[^*]|\*[^*\n]+\*)+)\*\*)|(\*([^*\s](?:[^*]|\*\*[^*]+\*\*)*?)\*(?!\*))/g
-    :/(`([^`]+)`)|(\*\*([^*]+)\*\*)|(__([^_]+)__)|(\*([^*\s][^*]*?)\*)|(\[([^\]]+)\]\(((?:https?:|mailto:)[^)\s]+)\))|(https?:\/\/[^\s<>()"]+[^\s<>().,;:!?'"])/g;
+    :/(`([^`]+)`)|(\*\*([^*]+)\*\*)|(__([^_]+)__)|(\*([^*\s][^*]*?)\*)|(\[([^\]]+)\]\(((?:https?:|mailto:)[^)\s]+)\))|(https?:\/\/[^\s<>()"]+[^\s<>().,;:!?'"])|(<u>(.+?)<\/u>)/g;
   let last=0,m;
   while((m=re.exec(str))){
     text+=str.slice(last,m.index); const s=text.length;
@@ -259,6 +259,7 @@ function inlineMD(str,note){
     else if(m[7]){text+=m[8];marks.push({k:'i',s,e:text.length});}
     else if(m[9]){text+=m[10];marks.push({k:'a',s,e:text.length,href:m[11]});}
     else if(m[12]){text+=m[12];marks.push({k:'a',s,e:text.length,href:m[12]});}
+    else if(m[13]){text+=m[14];marks.push({k:'u',s,e:text.length});} // the exact pair <u>…</u>, as in notes
     last=m.index+m[0].length;
   }
   text+=str.slice(last);

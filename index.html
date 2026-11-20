@@ -144,7 +144,8 @@
   <div class="en-head"><h2>Entry</h2><button class="w-del" id="enDel">Delete</button></div>
   <textarea class="f" id="enTa" aria-label="Entry text" placeholder="Write or paste a note, lesson or journal entry. #tags make topics."></textarea>
   <div class="en-date"><label class="fl">Date<input class="f" id="enDate" placeholder="e.g. November 5, 2026"></label><div class="dq" data-for="enDate"></div></div>
-  <div class="row"><button class="btn ghost" id="enCancel">Cancel</button><button class="btn" id="enSave">Save</button></div></div>
+  <div class="row"><div class="fmt" role="toolbar" aria-label="Format"><button type="button" data-w="**" aria-label="Bold"><b>B</b></button><button type="button" data-w="*" aria-label="Italic"><i>I</i></button><button type="button" data-w="u" aria-label="Underline"><u>U</u></button></div>
+  <button class="btn" id="enSave">Done</button></div></div>
 <div id="wordBox" class="hidden" role="dialog" aria-labelledby="wbTerm">
   <div class="wb-head"><h2 id="wbTerm"></h2><span id="wbPos"></span><button class="w-del" id="wbDel">Delete</button></div>
   <div id="wbBody"><textarea class="f" id="wbDef" aria-label="Meaning" placeholder="Write the meaning"></textarea>

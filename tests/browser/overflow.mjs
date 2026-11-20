@@ -229,7 +229,7 @@ async function commonplace(shot){
   await page.$eval('#enTa',(e,v)=>{e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}));},'Long text: '+CPLONG+' https://example.com/'+'z'.repeat(300)+' #'+'tag'.repeat(40)+'\n\n'+'words '.repeat(200));
   await fits('Commonplace, the entry sheet (New entry) with long text');
   if(shot) await page.screenshot({path:join(shots,shot+'-sheet.png')});
-  await clk('#enCancel');await hidden('#entryBox');await clk('#nbTabHl');
+  await clk('#enSave');await hidden('#entryBox');await clk('#nbTabHl');
 }
 
 await t.run(async()=>{
