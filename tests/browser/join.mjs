@@ -191,7 +191,7 @@ await t.run(async()=>{
   const ids=Object.keys(await drawn()).sort();
   ok('the count: one per joined highlight',ids.length===4&&(await text('#hlCount'))==='4'&&same(ids,[big,cross,tools,coral].sort()));
   await t.openDrawer('#bHl','#drawer');
-  const cards=await page.$$eval('#drList .hcard',cs=>cs.map(c=>({id:c.dataset.id,q:c.querySelector('.q').textContent,nt:c.querySelector('.nt')?.textContent||''})));
+  const cards=await page.$$eval('#drList .hcard',cs=>cs.map(c=>({id:c.dataset.id,q:c.querySelector('.q').textContent,nt:c.querySelector('.nt')?.innerText||''})));
   ok('the drawer: one card each, with the joined text and notes',same(cards.map(c=>c.id).sort(),ids)&&cards.find(c=>c.id===big).q===bridged[big].text
     &&cards.find(c=>c.id===cross).q==='pi rho. ¶ Second paragraph opens with sigma tau upsilon phi chi psi omega.'&&cards.find(c=>c.id===cross).nt==='Note on the crossing.\n\nNote on chi.\n\nAnd omega.');
   await t.closeDrawer();

@@ -158,7 +158,7 @@ async function readerStates(){
   await openBook('Overflow Stress Test');
   await select('#col p.hp',30);await fits('highlight toolbar');
   await clk('#tool [data-a="note"]');await shown('#noteBox');await page.$eval('#noteTa',(e,v)=>{e.value=v;},'A note: '+URL300);await fits('note box');
-  await clk('#noteCancel');await hidden('#noteBox');
+  await clk('#noteSave');await hidden('#noteBox');if(await page.$('#toast.on button'))await clk('#toast button');
   await select(await firstP('Take the long road'),4);await clk('#tool [data-a="word"]');await shown('#wordBox');await sleep(400);await fits('word card');
   await clk('#wbClose');await hidden('#wordBox');
   await select('#col p.hp',30);await clk('#tool [data-c="sun"]');await until(()=>document.querySelector('#toast').classList.contains('on'));await fits('toast');

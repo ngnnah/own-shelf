@@ -102,7 +102,7 @@ await t.run(async()=>{
   await t.select('#col p.hp');await page.tap('#tool [data-a="note"]');await page.waitForSelector('#noteBox:not(.hidden)');
   await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));await sleep(100);g=await geo();
   ok('the note box covers it',await on()&&await page.evaluate(g=>!!document.elementFromPoint(g.thumb.x,g.thumb.y)?.closest('#noteBox'),g));
-  await page.tap('#noteCancel');
+  await page.keyboard.press('Escape');await page.waitForSelector('#noteBox.hidden');
   await page.tap('#bFocus');await scrollBy(-300);await sleep(100);
   ok('in Focus mode, where the bar stays, it shows too',await on());
   g=await geo();await drag(g.h*.3);
