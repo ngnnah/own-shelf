@@ -288,6 +288,12 @@ const errs=[];
   const bad={app:'upwind',version:1,books:[],entries:[null,{},{id:'x'},{id:'y',text:7},{id:'z',text:'  '},{id:'ok',text:'fine',date:'2026-01-01',added:1,up:1}]};
   const r4=await importShelf(D,bad,[],metaFor);
   ok('restore: skips malformed entries',r4.entries===1&&(await D.all('entry:')).length===1);
+  const G=makeLocal();await G.open();
+  const g=(o)=>({id:'g',text:'t',date:'2026-01-01',added:1,up:1,...o});
+  const rg=await importShelf(G,{app:'upwind',version:1,books:[],entries:[g({id:'a/b'}),g({id:''}),g({id:5}),g({text:5}),g({date:5}),g({date:'2026-1-1'}),g({date:'2026-01-01T00'}),g({date:undefined}),g({added:'1'}),g({added:undefined})]},[],metaFor);
+  ok('restore: skips a slash id, non-string id, text or date, a bad date, a non-number added',rg.entries===0&&(await G.all('entry:')).length===0);
+  const rh=await importShelf(G,{app:'upwind',version:1,books:[],entries:[g({id:'m',up:undefined,added:7})]},[],metaFor);
+  ok('restore: an entry missing up is kept, up defaults to added',rh.entries===1&&(await G.get('entry:m')).up===7);
   const r5=await importShelf(D,{app:'upwind',version:1,books:[]},[],metaFor);
   ok('restore: a backup without entries still restores',r5.entries===0&&(await D.all('entry:')).length===1);
 }
