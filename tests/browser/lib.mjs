@@ -37,7 +37,8 @@ export async function waitForFile(dir,re,ms=5000){
 
 // Headless Chrome. Close it with quit(): Chrome's crash reporter (chrome_crashpad_handler) can outlive it by up to
 // ~10 minutes still holding Chrome's stdout and stderr, and Node waits for those pipes before it exits.
-export const launch=()=>puppeteer.launch({executablePath:CHROME,headless:true,args:['--no-first-run']});
+// CHROME_ARGS: extra flags, space-separated (CI sets --no-sandbox: Ubuntu runners block Chrome's user-namespace sandbox).
+export const launch=()=>puppeteer.launch({executablePath:CHROME,headless:true,args:['--no-first-run',...(process.env.CHROME_ARGS||'').split(/\s+/).filter(Boolean)]});
 export async function quit(browser){const p=browser.process();await browser.close();for(const s of p?.stdio||[]) s?.destroy();}
 
 // Start the server and Chrome for one test file. Returns the test context `t`.
