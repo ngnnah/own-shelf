@@ -265,12 +265,15 @@ export async function importShelf(db, data, existing, metaFor, shelves = []) {
     await db.put('word:' + w.id, out); res.words++;
   }
   // entries: added when missing; one on both sides keeps the newer `up`, so an old backup never undoes newer edits.
-  // Malformed ones (no id, no text) are skipped.
+  // Malformed ones are skipped: id not a non-empty string without '/' (a Firestore path separator), blank or non-string
+  // text, date not YYYY-MM-DD (the app sorts by it), added not a number. A missing or non-numeric `up` becomes `added`.
   for (const e of Array.isArray(data.entries) ? data.entries : []) {
-    if (!e || typeof e.id !== 'string' || !e.id || typeof e.text !== 'string' || !e.text.trim()) continue;
+    if (!e || typeof e.id !== 'string' || !e.id || e.id.includes('/') || typeof e.text !== 'string' || !e.text.trim()) continue;
+    if (typeof e.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(e.date) || !Number.isFinite(e.added)) continue;
+    const up = Number.isFinite(e.up) ? e.up : e.added;
     const have = await db.get('entry:' + e.id);
-    if (have && (have.up || 0) >= (e.up || 0)) continue;
-    await db.put('entry:' + e.id, e); res.entries++;
+    if (have && (have.up || 0) >= up) continue;
+    await db.put('entry:' + e.id, { ...e, up }); res.entries++;
   }
   return res;
 }
