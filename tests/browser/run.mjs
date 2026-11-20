@@ -118,12 +118,12 @@ const timesFile=join(here,'out','times.json');
 let last={};try{last=JSON.parse(readFileSync(timesFile,'utf8'));}catch{}
 
 // Options. Anything not starting with -- is the repo directory, which goes on to each file.
-const opts=process.argv.slice(2).filter(a=>a.startsWith('--')),rest=process.argv.slice(2).filter(a=>!a.startsWith('--'));
+const opts=process.argv.slice(2).filter(a=>a.startsWith('--')),args=process.argv.slice(2).filter(a=>!a.startsWith('--'));
 const known=/^--(shard=\d+\/\d+|changed(=.+)?|dry-run)$/;
 for(const o of opts) if(!known.test(o)){console.error(`unknown option ${o} (use --shard=i/n, --changed[=ref], --dry-run)`);process.exit(2);}
 const dry=opts.includes('--dry-run');
 const shardOpt=opts.find(o=>o.startsWith('--shard=')),changedOpt=opts.find(o=>o.startsWith('--changed'));
-const repo=resolve(rest[0]||join(here,'..','..'));
+const repo=resolve(args[0]||join(here,'..','..'));
 
 // What each source path covers: test files (or '*' for all) per path or prefix. Built from the header comment
 // and from what each file imports. app.js and index.html are the app itself, so they map to everything.
@@ -198,7 +198,7 @@ const queue=live?[...chosen]:[...chosen].sort((a,b)=>(last[b]??1e9)-(last[a]??1e
 // output goes straight through; otherwise it is kept for printing in one piece.
 const runOne=(f,chrome)=>new Promise(res=>{
   const env=chrome?{...process.env,TEST_CHROME:chrome}:process.env;
-  const c=spawn(process.execPath,[join(here,f),...rest],{stdio:['ignore','pipe',live?'inherit':'pipe'],env});
+  const c=spawn(process.execPath,[join(here,f),...args],{stdio:['ignore','pipe',live?'inherit':'pipe'],env});
   const r={f,pass:0,fail:0,code:null,out:[]},t0=performance.now();let rest='';
   c.stdout.on('data',d=>{if(live)process.stdout.write(d);else r.out.push(d);
     const lines=(rest+d).split('\n');rest=lines.pop();
