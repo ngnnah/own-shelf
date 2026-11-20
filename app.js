@@ -1082,7 +1082,7 @@ function renderDrawer(){
   $('#drFilters').querySelectorAll('.chip').forEach(b=>b.onclick=()=>{filter=b.dataset.f;renderDrawer();});
   $('#drGroupRow').classList.toggle('hidden',!HL.length);
   const list=sorted().filter(keep);
-  const card=h=>`<div class="hcard" style="border-left-color:var(--${h.color}S)" data-id="${h.id}"><div class="sec">${esc(secName(h))}</div><p class="q" tabindex="0">${esc(segText(h)).replace(/\n\n/g,' <span style="color:var(--muted)">¶</span> ')}</p>${h.note?`<div class="nt">${esc(h.note)}</div>`:''}<div class="acts"><button data-a="note">${h.note?'Edit note':'Add note'}</button><button data-a="del">Remove</button></div></div>`;
+  const card=h=>`<div class="hcard" style="border-left-color:var(--${h.color}S)" data-id="${h.id}"><div class="sec">${esc(secName(h))}</div><p class="q" tabindex="0">${esc(segText(h)).replace(/\n\n/g,' <span style="color:var(--muted)">¶</span> ')}</p>${h.note?`<div class="nt">${noteHTML(h.note)}</div>`:''}<div class="acts"><button data-a="note">${h.note?'Edit note':'Add note'}</button><button data-a="del">Remove</button></div></div>`;
   $('#drList').innerHTML=!list.length?`<div class="empty">No highlights yet.<br>Select any passage and pick a color.</div>`
     :prefs.hlGroup==='color'?byColor(list).map(([c,l])=>colorHead(c,l.length)+l.map(card).join('')).join(''):list.map(card).join('');
   $('#drList').querySelectorAll('.hcard').forEach(card=>{
@@ -1113,7 +1113,7 @@ function exportText(){
     return o.trim()+'\n';
   }
   let o=`Highlights: ${DOC.title}${DOC.author?' — '+DOC.author:''}\n\n`;
-  list.forEach((h,i)=>{o+=`${i+1}. “${segText(h).replace(/\n\n/g,' … ')}”\n`;if(h.note)o+=`   Note: ${h.note}\n`;o+='\n';});
+  list.forEach((h,i)=>{o+=`${i+1}. “${segText(h).replace(/\n\n/g,' … ')}”\n`;if(h.note)o+=`   Note: ${noteText(h.note).replace(/\n/g,'\n         ')}\n`;o+='\n';});
   return o.trim()+'\n';
 }
 function copyText(t,msg){
@@ -1173,7 +1173,7 @@ function renderExport(books,fmt){
       o+=b.doc.title.toUpperCase()+'\n';const ml=metaLine(b.doc);if(ml.length)o+=ml.join(' · ')+'\n';o+='\n';
       let n=0;
       exportGroups(b.entries).forEach(g=>{if(g.head)o+=`— ${g.head}\n\n`;
-        g.entries.forEach(e=>{o+=`${++n}. “${e.text.join(' … ')}”\n`;if(e.note)o+=`   Note: ${e.note}\n`;o+='\n';});});
+        g.entries.forEach(e=>{o+=`${++n}. “${e.text.join(' … ')}”\n`;if(e.note)o+=`   Note: ${noteText(e.note).replace(/\n/g,'\n         ')}\n`;o+='\n';});});
       o+='\n';
     });
     return o.trim()+'\n';
@@ -1185,7 +1185,7 @@ function renderExport(books,fmt){
     if(ml.length) body+=`<p class="meta">${ml.map(x=>/^https?:/.test(x)?`<a href="${esc(x)}">${esc(x)}</a>`:esc(x)).join(' · ')}</p>`;
     exportGroups(b.entries).forEach(g=>{
       if(g.head) body+=`<h${multi?3:2}>${g.color?`<i class="sw" style="background:${COLORHEX[g.color]||'#999'}"></i>`:''}${esc(g.head)}</h${multi?3:2}>`;
-      g.entries.forEach(e=>{body+=`<blockquote style="border-color:${COLORHEX[e.color]||'#999'}">${e.text.map(p=>`<p>${esc(p)}</p>`).join('')}</blockquote>${e.note?`<p class="note"><b>Note</b> ${esc(e.note)}</p>`:''}`;});
+      g.entries.forEach(e=>{body+=`<blockquote style="border-color:${COLORHEX[e.color]||'#999'}">${e.text.map(p=>`<p>${esc(p)}</p>`).join('')}</blockquote>${e.note?`<p class="note"><b>Note</b> ${noteHTML(e.note)}</p>`:''}`;});
     });
     body+='</article>';
   });
@@ -1540,7 +1540,7 @@ async function openNotebook(){
   const books=(await Promise.all(META.filter(m=>m.hl>0).map(async m=>{const [d,s]=await Promise.all([DB.get('doc:'+m.id),DB.get('state:'+m.id)]);return d&&s?{doc:d,hl:s.hl||[]}:null;}))).filter(Boolean);
   if(run!==NB.run) return;
   sortLoaded(books);
-  NB.items=books.flatMap(({doc,hl})=>entriesFor(doc,hl).map(e=>Object.assign(e,{book:doc.id,title:doc.title,hay:nbFold([...e.text,e.note,doc.title,doc.author].join(' '))})))
+  NB.items=books.flatMap(({doc,hl})=>entriesFor(doc,hl).map(e=>Object.assign(e,{book:doc.id,title:doc.title,hay:nbFold([...e.text,noteText(e.note),doc.title,doc.author].join(' '))})))
     .sort((a,b)=>(b.at||0)-(a.at||0));
   const bk=[...new Map(NB.items.map(e=>[e.book,e.title]))].sort((a,b)=>a[1].localeCompare(b[1]));
   $('#nbBook').innerHTML='<option value="">All books</option>'+bk.map(([id,t])=>`<option value="${id}">${esc(t)}</option>`).join('');
@@ -1557,7 +1557,7 @@ function renderNotebook(){
   const chip=(f,label,sw)=>counts[f]||NB.f===f?`<button class="chip" aria-pressed="${NB.f===f}" data-f="${f}">${sw?`<i style="background:var(--${f}S)"></i>`:''}${label} ${counts[f]||0}</button>`:'';
   $('#nbChips').innerHTML=`<button class="chip" aria-pressed="${NB.f==='all'}" data-f="all">All ${base.length}</button>`+chip('note','With note')+BY_MEANING.map(c=>chip(c,esc(meaning(c)),true)).join('');
   const list=base.filter(e=>NB.f==='all'||(NB.f==='note'?e.note:e.color===NB.f));
-  const card=e=>`<div class="hcard" style="border-left-color:var(--${e.color}S)" tabindex="0" data-book="${e.book}" data-hl="${e.id}"><div class="sec"><b>${esc(e.title)}</b>${e.section?` · ${esc(e.section)}`:''}</div><p class="q">${e.text.map(esc).join(' <span style="color:var(--muted)">¶</span> ')}</p>${e.note?`<div class="nt">${esc(e.note)}</div>`:''}</div>`;
+  const card=e=>`<div class="hcard" style="border-left-color:var(--${e.color}S)" tabindex="0" data-book="${e.book}" data-hl="${e.id}"><div class="sec"><b>${esc(e.title)}</b>${e.section?` · ${esc(e.section)}`:''}</div><p class="q">${e.text.map(esc).join(' <span style="color:var(--muted)">¶</span> ')}</p>${e.note?`<div class="nt">${noteHTML(e.note)}</div>`:''}</div>`;
   $('#nbList').innerHTML=!list.length?'<div class="empty">Nothing matches.</div>'
     :prefs.hlGroup==='color'?byColor(list).map(([c,l])=>colorHead(c,l.length)+l.map(card).join('')).join(''):list.map(card).join('');
 }
@@ -2181,7 +2181,7 @@ const factQ=f=>{const c=factCloze(f);return c?esc(c.before)+`<span class="f-gap"
 const factFrom=f=>[wordBook(f),f.section].filter(Boolean).join(' · ');
 const factHTML=f=>`<article class="wcard fcard" data-id="${esc(f.id)}"><div class="w-head"><span class="f-tag">Fact</span><button class="w-del" data-a="del" aria-label="Delete this fact card">Delete</button></div>`+
   `<button class="w-ex" data-book="${esc(f.bookId)}" data-hl="${esc(f.hlId)}" data-pid="${esc(f.pid)}"><span class="w-q">${factQ(f)}</span><span class="w-bk">${esc(factFrom(f))}</span></button>`+
-  (f.note?`<p class="f-note">${esc(f.note)}</p>`:'')+'</article>';
+  (f.note?`<p class="f-note">${noteHTML(f.note)}</p>`:'')+'</article>';
 // A word: its meaning, the dictionary's examples, synonyms and antonyms, then the sentences from your reading.
 const wordHTML=w=>{
   const xs=w.examples||[];
@@ -2200,7 +2200,7 @@ function listWords(){
   const terms=nbFold($('#wdQ').value).split(/\s+/).filter(Boolean),book=$('#wdBook').value;
   const list=mine.filter(w=>{
     const f=isFact(w);if(book&&!(f?w.bookId===book:(w.examples||[]).some(x=>x.bookId===book))) return false;
-    const h=nbFold((f?[w.text,w.note,wordBook(w),w.section]:[w.term,w.def,...(w.syn||[]),...(w.ant||[]),...(w.examples||[]).map(x=>x.text)]).join(' '));return terms.every(t=>h.includes(t));
+    const h=nbFold((f?[w.text,noteText(w.note),wordBook(w),w.section]:[w.term,w.def,...(w.syn||[]),...(w.ant||[]),...(w.examples||[]).map(x=>x.text)]).join(' '));return terms.every(t=>h.includes(t));
   }).sort((a,b)=>(b.added||0)-(a.added||0));
   $('#wdList').innerHTML=list.length?list.map(w=>isFact(w)?factHTML(w):wordHTML(w)).join(''):'<div class="empty">Nothing matches.</div>';
   $('#wdList').querySelectorAll('.wcard[data-id]').forEach(c=>wdSeen?.observe(c));
@@ -2301,7 +2301,7 @@ function sortLoaded(books){
       const h=byId.get(e.id),segs=h.segs.filter(g=>blocks[g.pid]).map(g=>({pid:g.pid,s:g.s,e:g.e,b:blocks[g.pid]}));
       let text='';const toks=[];
       segs.forEach((g,k)=>{if(k) text+=' ';const t=g.b.text.slice(g.s,g.e),o=text.length;wordsIn(t).forEach(w=>toks.push({a:o+w.s,z:o+w.e,k,s:g.s+w.s,e:g.s+w.e}));text+=t;});
-      return {key:doc.id+'|'+h.id,bookId:doc.id,title:doc.title,section:e.section,h,segs,text,toks,hay:nbFold([text,h.note,doc.title,doc.author].join(' '))};
+      return {key:doc.id+'|'+h.id,bookId:doc.id,title:doc.title,section:e.section,h,segs,text,toks,hay:nbFold([text,noteText(h.note),doc.title,doc.author].join(' '))};
     });
   });
   if($('#nbPanelWd').classList.contains('hidden')) return;
@@ -2336,7 +2336,7 @@ function sortCardHTML(it,places){
   q+=esc(t.slice(at));
   const info=(taps.length?`<span>Saved: ${esc(taps.map(x=>x.term).join(', '))}</span><button class="sc-link" data-st="undo">Undo</button>`:'')+(b?'<button class="sc-link" data-st="clear">Clear blank</button>':'');
   return `<article class="wcard scard" data-k="${esc(it.key)}"><div class="sec"><b>${esc(it.title)}</b>${it.section?` · ${esc(it.section)}`:''}${skipped?' · Skipped':''}</div>`+
-    `<p class="st-text">${q}</p>${it.h.note?`<p class="f-note">${esc(it.h.note)}</p>`:''}`+
+    `<p class="st-text">${q}</p>${it.h.note?`<p class="f-note">${noteHTML(it.h.note)}</p>`:''}`+
     `<div class="sc-foot"><span class="sc-info">${info}</span><span class="sc-acts">${taps.length||skipped?'':'<button class="btn ghost" data-st="skip">Skip</button>'}<button class="btn" data-st="fact">Fact</button></span></div></article>`;
 }
 function sortClick(e,card){
@@ -2711,7 +2711,7 @@ function syFact(f,now){
   const c=factCloze(f),t=String(f.text||'');
   const text=c?esc(c.before)+(SY.shown?`<b class="sy-fill">${esc(c.phrase)}</b>`:'<span class="sy-gap" aria-label="blank">_____</span>')+esc(c.after):esc(t);
   const front=`<p class="sy-ask">${c?'What’s missing?':'Remember this?'}</p><p class="sy-sent sy-fact${t.length>160?' long':''}">${text}</p>`;
-  const back=(f.note?`<p class="sy-note">${esc(f.note)}</p>`:'')+`<p class="sy-book"><b>${esc(wordBook(f))}</b>${f.section?`<span>${esc(f.section)}</span>`:''}</p>`;
+  const back=(f.note?`<p class="sy-note">${noteHTML(f.note)}</p>`:'')+`<p class="sy-book"><b>${esc(wordBook(f))}</b>${f.section?`<span>${esc(f.section)}</span>`:''}</p>`;
   syCard(f,now,front,back,c?'Show answer':f.note?'Show note':'Show source');
 }
 // the card, its back once shown (with Delete in the top corner), and the button that shows it or the three ratings

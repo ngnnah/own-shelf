@@ -4,7 +4,7 @@ import {ok,done} from './test-util.mjs';
 
 // parse.js is a classic browser script; run it in a sandbox and pick up its globals.
 const P={};vm.runInNewContext(readFileSync(new URL('./parse.js',import.meta.url),'utf8'),Object.assign(P,{TextDecoder,module:{}}));
-const {firstUrl,isLoneUrl,firstUri,sharedLink,decodeBody,mdToBlocks,finalize,parseDate,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,withDek,tagSpans,tagsOf,pastedDate,nbFold}=P.module.exports;
+const {noteHTML,noteText,editorToNote,firstUrl,isLoneUrl,firstUri,sharedLink,decodeBody,mdToBlocks,finalize,parseDate,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,withDek,tagSpans,tagsOf,pastedDate,nbFold}=P.module.exports;
 
 ok('firstUrl: bare link',firstUrl('https://example.com/a?b=1')==='https://example.com/a?b=1');
 ok('firstUrl: from shared text',firstUrl('Read this: “Great essay” https://example.com/x/y.html.')==='https://example.com/x/y.html');
@@ -238,5 +238,26 @@ ok('pastedDate: blank lines first are skipped',pd('\n  \nMarch 3, 2024\nBody')==
 ok('pastedDate: a date that is not alone on its line stays in the text',pd('March 3, 2024 was a good day\nBody')===JSON.stringify({date:'',text:'March 3, 2024 was a good day\nBody'}));
 ok('pastedDate: a date on a later line stays',pd('Notes\nMarch 3, 2024\nBody')===JSON.stringify({date:'',text:'Notes\nMarch 3, 2024\nBody'}));
 ok('pastedDate: no date; empty; only a date',pd('Just text')===JSON.stringify({date:'',text:'Just text'})&&pd('')===JSON.stringify({date:'',text:''})&&pd('March 3, 2024')===JSON.stringify({date:'',text:'March 3, 2024'}));
+
+// highlight notes: Markdown subset
+ok('noteHTML: bold, italic, underline',noteHTML('a **b** *c* <u>d</u>')==='a <b>b</b> <i>c</i> <u>d</u>');
+ok('noteHTML: nesting',noteHTML('***x***')==='<b><i>x</i></b>'&&noteHTML('**a *b* c**')==='<b>a <i>b</i> c</b>'&&noteHTML('<u>**a**</u>')==='<u><b>a</b></u>'&&noteHTML('*a **b***')==='<i>a <b>b</b></i>');
+ok('noteHTML: line breaks',noteHTML('a\nb\n\nc')==='a<br>b<br><br>c');
+ok('noteHTML: escapes everything else',noteHTML('<script>alert(1)</script> & "q" <b>x</b>')==='&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;q&quot; &lt;b&gt;x&lt;/b&gt;');
+ok('noteHTML: <u> only as an exact pair; no links, code or __',noteHTML('<u>a')==='&lt;u&gt;a'&&noteHTML('<u onclick=x>a</u>')==='&lt;u onclick=x&gt;a&lt;/u&gt;'&&noteHTML('[a](https://x.com) `c` __d__')==='[a](https://x.com) `c` __d__');
+ok('noteHTML: old plain notes unchanged',['Worth rereading. Ghi chú: đọc lại.','2 * 3 = 6','a * b','5*','**open','*','a_b_c'].every(n=>noteHTML(n)===n.replace(/&/g,'&amp;')));
+ok('noteHTML: null and empty',noteHTML(null)===''&&noteHTML('')==='');
+ok('noteText: marks dropped',noteText('a **b *c*** <u>d</u>\ne *f*')==='a b c d\ne f'&&noteText('2 * 3')==='2 * 3'&&noteText('<script>')==='<script>');
+const E=editorToNote;
+ok('editorToNote: tags',E('a <b>b</b> <strong>c</strong> <i>d</i> <em>e</em> <u>f</u>')==='a **b** **c** *d* *e* <u>f</u>');
+ok('editorToNote: spans from Safari/Chrome',E('<span style="font-weight: bold;">a</span><span style="font-style:italic">b</span><span style="text-decoration: underline;">c</span><span style="font-weight:700">d</span>')==='**a***b*<u>c</u>**d**');
+ok('editorToNote: nesting',E('<b><i>x</i></b>')==='***x***'&&E('<i><b>x</b></i>')==='***x***'&&E('<b>a<i>b</i></b>')==='**a*b***'&&E('<u><b>a</b> b</u>')==='<u>**a** b</u>');
+ok('editorToNote: blocks and br',E('a<div>b</div><div><br></div><div>c</div>')==='a\nb\n\nc'&&E('<p>a</p><p>b</p>')==='a\nb'&&E('a<br>b<br><br>c')==='a\nb\n\nc'&&E('<div>a<br></div>')==='a');
+ok('editorToNote: nbsp, entities',E('a&nbsp;b&amp;c&lt;d&gt;&#39;')==="a b&c<d>'");
+ok('editorToNote: empty marks dropped; space stays outside',E('<b></b>a<i> </i><u><b></b></u>')==='a '&&E('<b>a </b>b')==='**a** b'&&E('<i> a</i>')===' *a*');
+ok('editorToNote: other tags unwrapped',E('<font color=red>a</font> <a href="x">b</a><script>x()</script><img src=y>')==='a b'&&E('<b style="font-weight:normal"><i>a</i></b>')==='*a*');
+ok('editorToNote: empty',E('')===''&&E(null)===''&&E('<div><br></div>')==='');
+const RT=['plain','a **b** c','*i* and <u>u</u>','***both***','**a *b* c**','<u>**a** *b*</u>','line one\nline **two**\n\nthree','**x**\n*y*','2 * 3','a<b'];
+ok('round trip: editorToNote(noteHTML(md)) === md',RT.every(md=>{const r=E(noteHTML(md));if(r!==md)console.log('RT fail',JSON.stringify(md),JSON.stringify(r));return r===md;}));
 
 done();

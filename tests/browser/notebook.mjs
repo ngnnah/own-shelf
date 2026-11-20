@@ -21,7 +21,7 @@ await t.run(async()=>{
   await highlightQuietEngine(t,must);
   await page.click('mark.hl.c-sky');await until(()=>!document.querySelector('#tool').classList.contains('hidden'));
   await page.click('#tool [data-a="note"]');await page.waitForSelector('#noteBox:not(.hidden)');
-  await page.type('#noteTa','Worth rereading. Ghi chú: đọc lại.');await page.click('#noteSave');
+  await page.type('#noteTa','Worth **rereading**. Ghi chú: đọc lại.');await page.click('#noteSave');
   ok('note saved on the highlight',(await page.$$('mark.hl.noted')).length>0&&!(await vis('#noteBox')));
   await addFootnoteBook(t,must);
   await page.click('#bHome');await page.waitForSelector('#shelf:not(.hidden)');
@@ -38,6 +38,7 @@ await t.run(async()=>{
   ok('newest highlight first',same(await titles(),['Footnote Test','The Quiet Engine','The Quiet Engine']));
   ok('card shows section, quote and note',(await page.$eval('#nbList .hcard:last-child',e=>e.querySelector('.nt')?.textContent))==='Worth rereading. Ghi chú: đọc lại.'&&(await text('#nbList .hcard:first-child .sec')).includes('Notes'));
   ok('chips: All, With note, one per color present',same(await chips(),['All 3','With note 1','Important 2','Lesser 1']));
+  ok('a note with **b** shows bold in the card, without the asterisks',(await page.$eval('#nbList .hcard .nt b',e=>e.textContent))==='rereading'&&!(await text('#nbList')).includes('**'));
   ok('no horizontal scroll at phone width',await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth));
   await page.emulateMediaFeatures([{name:'prefers-color-scheme',value:'light'}]);await t.shot('light',{fullPage:true});
   await page.emulateMediaFeatures([{name:'prefers-color-scheme',value:'dark'}]);await t.shot('dark',{fullPage:true});
