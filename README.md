@@ -6,6 +6,8 @@ A personal reading app, and one place to gather your readings and notes into pra
 
 **Try it:** https://ngnnah.github.io/own-shelf/ and pick **Use on this device only**. No account needed; your books stay in that browser. Sign-in on that site is for its owner's family. To sync your own shelf across your devices, make your own copy; it's free.
 
+**New here?** The [user guide](docs/guide.md) shows how to get the most out of it on an iPhone. [How import works](docs/import.md) explains the ways a link, an article or a file becomes a book.
+
 ## Make your own shelf
 
 Your copy runs on your own GitHub Pages site and your own Firebase project, so your books and notes live in your account, not anyone else's. Everything below fits the free plans.
