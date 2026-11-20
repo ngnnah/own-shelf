@@ -740,14 +740,14 @@ function pickPulls(){
 const minsOf=w=>Math.max(1,Math.round(w/230));
 const CHECK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 const PENCIL='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>';
-function blockHTML(b,first){
+function blockHTML(b,first,plain){
   const pid=`data-pid="${b.id}"`;
-  if(b.t==='h'){const lv=Math.min(4,Math.max(3,(b.level||2)-(DOC.secLevel||1)+3));return `<h${lv} class="hp" id="h-${b.id}" ${pid}>${inlineHTML(b)}</h${lv}>`;}
-  if(b.t==='quote') return `<blockquote class="hp" ${pid}>${inlineHTML(b)}</blockquote>`;
+  if(b.t==='h'){const lv=Math.min(4,Math.max(3,(b.level||2)-(DOC&&DOC.secLevel||1)+3));return `<h${lv} class="hp" id="h-${b.id}" ${pid}>${inlineHTML(b,plain)}</h${lv}>`;}
+  if(b.t==='quote') return `<blockquote class="hp" ${pid}>${inlineHTML(b,plain)}</blockquote>`;
   if(b.t==='code') return `<pre class="hp" ${pid}>${esc(b.text)}</pre>`;
   if(b.t==='hr') return '<hr class="hr">';
   if(b.t==='img') return `<figure class="fig"><img src="${esc(b.src)}" alt="${esc(b.alt||'')}" loading="lazy" referrerpolicy="no-referrer">${b.caption?`<figcaption>${esc(b.caption)}</figcaption>`:''}</figure>`;
-  return `<p class="hp${first&&b.text.length>140&&/^[A-Za-z"“]/.test(b.text)?' first':''}" ${pid}>${inlineHTML(b)}</p>`;
+  return `<p class="hp${first&&b.text.length>140&&/^[A-Za-z"“]/.test(b.text)?' first':''}" ${pid}>${inlineHTML(b,plain)}</p>`;
 }
 function listMark(b,depth){return b.list==='ol'?(b.num||1)+'.':(depth%2?'◦':'•');}
 function buildReader(){
@@ -1009,7 +1009,7 @@ document.addEventListener('selectionchange',()=>{clearTimeout(selT);selT=setTime
 document.addEventListener('mousedown',e=>{if(!tool.contains(e.target)&&!e.target.closest('mark.hl')&&!$('#noteBox').contains(e.target)){editing=null;if(getSelection().isCollapsed)hideTool();}});
 addEventListener('scroll',()=>{if(tool.classList.contains('hidden')||coarse)return;if(editing){hideTool();return;}const sel=getSelection();if(pendingSegs&&sel.rangeCount&&!sel.isCollapsed){const s=pendingSegs;showTool(sel.getRangeAt(0).getBoundingClientRect(),null);pendingSegs=s;}},{passive:true});
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){hideTool();closeDrawers();saveNote();$('#lightbox').classList.add('hidden');document.querySelectorAll('.modal:not(.hidden)').forEach(dismiss);return;}
+  if(e.key==='Escape'){hideTool();closeDrawers();saveNote();saveEntry();$('#lightbox').classList.add('hidden');document.querySelectorAll('.modal:not(.hidden)').forEach(dismiss);return;}
   if(e.target.matches('textarea,input,[contenteditable]'))return;
   if(/^[1-9]$/.test(e.key)&&PICKS[+e.key-1]&&pendingSegs&&!tool.classList.contains('hidden')){addHighlight(pendingSegs,PICKS[+e.key-1][0]);getSelection().removeAllRanges();hideTool();}
 });
@@ -1530,12 +1530,11 @@ $('#linkPaste').onclick=()=>readClip().then(c=>{
 /* ================= notebook ================= */
 // Every highlight on the shelf, newest first. Read-only; the books are reloaded each time it opens.
 let NB={items:[],f:'all',run:0};
-const nbFold=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
 const nbCount=(n,w)=>`<b>${n}</b> ${w}${n===1?'':'s'}`;
 async function openNotebook(){
   const run=++NB.run;show('notebook');window.scrollTo(0,0);
   SORT=sortReset(); // the Words tab's To sort waits for the books below
-  nbTab(prefs.nbTab==='wd'?'wd':'hl',true);
+  nbTab(prefs.nbTab,true);
   NB.f='all';$('#nbQ').value='';$('#nbStats').innerHTML='';$('#nbCtrl').classList.add('hidden');
   $('#nbList').innerHTML='<div class="empty">Gathering your highlights…</div>';
   const books=(await Promise.all(META.filter(m=>m.hl>0).map(async m=>{const [d,s]=await Promise.all([DB.get('doc:'+m.id),DB.get('state:'+m.id)]);return d&&s?{doc:d,hl:s.hl||[]}:null;}))).filter(Boolean);
@@ -1571,19 +1570,234 @@ $('#nbGroup').onclick=e=>groupBy(e,renderNotebook);
 $('#nbExp').onclick=()=>openExport('shelf');
 $('#nbList').onclick=e=>nbOpen(e.target.closest('[data-hl]'));
 $('#nbList').onkeydown=e=>{if(e.key==='Enter') nbOpen(e.target.closest('[data-hl]'));};
-// Two tabs: Highlights (above) and Words (see vocabulary). The last one picked opens next time; opening resets its filters.
+// Three tabs: Highlights (above), Words (see vocabulary) and Commonplace (see commonplace). The last one picked opens
+// next time; opening resets its filters.
+const NB_TABS={hl:'Hl',wd:'Wd',cp:'Cp'}; // tab → the suffix of its button, panel and stats line ids
 function nbTab(tab,opening){
-  const wd=tab==='wd';
+  if(!NB_TABS[tab]) tab='hl';
   if(prefs.nbTab!==tab){prefs.nbTab=tab;savePrefs();}
-  $('#nbTabHl').setAttribute('aria-selected',!wd);$('#nbTabWd').setAttribute('aria-selected',wd);
-  $('#nbTabHl').tabIndex=wd?-1:0;$('#nbTabWd').tabIndex=wd?0:-1;
-  $('#nbPanelHl').classList.toggle('hidden',wd);$('#nbPanelWd').classList.toggle('hidden',!wd);
-  $('#nbStats').classList.toggle('hidden',wd);$('#wdStats').classList.toggle('hidden',!wd);
-  if(opening){$('#wdQ').value='';$('#wdBook').value='';WD.f='all';}
-  if(wd) openWords(opening);
+  for(const [k,s] of Object.entries(NB_TABS)){
+    const on=k===tab;
+    $('#nbTab'+s).setAttribute('aria-selected',on);$('#nbTab'+s).tabIndex=on?0:-1;$('#nbPanel'+s).classList.toggle('hidden',!on);
+  }
+  $('#nbStats').classList.toggle('hidden',tab!=='hl');$('#wdStats').classList.toggle('hidden',tab!=='wd');$('#cpStats').classList.toggle('hidden',tab!=='cp');
+  if(opening){$('#wdQ').value='';$('#wdBook').value='';WD.f='all';cpReset();}
+  if(tab==='wd') openWords(opening);
+  if(tab==='cp') openCommonplace();
 }
 $('#nbTabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(b&&b.getAttribute('aria-selected')!=='true') nbTab(b.dataset.tab);};
-$('#nbTabs').onkeydown=e=>{if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;const t=prefs.nbTab==='wd'?'hl':'wd';nbTab(t);$(t==='wd'?'#nbTabWd':'#nbTabHl').focus();};
+$('#nbTabs').onkeydown=e=>{
+  if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+  const k=Object.keys(NB_TABS),t=k[(k.indexOf(prefs.nbTab)+(e.key==='ArrowRight'?1:k.length-1))%k.length];
+  nbTab(t);$('#nbTab'+NB_TABS[t]).focus();
+};
+
+/* ================= commonplace ================= */
+// The Notebook's Commonplace tab: your own notes, lessons and journals, not tied to a book (spec:
+// docs/superpowers/specs/2026-10-26-commonplace-book-design.md). An entry is entry:<id> → {id, text, date, added, up}:
+// text is Markdown as typed or pasted, date the entry's own day (YYYY-MM-DD, local), added and up in ms. Topics are
+// the #tags in the text (tagsOf, tagSpans in parse.js), never stored. ENTRIES caches the account's entries (id →
+// entry), loaded like WORDS: on first use, kept in step with every change made here, reread each time the Notebook opens.
+let ENTRIES=null,entriesDb=null,entriesLoad=null,cpStale=true; // cpStale: the Notebook opened since the last read
+const entryReads=new Set(); // one Map per read in flight: id → entry (saved or restored) or null (deleted) since it started
+const entryTouched=(id,e)=>entryReads.forEach(m=>m.set(id,e));
+function loadEntries(fresh){
+  if(entriesDb!==DB){entriesDb=DB;ENTRIES=null;entriesLoad=null;}
+  if(fresh) entriesLoad=null;
+  if(!entriesLoad){
+    const db=DB,touched=new Map();entryReads.add(touched);
+    entriesLoad=db.all('entry:').catch(()=>[]).then(list=>{
+      entryReads.delete(touched);
+      if(db===DB){ // what changed while the read ran wins over what it returned
+        ENTRIES=new Map(list.filter(e=>e&&e.id&&typeof e.text==='string').map(e=>[e.id,e]));
+        touched.forEach((e,id)=>e?ENTRIES.set(id,e):ENTRIES.delete(id));
+      }
+      return ENTRIES;});
+  }
+  return entriesLoad;
+}
+function putEntry(e){e.up=Date.now();(ENTRIES||(ENTRIES=new Map())).set(e.id,e);entryTouched(e.id,e);DB.put('entry:'+e.id,e);}
+const newEntryId=()=>'e'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+// a day as entries store it, in local time, and as the date row shows it ("2026-11-05" ↔ "November 5, 2026"; parseDate
+// turns the shown form back)
+const ymd=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const ymdHuman=s=>{const [y,m,d]=String(s||'').split('-').map(Number);return d?published(new Date(y,m-1,d)):'';};
+// the tab's state: its search, the chosen topic (a folded key, '' for all) and how many cards to draw
+const CP={q:'',topic:'',shown:100};
+function cpReset(){CP.q='';CP.topic='';CP.shown=100;$('#cpQ').value='';cpStale=true;}
+// Shows what's in memory at once, then rereads the entries once per Notebook open.
+async function openCommonplace(){
+  if(ENTRIES&&entriesDb===DB) renderEntries();
+  else{$('#cpStats').innerHTML='';$('#cpList').innerHTML='<div class="empty">Gathering your entries…</div>';}
+  const fresh=cpStale;cpStale=false;await loadEntries(fresh);
+  if(prefs.nbTab==='cp'&&!$('#notebook').classList.contains('hidden')) renderEntries();
+}
+
+/* ---------- commonplace: the list (stats, months, cards, Show more) ---------- */
+// Draws the stats line, the chips and the cards for cpFiltered(), grouped by month. A tap on a card opens it in the entry
+// sheet; a #tag in it picks that topic, a link opens as a link, Show more unclips a tall card.
+// "2026-11-05" → "November 2026" (a month heading) and "Nov 5" (a card's day)
+const cpDay=(d,o)=>{const [y,m,n]=String(d||'').split('-').map(Number);return m?new Date(y,m-1,n||1).toLocaleDateString('en-US',o):'';};
+const cpMonth=d=>cpDay(d,{month:'long',year:'numeric'})||'Undated';
+// A card's text as Markdown through the reader's blockHTML (plain: no highlights, words or notes; pictures skipped).
+function cpBody(text){
+  let h='',inList=false;
+  mdToBlocks(text).filter(b=>b.t!=='img').forEach(b=>{
+    const x={...b,id:'',marks:b.marks||[]};
+    if(b.t==='li'){ // the reader draws list items itself (buildReader), so the same markup here
+      if(!inList){h+='<div class="list" role="list">';inList=true;}
+      const d=b.depth||0;h+=`<div class="hp li" role="listitem" style="--d:${d}" data-mark="${listMark(b,d)}">${inlineHTML(x,true)}</div>`;return;
+    }
+    if(inList){h+='</div>';inList=false;}
+    h+=blockHTML(x,false,true).replace(/ ?data-pid=""/g,'').replace(/ id="h-"/g,'');
+  });
+  return h+(inList?'</div>':'');
+}
+// Wraps each #tag found in a card's text nodes in a button (not inside a link, code or an existing button).
+function cpTagify(root){
+  const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[];
+  for(let n;n=w.nextNode();) if(!n.parentElement.closest('a,code,pre,button')) nodes.push(n);
+  nodes.forEach(n=>{
+    const sp=tagSpans(n.data);if(!sp.length) return;
+    const f=document.createDocumentFragment();let at=0;
+    sp.forEach(s=>{
+      if(s.at>at) f.append(n.data.slice(at,s.at));
+      const b=document.createElement('button');b.className='cp-tag';b.type='button';b.dataset.tag=s.key;b.textContent=n.data.slice(s.at,s.end);f.append(b);at=s.end;
+    });
+    if(at<n.data.length) f.append(n.data.slice(at));
+    n.replaceWith(f);
+  });
+}
+function renderEntries(){
+  const list=cpFiltered();renderCpChips();
+  const n=ENTRIES?ENTRIES.size:0,tp=new Set();
+  if(n) ENTRIES.forEach(e=>tagsOf(e.text).forEach(t=>tp.add(t.key)));
+  $('#cpStats').innerHTML=n?`<b>${n}</b> ${n===1?'entry':'entries'}${tp.size?` · <b>${tp.size}</b> ${tp.size===1?'topic':'topics'}`:''}`:'';
+  const box=$('#cpList');
+  if(!list.length){box.innerHTML=n?'<div class="empty">Nothing matches.</div>'
+    :'<div class="empty">Your own notes, lessons and journals. Paste or type one; #tags make topics.</div>';return;}
+  const shown=list.slice(0,CP.shown),groups=[];
+  shown.forEach(e=>{const m=cpMonth(e.date),g=groups[groups.length-1];if(g&&g.m===m) g.l.push(e);else groups.push({m,l:[e]});});
+  const total={};list.forEach(e=>{const m=cpMonth(e.date);total[m]=(total[m]||0)+1;});
+  box.innerHTML=groups.map(g=>`<h3 class="cgh">${esc(g.m)}<small> · ${total[g.m]}</small></h3>`+g.l.map(e=>{
+    return `<article class="cp-card" data-id="${esc(e.id)}" tabindex="0"><div class="cp-day">${cpDay(e.date,{month:'short',day:'numeric'})}</div><div class="cp-text">${cpBody(e.text)}</div></article>`;}).join('')).join('')
+    +(list.length>shown.length?`<button class="btn ghost cp-more-list" id="cpMoreList">Show more</button>`:'');
+  box.querySelectorAll('.cp-text').forEach(t=>{
+    cpTagify(t);
+    if(t.scrollHeight>t.clientHeight+2){t.classList.add('clip');t.insertAdjacentHTML('afterend','<button class="cp-more" type="button">Show more</button>');}
+  });
+}
+$('#cpList').onclick=e=>{
+  const tg=e.target.closest('.cp-tag');if(tg){cpPick(tg.dataset.tag);return;}
+  const mb=e.target.closest('.cp-more');if(mb){const tx=mb.previousElementSibling;tx.classList.remove('clip');tx.classList.add('open');mb.remove();return;}
+  if(e.target.closest('#cpMoreList')){CP.shown+=100;renderEntries();return;}
+  if(e.target.closest('a')) return;
+  const c=e.target.closest('.cp-card');if(c&&getSelection().isCollapsed&&ENTRIES.has(c.dataset.id)) openEntry(ENTRIES.get(c.dataset.id));
+};
+$('#cpList').onkeydown=e=>{if(e.key==='Enter'&&e.target.classList.contains('cp-card')&&ENTRIES.has(e.target.dataset.id)) openEntry(ENTRIES.get(e.target.dataset.id));};
+/* ---------- end of the list ---------- */
+
+/* ---------- commonplace: topics and search ---------- */
+// The entries matching the search: every word typed appears in the folded text (topics are part of it), newest first
+// (by date, then added).
+function cpSearched(){
+  const terms=nbFold(CP.q).split(/\s+/).filter(Boolean);
+  return [...(ENTRIES||new Map()).values()].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.added||0)-(a.added||0))
+    .filter(e=>{const h=nbFold(e.text);return terms.every(t=>h.includes(t));});
+}
+// The entries to show: those matching the search and, when a topic is chosen, holding it.
+function cpFiltered(){const l=cpSearched();return CP.topic?l.filter(e=>tagsOf(e.text).some(t=>t.key===CP.topic)):l;}
+// The topic chips row (#cpChips): All, then each topic with its count over the search, most used first, then by name.
+function renderCpChips(){
+  $('#cpCtrl').classList.toggle('hidden',!(ENTRIES&&ENTRIES.size));
+  const base=cpSearched(),by=new Map();
+  for(const e of base) for(const t of tagsOf(e.text)){const o=by.get(t.key);if(o)o.n++;else by.set(t.key,{key:t.key,label:t.label,n:1});}
+  if(CP.topic&&!by.has(CP.topic)) by.set(CP.topic,{key:CP.topic,label:CP.topic,n:0});
+  const tops=[...by.values()].sort((a,b)=>b.n-a.n||a.key.localeCompare(b.key));
+  $('#cpChips').innerHTML=tops.length?`<button class="chip" aria-pressed="${!CP.topic}" data-t="">All ${base.length}</button>`
+    +tops.map(t=>`<button class="chip" aria-pressed="${CP.topic===t.key}" data-t="${esc(t.key)}">#${esc(t.label.replace(/^#/,''))} ${t.n}</button>`).join(''):'';
+}
+$('#cpChips').onclick=e=>{const b=e.target.closest('[data-t]');if(b) b.dataset.t?cpPick(b.dataset.t):(CP.topic='',CP.shown=100,renderEntries());};
+$('#cpQ').oninput=()=>{CP.q=$('#cpQ').value;CP.shown=100;renderEntries();};
+// Picks a topic by its folded key, or clears it when it's the one chosen (its chip, or a #tag tapped in a card).
+function cpPick(key){CP.topic=CP.topic===key?'':key;CP.shown=100;renderEntries();}
+/* ---------- end of topics and search ---------- */
+
+/* ---------- commonplace: the entry sheet ---------- */
+let EN=null; // the open entry sheet: {e: the entry, or null for a new one}
+const ENTRY_MAX=800*1024; // bytes of text one entry may hold (a Firestore document is 1 MiB)
+const growEntry=end=>{if($('#entryBox').classList.contains('sheet')) growTa($('#enTa'),Infinity,end);};
+// Opens an entry, or a new one (e null) holding text and date (YYYY-MM-DD; today when none), as the note box opens.
+function openEntry(e,{text='',date=''}={}){
+  saveCards(); // another sheet open: saved first
+  if(EN&&!$('#entryBox').classList.contains('hidden')) return; // an entry sheet that can't be saved (a bad date) stays open, with its toast
+  EN={e:e||null};const box=$('#entryBox'),ta=$('#enTa'),sheet=asSheet(box,ta);
+  ta.value=e?e.text:text;$('#enDate').value=ymdHuman(e?e.date:date||ymd());
+  $('#enDel').classList.toggle('hidden',!e);box.classList.remove('hidden');growEntry();
+  EN.at=placeCard(box,null);
+  setTimeout(()=>ta.focus(),30);
+}
+function closeEntry(){$('#entryBox').classList.add('hidden');EN=null;}
+// Save, a tap outside and Escape: the entry is written (an unchanged one just closes, a new empty one is dropped). A date
+// parseDate can't read, or text over the limit, keeps the sheet open with a toast and writes nothing.
+function saveEntry(){
+  if(!EN) return;
+  const e=EN.e,v=$('#enTa').value.replace(/\s+$/,''),shown=$('#enDate').value.trim();
+  const date=shown?parseDate(shown):(e?e.date:ymd());
+  if(!date){toast('Write the date like November 5, 2026');return;}
+  if(new TextEncoder().encode(v).length>ENTRY_MAX){toast('Too long for one entry. Add it to the shelf as a book instead.');return;}
+  closeEntry();
+  if(!e&&!v.trim()) return;
+  if(e&&v===e.text.replace(/\s+$/,'')&&date===e.date) return;
+  const n=e||{id:newEntryId(),added:Date.now()};
+  Object.assign(n,{text:v,date});putEntry(n);renderEntries();toast('Entry saved');
+}
+$('#cpNew').onclick=()=>openEntry(null);
+$('#enSave').onclick=saveEntry;$('#enCancel').onclick=closeEntry;
+$('#enDel').onclick=()=>{const e=EN&&EN.e;closeEntry();if(e) deleteEntry(e);};
+$('#enTa').addEventListener('input',()=>growEntry());
+// follows the visible area, as the note box does (keyboard, pan, resize)
+function keepEntryInView(){const box=$('#entryBox');if(!EN||box.classList.contains('hidden')) return;const end=showsEnd($('#enTa'));EN.at=placeCard(box,EN.at);growEntry(end);}
+window.visualViewport?.addEventListener('resize',keepEntryInView);window.visualViewport?.addEventListener('scroll',keepEntryInView);
+/* ---------- end of the entry sheet ---------- */
+
+/* ---------- commonplace: paste ---------- */
+// Text → a new entry's sheet, its first-line date split off (pastedDate). No text: a picture only says so, else empty.
+function cpPasted(txt,pics){
+  if(!(txt||'').trim()){toast(pics?'Commonplace keeps text only.':'The clipboard is empty');return;}
+  const {date,text}=pastedDate(txt);openEntry(null,{text,date});
+}
+// Read the clipboard from the tap itself (iOS), no await before it.
+$('#cpPaste').onclick=()=>readClip().then(c=>cpPasted(c.txt||(c.html&&new DOMParser().parseFromString(c.html,'text/html').body.textContent)||'',c.imgs.length),
+  ()=>{openEntry(null);toast('Couldn’t read the clipboard. Paste into the box instead.');$('#enTa').focus();});
+// A paste into the empty text of a new entry takes its date too; any other paste is left alone.
+$('#enTa').addEventListener('paste',e=>{
+  const ta=e.target,cd=e.clipboardData;
+  if(!EN||EN.e||ta.value||!cd) return;
+  const t=cd.getData('text/plain');if(!t.trim()) return;
+  e.preventDefault();
+  const {date,text}=pastedDate(t);ta.value=text;if(date) $('#enDate').value=ymdHuman(date);growEntry();
+});
+// ⌘V / Ctrl+V on the tab outside any field, with no sheet or dialog open.
+document.addEventListener('paste',e=>{
+  if(e.defaultPrevented||!e.clipboardData) return;
+  if($('#notebook').classList.contains('hidden')||prefs.nbTab!=='cp'||$('#nbPanelCp').classList.contains('hidden')) return;
+  const a=document.activeElement;
+  if(a&&(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)||a.isContentEditable)) return;
+  if(document.querySelector('#entryBox:not(.hidden), #wordBox:not(.hidden), .modal:not(.hidden)')) return;
+  e.preventDefault();
+  cpPasted(e.clipboardData.getData('text/plain'),[...(e.clipboardData.files||[])].some(f=>/^image\//.test(f.type))||[...(e.clipboardData.items||[])].some(i=>/^image\//.test(i.type)));
+});
+/* ---------- end of paste ---------- */
+
+/* ---------- commonplace: delete ---------- */
+// To the Trash as it was; Undo and the Trash's Restore put it back (restoreEntry).
+function deleteEntry(e){
+  const first=(e.text.split('\n').find(l=>l.trim())||'').trim(),title=first.length>80?first.slice(0,80).replace(/\s+\S*$/,'')+'…':first;
+  const tr=toTrash('entry',{title,entry:e});
+  if(ENTRIES) ENTRIES.delete(e.id);entryTouched(e.id,null);DB.del('entry:'+e.id);renderEntries();movedToTrash(tr);
+}
+/* ---------- end of delete ---------- */
 
 /* ================= vocabulary ================= */
 // Words saved from the reader with the sentences they were found in (format: vocab.js). The toolbar's Word saves the
@@ -1864,10 +2078,10 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape') saveWordCard();});
 // another note's Edit note. Only a tap: a press that moves (scrolling, a drag) or that selects text doesn't count, nor
 // one on the toast (its Undo) or the picture viewer.
 let outTap=null,tapped=0; // tapped: the timer of a tap outside, until it's saved
-function saveCards(){clearTimeout(tapped);tapped=0;saveNote();saveWordCard();}
+function saveCards(){clearTimeout(tapped);tapped=0;saveNote();saveWordCard();saveEntry();}
 const far=(e,o)=>Math.hypot(e.clientX-o.x,e.clientY-o.y)>8;
-const inCards=n=>{const el=n&&(n.nodeType===1?n:n.parentElement);return !!el&&!!el.closest('#noteBox,#wordBox');};
-document.addEventListener('pointerdown',e=>{outTap=(noteTarget||CARD)&&!e.target.closest('#noteBox,#wordBox,#toast,#lightbox')?{id:e.pointerId,x:e.clientX,y:e.clientY}:null;},true);
+const inCards=n=>{const el=n&&(n.nodeType===1?n:n.parentElement);return !!el&&!!el.closest('#noteBox,#wordBox,#entryBox');};
+document.addEventListener('pointerdown',e=>{outTap=(noteTarget||CARD||EN)&&!e.target.closest('#noteBox,#wordBox,#entryBox,#toast,#lightbox')?{id:e.pointerId,x:e.clientX,y:e.clientY}:null;},true);
 document.addEventListener('pointermove',e=>{if(outTap&&e.pointerId===outTap.id&&far(e,outTap)) outTap=null;},true);
 document.addEventListener('pointercancel',()=>{outTap=null;},true);
 document.addEventListener('pointerup',e=>{
@@ -2259,8 +2473,15 @@ $('#restoreFile').onchange=async e=>{
   try{
     const r=await importShelf(DB,data,META,metaFor,shelves());if(r.shelves) SETTINGS={...SETTINGS,shelves:r.shelves};if(r.studyLog) SETTINGS={...SETTINGS,studyLog:r.studyLog};
     r.metas.forEach(m=>{META=META.filter(x=>x.id!==m.id).concat(m);untrashBook(m.id);});if(r.shelves) untrashShelves();
+    cpStale=true;
     closeModal('#setM');renderShelf();
-    toast(r.added||r.merged?`Restored ${r.added} book${r.added===1?'':'s'}${r.highlights?` and ${r.highlights} highlight${r.highlights===1?'':'s'}`:''}`:'Everything in that backup is already here');
+    const n=(k,one,many=one+'s')=>`${k} ${k===1?one:many}`,parts=[];
+    if(r.added||r.merged) parts.push(n(r.added,'book'));
+    if(r.highlights) parts.push(n(r.highlights,'highlight'));
+    if(r.words) parts.push(n(r.words,'word'));
+    if(r.entries) parts.push(n(r.entries,'entry','entries'));
+    toast(parts.length?`Restored ${parts.length>1?parts.slice(0,-1).join(', ')+' and '+parts.at(-1):parts[0]}`:'Everything in that backup is already here');
+    if(r.entries&&prefs.nbTab==='cp'&&!$('#notebook').classList.contains('hidden')) openCommonplace();
   }catch(err){
     console.error(err);
     setErr(err.message==='not_backup'?'That file isn’t an own-shelf backup.':err.message==='newer_version'?'That backup comes from a newer version of own-shelf.':'The restore stopped partway. Run it again; books already restored are skipped.');
@@ -2274,6 +2495,7 @@ $('#restoreFile').onchange=async e=>{
 //   {id, kind:'note', deletedAt, bookId, title, hlId, text, quote, color}
 //   {id, kind:'word', deletedAt, title, word}                         word: the whole word (title is its term), or a
 //                                                                     fact card (title is its book's)
+//   {id, kind:'entry', deletedAt, title, entry}                       entry: the whole commonplace entry; title is its first line
 //   {id, kind:'shelf', deletedAt, title, shelf, at}                   shelf: {id, name} as it was in the list; at: its
 //                                                                     place there. Its books keep its id (Unsorted)
 // Backups (exportShelf) cover the shelf only, so trashed books, words and shelves aren't in them.
@@ -2295,12 +2517,14 @@ function afterRestore(e){
   const nb=!$('#notebook').classList.contains('hidden'),words=prefs.nbTab==='wd';
   if(onShelf()) renderShelf();
   else if(nb&&words&&e.kind==='word') renderWords();
-  else if(nb&&!words&&e.kind!=='word') openNotebook(); // the Highlights tab reads the books again
+  else if(nb&&prefs.nbTab==='cp'){if(e.kind==='entry') renderEntries();}
+  else if(nb&&!words&&e.kind!=='word'&&e.kind!=='entry') openNotebook(); // the Highlights tab reads the books again
   if(e.kind==='word'){underline(e.word);syRestored(e.word);}
 }
 // Puts an entry back. Returns '' or why it can't.
 async function restoreEntry(e){
   if(e.kind==='word'){await restoreWord(e.word);DB.del('trash:'+e.id);return '';}
+  if(e.kind==='entry'){const x=e.entry;DB.put('entry:'+x.id,x);if(ENTRIES) ENTRIES.set(x.id,x);entryTouched(x.id,x);DB.del('trash:'+e.id);return '';}
   if(e.kind==='shelf') return restoreShelf(e);
   const id=e.bookId,open=!!(DOC&&DOC.id===id);
   const doc=open?DOC:await DB.get('doc:'+id);
@@ -2358,6 +2582,9 @@ function trashRow(e){
   if(e.kind==='book'){
     const m=e.meta||{id:e.bookId};what='Book';stripe=coverOf(m)[0];
     body=`<p class="tr-meta">${esc([m.author,e.hl?lossText(e.hl,e.notes):'No highlights'].filter(Boolean).join(' · '))}</p>`;
+  } else if(e.kind==='entry'){
+    const x=e.entry||{};what='Entry';stripe='var(--sea)';
+    body=`<p class="q" style="white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden">${esc(x.text||'')}</p><p class="tr-meta">${esc(ymdHuman(x.date))}</p>`;
   } else if(e.kind==='shelf'){
     const n=META.filter(m=>m.shelf===e.shelf.id).length;what='Shelf';stripe='var(--plank)';
     body=`<p class="tr-meta">${n?plural(n,'book'):'No books'}</p>`;

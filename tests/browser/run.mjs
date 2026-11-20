@@ -40,6 +40,8 @@
 //                   day and night within a Look, only the chosen Look's font and textures loading, Classic pixel for
 //                   pixel as without the Looks' CSS, no SVG filters, the band clipped by #shelf, Scroll's edge curls,
 //                   ink on the highlight tints; screenshots beside the themes lab's mocks
+//   commonplace.mjs the Notebook's Commonplace tab: your own entries by month, #tag topics and search, the entry sheet
+//                   and its save rules, Paste, Markdown cards, Show more, delete, the Trash and Undo, a backup round trip
 //   fastscroll.mjs  the fast-scroll handle under 1180 px: shown while scrolling, dragged by finger or mouse to any part
 //                   with the section and percentage beside it, the position saved, none at 1280 px or for short texts
 //   wordcard.mjs    the richer word card (lookups mocked): synonyms, antonyms and the dictionary's examples on saving,
@@ -74,8 +76,8 @@
 //   dialogs.mjs     a tap outside a dialog starts and ends outside; outside or Escape saves Book details (quietly when
 //                   nothing changed) and Settings, keeps the Add dialog's draft, cancels the rest; the date quick picks
 //                   (Today, Yesterday, the native picker) and their sorting; the reader's heading opening Details on a phone
-//   overflow.mjs    the page never scrolls sideways on a phone (375 and 320 px, touch): every screen, drawer, dialog
-//                   and card, with unbroken links and titles, long words, a wide table and picture; the overflow-x:clip
+//   overflow.mjs    the page never scrolls sideways on a phone (375 and 320 px, touch): every screen (the Commonplace tab and its
+//                   entry sheet too), drawer, dialog and card, with unbroken links and titles, long words, a wide table and picture; the overflow-x:clip
 //                   backstop, the window's scroll and Study's sticky buttons under it; text fields at 16 px or more
 //   listen.mjs      Listen (read aloud) with a fake speechSynthesis: where it starts (the screen, a selection), the
 //                   sentence and word marks (across highlights, which stay unchanged), Pause and Resume, reading on
@@ -105,7 +107,7 @@ import {fileURLToPath} from 'node:url';
 import {launch,quit} from './lib.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
-const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','shelves.mjs','grid.mjs','kindle.mjs','words.mjs','wordbox.mjs','notesheet.mjs','wordsheet.mjs','fastscroll.mjs','wordcard.mjs','study.mjs','progress.mjs','sort.mjs','migrate.mjs','linkimport.mjs','paste.mjs','setup.mjs','colours.mjs','signin.mjs','dialogs.mjs','overflow.mjs','listen.mjs','looks.mjs'];
+const files=['smoke.mjs','notebook.mjs','search.mjs','notefilter.mjs','join.mjs','deletes.mjs','trash.mjs','undo.mjs','length.mjs','finish.mjs','shelf.mjs','shelves.mjs','grid.mjs','kindle.mjs','words.mjs','wordbox.mjs','notesheet.mjs','wordsheet.mjs','fastscroll.mjs','wordcard.mjs','study.mjs','progress.mjs','sort.mjs','migrate.mjs','linkimport.mjs','paste.mjs','setup.mjs','colours.mjs','signin.mjs','dialogs.mjs','overflow.mjs','listen.mjs','looks.mjs','commonplace.mjs'];
 const jobs=Math.max(1,Math.floor(Number(process.env.TEST_JOBS))||4),live=jobs===1;
 const timesFile=join(here,'out','times.json');
 let last={};try{last=JSON.parse(readFileSync(timesFile,'utf8'));}catch{}

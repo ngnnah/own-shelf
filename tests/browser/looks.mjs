@@ -113,7 +113,8 @@ await t.run(async()=>{
   /* no SVG filters in the page's styles; every texture the CSS names exists */
   ok('styles.css has no feTurbulence or SVG filter',!/feTurbulence|%3Cfilter|<filter/.test(css));
   const urls=[...new Set([...css.matchAll(/url\(textures\/([^)]+)\)/g)].map(m=>m[1]))];
-  const status=await page.evaluate(async us=>Promise.all(us.map(u=>fetch('textures/'+u).then(r=>r.status+(r.headers.get('content-type')||'')))),urls);
+  // one at a time: python's http.server listens with a backlog of 5, and the service worker doubles each request, so 14 at once can be reset ("Failed to fetch")
+  const status=await page.evaluate(async us=>{const o=[];for(const u of us){const r=await fetch('textures/'+u);o.push(r.status+(r.headers.get('content-type')||''));}return o;},urls);
   ok(`every texture named in styles.css is served as an image (${urls.length})`,urls.length>=10&&status.every(s=>s.startsWith('200image/')));
   for(const v of LOOKS) for(const s of ['light','dark']){
     await page.evaluate(v=>{const o=JSON.parse(localStorage.getItem('upwind:prefs'));o.look=v;localStorage.setItem('upwind:prefs',JSON.stringify(o));},v);

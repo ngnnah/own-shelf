@@ -4,7 +4,7 @@ import {ok,done} from './test-util.mjs';
 
 // parse.js is a classic browser script; run it in a sandbox and pick up its globals.
 const P={};vm.runInNewContext(readFileSync(new URL('./parse.js',import.meta.url),'utf8'),Object.assign(P,{TextDecoder,module:{}}));
-const {firstUrl,isLoneUrl,firstUri,sharedLink,decodeBody,mdToBlocks,finalize,parseDate,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,withDek}=P.module.exports;
+const {firstUrl,isLoneUrl,firstUri,sharedLink,decodeBody,mdToBlocks,finalize,parseDate,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,withDek,tagSpans,tagsOf,pastedDate,nbFold}=P.module.exports;
 
 ok('firstUrl: bare link',firstUrl('https://example.com/a?b=1')==='https://example.com/a?b=1');
 ok('firstUrl: from shared text',firstUrl('Read this: “Great essay” https://example.com/x/y.html.')==='https://example.com/x/y.html');
@@ -215,5 +215,28 @@ ok('speech: no comma, cut at a space',speechChunks(nocomma).every(([s,e])=>e-s<=
 ok('speech: a line break ends a piece; empty text gives none',said('First line of the verse here\nSecond line of the verse there',220,0).length===2&&speechChunks('  ').length===0&&speechChunks('').length===0);
 ok('speech word: from the boundary’s index and length, punctuation trimmed',JSON.stringify(speechWord('He said, “Hold on.”',9,6))==='[10,14]'&&JSON.stringify(speechWord('Hello, world.',0,6))==='[0,5]');
 ok('speech word: without a length, to the next space',JSON.stringify(speechWord('the tide, rising',4))==='[4,8]'&&JSON.stringify(speechWord('a  b',1))==='[3,4]');
+
+/* ---------- the commonplace book: topics and a pasted date ---------- */
+ok('tagSpans: where each tag sits, repeats included',JSON.stringify(tagSpans('a #x b #x'))===JSON.stringify([{at:2,end:4,key:'x',label:'x'},{at:7,end:9,key:'x',label:'x'}]));
+const tg=t=>tagsOf(t).map(x=>x.label).join(',');
+ok('tagsOf: plain tags, in the order written',tg('Notes on #stoicism and #lesson today')==='stoicism,lesson');
+ok('tagsOf: folded key, label as first written, each topic once',JSON.stringify(tagsOf('#Café then #cafe and #CAFÉ'))===JSON.stringify([{key:'cafe',label:'Café'}]));
+ok('tagsOf: accents and other scripts',tg('#đọc-sách #naïve #日本語')==='đọc-sách,naïve,日本語'&&tagsOf('#Đọc')[0].key==='doc');
+ok('tagsOf: a tag at the very start, the end and after punctuation',tg('#first middle (#paren) “#quote” end #last')==='first,paren,quote,last');
+ok('tagsOf: a Markdown heading is not a tag',tg('# Title\n## Sub\n### Deep heading')==='');
+ok('tagsOf: a link fragment, a character reference and a path do not count',tg('see https://example.com/page#frag and a/#top, x.com?a=1#b, I&#39;m, word#tag')==='');
+ok('tagsOf: a tag starts with a letter; digits and - _ may follow',tg('#2024 #a1 #my_tag #a-b-c #x- #y_')==='a1,my_tag,a-b-c,x,y');
+ok('tagsOf: a lone # or ## and punctuation end a tag',tg('# alone ## and #tag, #next. #third!')==='tag,next,third');
+ok('tagsOf: no text',tagsOf('').length===0&&tagsOf(null).length===0);
+ok('nbFold: lower case without accents',nbFold('Đọc Café')==='doc cafe'&&nbFold(null)==='');
+const pd=t=>JSON.stringify(pastedDate(t));
+ok('pastedDate: month day, year',pd('March 3, 2024\nA lesson learnt.')===JSON.stringify({date:'2024-03-03',text:'A lesson learnt.'}));
+ok('pastedDate: day month year',pd('3 March 2024\n\nBody text\nmore')===JSON.stringify({date:'2024-03-03',text:'Body text\nmore'}));
+ok('pastedDate: ISO date',pd('2024-03-03\nBody')===JSON.stringify({date:'2024-03-03',text:'Body'}));
+ok('pastedDate: month and year only gives the 1st',pd('March 2024\nBody')===JSON.stringify({date:'2024-03-01',text:'Body'}));
+ok('pastedDate: blank lines first are skipped',pd('\n  \nMarch 3, 2024\nBody')===JSON.stringify({date:'2024-03-03',text:'Body'}));
+ok('pastedDate: a date that is not alone on its line stays in the text',pd('March 3, 2024 was a good day\nBody')===JSON.stringify({date:'',text:'March 3, 2024 was a good day\nBody'}));
+ok('pastedDate: a date on a later line stays',pd('Notes\nMarch 3, 2024\nBody')===JSON.stringify({date:'',text:'Notes\nMarch 3, 2024\nBody'}));
+ok('pastedDate: no date; empty; only a date',pd('Just text')===JSON.stringify({date:'',text:'Just text'})&&pd('')===JSON.stringify({date:'',text:''})&&pd('March 3, 2024')===JSON.stringify({date:'',text:'March 3, 2024'}));
 
 done();

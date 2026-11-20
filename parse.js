@@ -17,6 +17,34 @@ function isDateLine(t){
   const core=t.replace(/^(published|posted|updated|written|last updated|date)\s*(on|:)?\s*/i,'').replace(/[.]$/,'');
   return new RegExp('^(?:'+MON_RE+'\\s+\\d{1,2}(?:st|nd|rd|th)?,?\\s+\\d{4}|\\d{1,2}\\s+'+MON_RE+',?\\s+\\d{4}|'+MON_RE+',?\\s+\\d{4}|\\d{4}-\\d{2}-\\d{2})$','i').test(core);
 }
+// Lower case, no accents (đ as d): how searches and topics compare text.
+function nbFold(s){return String(s==null?'':s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');}
+/* ---------- the commonplace book ---------- */
+// An entry's topics: its #hashtags. # then a letter, then letters, digits, - or _ (any script; a trailing - or _ isn't
+// part of it), not after a letter, digit, / or & (so "# Title", a link's #fragment and "&#39;" don't count).
+// tagSpans(text) → [{at, end, key, label}] for every #tag in the text, where it sits (the cards make them tappable).
+// tagsOf(text) → [{key, label}], each topic once, in the order first written: key is folded for matching, label as first written.
+function tagSpans(text){
+  const out=[];
+  for(const m of String(text||'').matchAll(/(?<![\p{L}\p{M}\p{N}\/&])#(\p{L}(?:[\p{L}\p{M}\p{N}_-]*[\p{L}\p{M}\p{N}])?)/gu))
+    out.push({at:m.index,end:m.index+m[0].length,key:nbFold(m[1]),label:m[1]});
+  return out;
+}
+function tagsOf(text){
+  const out=[],seen=new Set();
+  for(const t of tagSpans(text)) if(!seen.has(t.key)){seen.add(t.key);out.push({key:t.key,label:t.label});}
+  return out;
+}
+// A paste whose first non-empty line is a date on its own ("March 3, 2024", "3 March 2024", "2024-03-03", "March 2024")
+// → {date: 'YYYY-MM-DD', text: the rest, without leading blank lines}; else {date: '', text} unchanged. A paste that is
+// only the date stays text.
+function pastedDate(text){
+  text=String(text||'');
+  const lines=text.split('\n'),i=lines.findIndex(l=>l.trim());
+  if(i<0||!isDateLine(lines[i])) return {date:'',text};
+  const rest=lines.slice(i+1).join('\n').replace(/^(\s*\n)+/,'');
+  return rest.trim()?{date:parseDate(lines[i]),text:rest}:{date:'',text};
+}
 /* ---------- a web page's publish date (link import) ---------- */
 // Readability 0.5.0's publishedTime reads only the first schema.org JSON-LD article (its "@context" exactly
 // "http(s)://schema.org", "@type" a string) and <meta property="article:published_time"> (og:article:… too).
@@ -713,4 +741,4 @@ function decodeBody(buf,type){
   try{return new TextDecoder(cs||'utf-8').decode(buf);}catch(e){return new TextDecoder('utf-8').decode(buf);}
 }
 // ===== PARSE END =====
-if(typeof module!=='undefined') module.exports={linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,firstUri,sharedLink,decodeBody,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,speechChunks,speechWord,withDek};
+if(typeof module!=='undefined') module.exports={nbFold,tagSpans,tagsOf,pastedDate,linesFromPages,blocksFromLines,mdToBlocks,finalize,parseDate,isDateLine,inlineMD,firstUrl,isLoneUrl,firstUri,sharedLink,decodeBody,isKindleNotebook,kindleNotebook,kindleHighlights,mergeKindle,joinHighlights,speechChunks,speechWord,withDek};
