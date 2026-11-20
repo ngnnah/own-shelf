@@ -109,7 +109,7 @@ await t.run(async()=>{
   await setNote(card,'');await setNote(card,'A newer note');
   await t.closeDrawer();await openTrash();await restore(0);await closeTrash();await openQuiet();
   await t.openDrawer('#bHl','#drawer');
-  ok('a restored note goes under a newer one',(await text(card+' .nt'))==='A newer note\nWhy this matters');
+  ok('a restored note goes under a newer one',(await page.$eval(card+' .nt',e=>e.innerHTML))==='A newer note<br>Why this matters'); // notes render their line breaks as <br>
   await t.closeDrawer();
 
   // a book with highlights
