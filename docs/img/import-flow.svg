@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" width="800" height="460" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" role="img" aria-label="Seven steps from a pasted link to a book on the shelf: the helper fetches the page, the app finds and cleans the article, you review it, then add it">
+<rect width="800" height="460" fill="#F3EAD7"/>
+<text x="40" y="50" font-size="30" font-weight="800" fill="#2E2119">How a link becomes a book</text>
+<g stroke="#2E2119" stroke-width="4">
+<rect x="40" y="90" width="150" height="90" rx="12" fill="#FBF6EA"/>
+<rect x="230" y="90" width="150" height="90" rx="12" fill="#8E2F2A"/>
+<rect x="420" y="90" width="150" height="90" rx="12" fill="#8E2F2A"/>
+<rect x="610" y="90" width="150" height="90" rx="12" fill="#2F5A43"/>
+<rect x="40" y="290" width="150" height="90" rx="12" fill="#2F5A43"/>
+<rect x="230" y="290" width="150" height="90" rx="12" fill="#2F5A43"/>
+<rect x="420" y="290" width="150" height="90" rx="12" fill="#5C3B24"/>
+</g>
+<g font-size="24" font-weight="800" text-anchor="middle">
+<text x="115" y="143" fill="#2E2119">1 Link</text>
+<text x="305" y="143" fill="#FBF6EA">2 Helper</text>
+<text x="495" y="143" fill="#FBF6EA">3 Page</text>
+<text x="685" y="143" fill="#FBF6EA">4 Article</text>
+<text x="115" y="343" fill="#FBF6EA">5 Clean</text>
+<text x="305" y="343" fill="#FBF6EA">6 Review</text>
+<text x="495" y="343" fill="#FBF6EA">7 Shelf</text>
+</g>
+<g font-size="17" fill="#2E2119" text-anchor="middle">
+<text x="115" y="208">you paste it</text>
+<text x="305" y="208">gets your token</text>
+<text x="495" y="208">fetched for you</text>
+<text x="685" y="208">Readability</text>
+<text x="115" y="408">subtitle, pictures, date</text>
+<text x="305" y="408">title, author, date</text>
+<text x="495" y="408">added to your books</text>
+</g>
+<g stroke="#2E2119" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+<path d="M194 135 H224 M212 123 L226 135 L212 147"/>
+<path d="M384 135 H414 M402 123 L416 135 L402 147"/>
+<path d="M574 135 H604 M592 123 L606 135 L592 147"/>
+<path d="M745 184 V236 H115 V284 M103 272 L115 286 L127 272"/>
+<path d="M194 335 H224 M212 323 L226 335 L212 347"/>
+<path d="M384 335 H414 M402 323 L416 335 L402 347"/>
+</g>
+<g font-size="17" font-weight="700">
+
+<circle cx="610" cy="300" r="9" fill="#8E2F2A"/><text x="628" y="306" fill="#2E2119">Cloudflare helper</text>
+<circle cx="610" cy="334" r="9" fill="#2F5A43"/><text x="628" y="340" fill="#2E2119">In the app</text>
+</g>
+</svg>
