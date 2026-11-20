@@ -76,7 +76,7 @@ const fit=(box,buttons)=>page.evaluate((box,buttons)=>{
   return {box:inside(b),buttons:bt.every(Boolean),top:Math.round(b.top),left:Math.round(b.left),h:Math.round(b.height),bottom:Math.round(b.bottom)};
 },box,buttons);
 const cardFit=()=>fit('#wordBox',['#wbClose','#wbSave']);
-const noteFit=()=>fit('#noteBox',['#noteCancel','#noteSave']);
+const noteFit=()=>fit('#noteBox',['#noteSave']);
 const inView=f=>f.box&&f.buttons;
 // The field scrolls: its text is taller than it, and its end can be scrolled to.
 const scrolls=sel=>page.$eval(sel,e=>{const r=e.scrollHeight>e.clientHeight+20;e.scrollTop=e.scrollHeight;const end=e.scrollTop>0&&Math.abs(e.scrollTop+e.clientHeight-e.scrollHeight)<2;e.scrollTop=0;return r&&end;});
@@ -225,6 +225,6 @@ await t.run(async()=>{
     await shot(`${size}-note-keyboard`);
     await iosKeyboard(null);
     await page.click('#noteSave');await hidden('#noteBox');
-    ok(`${size}: Save note works`,(await text('#toast'))==='Note saved');
+    ok(`${size}: Save note works`,(await text('#toast'))==='Note saved · Undo');
   }
 });
