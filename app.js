@@ -1599,13 +1599,24 @@ $('#nbTabs').onkeydown=e=>{
 // the #tags in the text (tagsOf, tagSpans in parse.js), never stored. ENTRIES caches the account's entries (id →
 // entry), loaded like WORDS: on first use, kept in step with every change made here, reread each time the Notebook opens.
 let ENTRIES=null,entriesDb=null,entriesLoad=null,cpStale=true; // cpStale: the Notebook opened since the last read
+const entryReads=new Set(); // one Map per read in flight: id → entry (saved or restored) or null (deleted) since it started
+const entryTouched=(id,e)=>entryReads.forEach(m=>m.set(id,e));
 function loadEntries(fresh){
   if(entriesDb!==DB){entriesDb=DB;ENTRIES=null;entriesLoad=null;}
   if(fresh) entriesLoad=null;
-  if(!entriesLoad){const db=DB;entriesLoad=db.all('entry:').catch(()=>[]).then(list=>{if(db===DB) ENTRIES=new Map(list.filter(e=>e&&e.id&&typeof e.text==='string').map(e=>[e.id,e]));return ENTRIES;});}
+  if(!entriesLoad){
+    const db=DB,touched=new Map();entryReads.add(touched);
+    entriesLoad=db.all('entry:').catch(()=>[]).then(list=>{
+      entryReads.delete(touched);
+      if(db===DB){ // what changed while the read ran wins over what it returned
+        ENTRIES=new Map(list.filter(e=>e&&e.id&&typeof e.text==='string').map(e=>[e.id,e]));
+        touched.forEach((e,id)=>e?ENTRIES.set(id,e):ENTRIES.delete(id));
+      }
+      return ENTRIES;});
+  }
   return entriesLoad;
 }
-function putEntry(e){e.up=Date.now();(ENTRIES||(ENTRIES=new Map())).set(e.id,e);DB.put('entry:'+e.id,e);}
+function putEntry(e){e.up=Date.now();(ENTRIES||(ENTRIES=new Map())).set(e.id,e);entryTouched(e.id,e);DB.put('entry:'+e.id,e);}
 const newEntryId=()=>'e'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 // a day as entries store it, in local time, and as the date row shows it ("2026-11-05" ↔ "November 5, 2026"; parseDate
 // turns the shown form back)
@@ -1718,7 +1729,8 @@ const ENTRY_MAX=800*1024; // bytes of text one entry may hold (a Firestore docum
 const growEntry=end=>{if($('#entryBox').classList.contains('sheet')) growTa($('#enTa'),Infinity,end);};
 // Opens an entry, or a new one (e null) holding text and date (YYYY-MM-DD; today when none), as the note box opens.
 function openEntry(e,{text='',date=''}={}){
-  saveCards(); // another sheet open: saved first (one that can't be saved, a bad date, is replaced)
+  saveCards(); // another sheet open: saved first
+  if(EN&&!$('#entryBox').classList.contains('hidden')) return; // an entry sheet that can't be saved (a bad date) stays open, with its toast
   EN={e:e||null};const box=$('#entryBox'),ta=$('#enTa'),sheet=asSheet(box,ta);
   ta.value=e?e.text:text;$('#enDate').value=ymdHuman(e?e.date:date||ymd());
   $('#enDel').classList.toggle('hidden',!e);box.classList.remove('hidden');growEntry();
@@ -1764,7 +1776,7 @@ $('#enTa').addEventListener('paste',e=>{
   if(!EN||EN.e||ta.value||!cd) return;
   const t=cd.getData('text/plain');if(!t.trim()) return;
   e.preventDefault();
-  const {date,text}=pastedDate(t);ta.value=text;$('#enDate').value=ymdHuman(date||ymd());
+  const {date,text}=pastedDate(t);ta.value=text;if(date) $('#enDate').value=ymdHuman(date);growEntry();
 });
 // ⌘V / Ctrl+V on the tab outside any field, with no sheet or dialog open.
 document.addEventListener('paste',e=>{
@@ -1783,7 +1795,7 @@ document.addEventListener('paste',e=>{
 function deleteEntry(e){
   const first=(e.text.split('\n').find(l=>l.trim())||'').trim(),title=first.length>80?first.slice(0,80).replace(/\s+\S*$/,'')+'…':first;
   const tr=toTrash('entry',{title,entry:e});
-  if(ENTRIES) ENTRIES.delete(e.id);DB.del('entry:'+e.id);renderEntries();movedToTrash(tr);
+  if(ENTRIES) ENTRIES.delete(e.id);entryTouched(e.id,null);DB.del('entry:'+e.id);renderEntries();movedToTrash(tr);
 }
 /* ---------- end of delete ---------- */
 
@@ -2463,7 +2475,13 @@ $('#restoreFile').onchange=async e=>{
     r.metas.forEach(m=>{META=META.filter(x=>x.id!==m.id).concat(m);untrashBook(m.id);});if(r.shelves) untrashShelves();
     cpStale=true;
     closeModal('#setM');renderShelf();
-    toast(r.added||r.merged?`Restored ${r.added} book${r.added===1?'':'s'}${r.highlights?` and ${r.highlights} highlight${r.highlights===1?'':'s'}`:''}`:'Everything in that backup is already here');
+    const n=(k,one,many=one+'s')=>`${k} ${k===1?one:many}`,parts=[];
+    if(r.added||r.merged) parts.push(n(r.added,'book'));
+    if(r.highlights) parts.push(n(r.highlights,'highlight'));
+    if(r.words) parts.push(n(r.words,'word'));
+    if(r.entries) parts.push(n(r.entries,'entry','entries'));
+    toast(parts.length?`Restored ${parts.length>1?parts.slice(0,-1).join(', ')+' and '+parts.at(-1):parts[0]}`:'Everything in that backup is already here');
+    if(r.entries&&prefs.nbTab==='cp'&&!$('#notebook').classList.contains('hidden')) openCommonplace();
   }catch(err){
     console.error(err);
     setErr(err.message==='not_backup'?'That file isn’t an own-shelf backup.':err.message==='newer_version'?'That backup comes from a newer version of own-shelf.':'The restore stopped partway. Run it again; books already restored are skipped.');
@@ -2506,7 +2524,7 @@ function afterRestore(e){
 // Puts an entry back. Returns '' or why it can't.
 async function restoreEntry(e){
   if(e.kind==='word'){await restoreWord(e.word);DB.del('trash:'+e.id);return '';}
-  if(e.kind==='entry'){const x=e.entry;DB.put('entry:'+x.id,x);if(ENTRIES) ENTRIES.set(x.id,x);DB.del('trash:'+e.id);return '';}
+  if(e.kind==='entry'){const x=e.entry;DB.put('entry:'+x.id,x);if(ENTRIES) ENTRIES.set(x.id,x);entryTouched(x.id,x);DB.del('trash:'+e.id);return '';}
   if(e.kind==='shelf') return restoreShelf(e);
   const id=e.bookId,open=!!(DOC&&DOC.id===id);
   const doc=open?DOC:await DB.get('doc:'+id);

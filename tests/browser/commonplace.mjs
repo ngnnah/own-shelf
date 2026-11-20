@@ -192,6 +192,10 @@ async function testSheet(){
   await toastIs('Write the date like November 5, 2026');
   ok('an unreadable date keeps the sheet open with a toast',!(await boxHidden())&&await page.$eval('#toast',e=>e.classList.contains('on')&&e.textContent==='Write the date like November 5, 2026'));
   ok('and writes nothing',!((await storedEntries()).s1.text.includes('changed')));
+  await page.evaluate(()=>{const e=document.querySelector('#toast');e.classList.remove('on');e.textContent='';});
+  await page.$eval('.cp-card[data-id="s1"]',c=>c.click());
+  await toastIs('Write the date like November 5, 2026');
+  ok('opening another card meanwhile keeps the sheet open with its typed text and the toast again',!(await boxHidden())&&await page.$eval('#enTa',x=>x.value.endsWith('changed'))&&await page.$eval('#enDate',i=>i.value==='sometime soon'));
   await page.$eval('#enDate',i=>{i.value='';});await page.click('#enSave');
   ok('an empty date keeps the entry’s own',await settle(async()=>(await storedEntries()).s1?.text.endsWith('changed'))&&(await storedEntries()).s1.date==='2024-03-03');
 
@@ -213,11 +217,34 @@ async function testSheet(){
   await page.tap('#cpNew');await page.waitForSelector('#entryBox:not(.hidden)');await frame();
   let c=await cls();
   ok('at 390 px with a touch screen it is a full-width sheet above the bottom edge',c.sheet&&c.r.width>=c.w-20&&c.r.width<=640&&c.r.bottom<=844);
+  // a paste into the empty field without a date line keeps the date picked, and the sheet grows to the text
+  const h0=await page.$eval('#enTa',x=>x.clientHeight);
+  await page.$eval('#enDate',i=>{i.value='March 3, 2024';});
+  await page.$eval('#enTa',x=>{const dt=new DataTransfer();dt.setData('text/plain',Array.from({length:30},(_,i)=>'line '+i).join('\n'));x.focus();x.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));});
+  await frame();
+  ok('a paste with no date line keeps the date typed in the row',await page.$eval('#enDate',i=>i.value)==='March 3, 2024'&&await page.$eval('#enTa',x=>x.value.startsWith('line 0')));
+  ok('…and the sheet grows to the pasted text',await page.$eval('#enTa',(x,h0)=>x.clientHeight>h0*2,h0));
   await page.click('#enCancel');
   await page.setViewport({width:1280,height:900,deviceScaleFactor:1});await page.reload();await openTab();
   await openNew();await frame();c=await cls();
   ok('with a mouse at 1280 px it floats, not a sheet',!c.sheet&&c.r.width<700);
   await page.screenshot({path:join(shots,'float.png')});await page.click('#enCancel');
+
+  // an entry saved or deleted while the Notebook's reread is in flight stays that way when the read lands
+  await clearEntries();await putEntries([entry('r1','Kept at first','2026-01-02'),entry('r2','Deleted meanwhile','2026-01-03')]);await openTab();
+  await page.evaluate(()=>{const o=IDBObjectStore.prototype.getAll;IDBObjectStore.prototype.getAll=function(...a){
+    const r=o.apply(this,a),f={addEventListener(){},removeEventListener(){}};r.onsuccess=()=>{const v=r.result;setTimeout(()=>{f.result=v;f.onsuccess&&f.onsuccess();},1500);};r.onerror=()=>f.onerror&&f.onerror();return f;};});
+  await page.keyboard.press('Escape');await page.click('#nbBack');await page.waitForSelector('#shelf:not(.hidden)');
+  await page.click('#nbBtn');await page.waitForSelector('#notebook:not(.hidden)');
+  await openNew();await page.type('#enTa','Saved during the read');await page.click('#enSave');
+  await page.waitForSelector('#cpList .cp-card[data-id="r2"]');await page.click('#cpList .cp-card[data-id="r2"]');await page.waitForSelector('#entryBox:not(.hidden)');await page.click('#enDel');
+  await sleep(2200);
+  const mem=await page.$$eval('#cpList .cp-card',els=>els.map(e=>e.textContent)),stIds=Object.keys(await storedEntries());
+  ok('the entry saved during the read is still listed once it lands, with the older one',mem.length===2&&mem.some(x=>x.includes('Saved during the read'))&&mem.some(x=>x.includes('Kept at first'))&&stIds.length===2);
+  ok('…and one deleted during the read stays gone',!mem.some(x=>x.includes('Deleted meanwhile')));
+  await page.evaluate(()=>new Promise(res=>{const r=indexedDB.open('upwind',1);r.onsuccess=()=>{const tx=r.result.transaction('kv','readwrite'),c=tx.objectStore('kv').openCursor();
+    c.onsuccess=()=>{const k=c.result;if(!k)return;if(String(k.key).startsWith('trash:'))k.delete();k.continue();};tx.oncomplete=()=>{r.result.close();res();};};}));
+  await page.reload();await openTab();
 }
 /* ---------- end of the entry sheet ---------- */
 
@@ -323,6 +350,7 @@ async function testTrash(){
   await page.click('#setBtn');await page.waitForSelector('#setM:not(.hidden)');
   await (await page.$('#restoreFile')).uploadFile(path.join(t.dl,bk));
   await until(()=>document.querySelector('#setM').classList.contains('hidden'));
+  ok('a restore that adds only entries says so',(await tst())==='Restored 1 entry');
   await openTab();
   const got=await storedEntries();
   ok('Restore from backup brings back the deleted entry',got.tr2&&got.tr2.text==='Backed up entry'&&(await cardIds()).includes('tr2'));
