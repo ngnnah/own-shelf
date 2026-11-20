@@ -446,7 +446,7 @@ body.focus .fn-card .hp{opacity:1}
 #noteBox.panel{top:16px;right:16px;bottom:16px;width:min(440px,calc(100vw - 24px));border-radius:18px}
 #noteBox.panel #noteQuote{max-height:9em}
 /* on a phone: the whole screen (app.js sizes it to the visible area, above the keyboard) */
-#noteBox.sheet{border-radius:0;border:0;padding:calc(env(safe-area-inset-top,0px) + .7rem) calc(env(safe-area-inset-right,0px) + .9rem) calc(env(safe-area-inset-bottom,0px) + .6rem) calc(env(safe-area-inset-left,0px) + .9rem);box-shadow:none}
+#noteBox.sheet{border-radius:18px 18px 0 0;border:0;padding:.8rem calc(env(safe-area-inset-right,0px) + .9rem) calc(env(safe-area-inset-bottom,0px) + .6rem) calc(env(safe-area-inset-left,0px) + .9rem);box-shadow:0 0 0 100vmax rgba(30,20,10,.38)}
 /* the word card and the entry sheet: a sheet across the screen, docked above the keyboard; fields grow with their text (app.js) */
 #wordBox.sheet,#entryBox.sheet{width:min(640px,calc(100vw - 16px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)))}
 #wordBox.sheet textarea,#entryBox.sheet textarea{resize:none}
